@@ -193,8 +193,8 @@ A **personal assistant** is deliberately *not* on this list. It is a separate ag
 
 Cadre is the architecture realized from a research paper and its plain-language adaptation, in the companion repo [`ADD-Attack/agent-team-research`](https://github.com/ADD-Attack/agent-team-research):
 
+- [**Building an AI Team That Lasts**](https://add-attack.github.io/agent-team-research/article.html) — the plain-language article: what a persistent team is, and why it's built this way. No CS background needed.
 - [`PAPER.md`](https://github.com/ADD-Attack/agent-team-research/blob/main/PAPER.md) — *Persistent Agent Teams*: prior art, the case study, and the reference architecture this system implements.
-- [`article.html`](https://github.com/ADD-Attack/agent-team-research/blob/main/article.html) — the plain-language version: what a persistent team is, and why it's built this way.
 
 ---
 
