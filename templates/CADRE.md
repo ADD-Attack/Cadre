@@ -7,6 +7,8 @@
 > **Every agent reads this at session start**, alongside the shared ledger
 > [`SHARED.md`](./SHARED.md). Each agent's `AGENTS.md` records its path, so an agent
 > always knows who its teammates are and how they are reached — it does not guess.
+>
+> *This file installs at the **team root**, beside `reference/` and `SHARED.md`. Links are written for that layout.*
 
 **Installed:** <date>
 **Cadre version:** v0.1
@@ -60,7 +62,7 @@ Record enforcement honestly — *advisory* is better than *unstated*.
 
 ## Scheduled work
 
-Recurring jobs and watchers. Every job names an **owner**, and idle must cost **$0** ([`../reference/scheduled-work.md`](../reference/scheduled-work.md)).
+Recurring jobs and watchers. Every job names an **owner**, and idle must cost **$0** ([`./reference/scheduled-work.md`](./reference/scheduled-work.md)).
 
 | Job | Owner | Kind | Cadence | Idle cost |
 |---|---|---|---|---|

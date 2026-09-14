@@ -152,23 +152,59 @@ For each detected project, offer to bring it into Cadre: create a `PROJECT.md` a
 
 ## Step 7 — Write
 
-Only now, write:
-1. Agent entries in OpenClaw config (via `openclaw config set` — never hand-edit JSON).
-2. Each agent's workspace: `AGENTS.md`, `IDENTITY.md`, `SOUL.md`, `USER.md`, `MEMORY.md`, `BUDGET.md`, `inbox/`, `outbox/` from [`templates/agent-workspace`](./templates/agent-workspace).
-3. The shared team ledger `SHARED.md` from [`templates/SHARED.md`](./templates/SHARED.md).
-4. The **team directory** `CADRE.md` from [`templates/CADRE.md`](./templates/CADRE.md) — the record of *who exists*: roles, names, models, budgets, reports-to, interface mode, and guardrail enforcement. Write it beside `SHARED.md` in the **team root** (the shared location that holds `SHARED.md`).
+Only now, write. Four things: the config, the shared conventions, each agent's workspace, and the team index.
 
-Both `SHARED.md` and `CADRE.md` are **session-start reads**: every agent reads them before it does anything, so each agent knows the team's standing decisions *and* who its teammates are. Fill the path to each into every agent's `AGENTS.md` (item 2), so the read is not a guess.
+**First, fix the team root.** Cadre installs into a single **team root** — one directory that holds the shared conventions, the ledger, and the agents. Confirm a path with the operator (default `~/.openclaw/cadre/`) and lay it out like this:
+
+```
+<team root>/
+  reference/          # the conventions every agent reads — REQUIRED
+  diagrams/           # topology + pipeline diagrams
+  SHARED.md           # the team ledger
+  CADRE.md            # the team directory
+  <agent-name>/       # one workspace per agent — a SIBLING of reference/
+    AGENTS.md  IDENTITY.md  SOUL.md  USER.md  MEMORY.md  BUDGET.md  inbox/  outbox/
+```
+
+Each agent workspace sits **beside** `reference/`, so the relative links in the agent template (`../reference/...`) resolve after install. If you lay the workspaces out any other way, you **must** fill the absolute team-root path into every `AGENTS.md` — an agent that cannot reach its own conventions is a broken install.
+
+1. Agent entries in OpenClaw config (via `openclaw config set` — never hand-edit JSON).
+2. **Copy `reference/` and `diagrams/` into the team root.** *This is required, not optional.* The agent templates cite these files as the source of role charters, guardrails, methods, and the flow itself. An install that omits them ships agents who cannot read their own rules.
+3. Each agent's workspace — `AGENTS.md`, `IDENTITY.md`, `SOUL.md`, `USER.md`, `MEMORY.md`, `BUDGET.md`, `inbox/`, `outbox/` from [`templates/agent-workspace`](./templates/agent-workspace) — one per selected agent, each under the team root.
+4. The shared team ledger `SHARED.md` from [`templates/SHARED.md`](./templates/SHARED.md), at the team root.
+5. The **team directory** `CADRE.md` from [`templates/CADRE.md`](./templates/CADRE.md) — the record of *who exists*: roles, names, models, budgets, reports-to, interface mode, guardrail enforcement, and the naming convention. At the team root, beside `SHARED.md`.
+
+Both `SHARED.md` and `CADRE.md` are **session-start reads**: every agent reads them before it does anything, so each agent knows the team's standing decisions *and* who its teammates are.
+
+**Fill every placeholder — no `<...>` may survive into an installed file.** This is a completion condition, not a nicety. Each agent's `AGENTS.md` must end up carrying, concretely:
+
+- its **role name and charter** (from [`reference/agents.md`](./reference/agents.md));
+- its **pipeline position** — who it receives from and who it hands to, per the flow table below;
+- its authority, autonomy level, and budget envelope;
+- the **absolute path to the team root** and to `CADRE.md` / `SHARED.md`.
+
+An installed file with a literal `<role>` or `<team index path>` is an **install failure**, not a cosmetic one — the agent will not know what it is or where its rules live.
+
+**The pipeline, so you can fill "receives from / hands to" per role:**
+
+| Role | Receives from | Hands to |
+|---|---|---|
+| Requirements Analyst | the operator | Project Designer |
+| Project Designer | Requirements Analyst | Project Manager |
+| Project Manager | Project Designer | QA / Verifier (via the worker fleet) |
+| QA / Verifier | Project Manager | the PM — pass, or return with the gap named |
+| Support (Security, Finance, Consultant, Agent Resources) | the PM, on request | the PM |
 
 **Guardrails are not optional.** Before writing, confirm the six guardrails from [`reference/guardrails.md`](./reference/guardrails.md) are set for this deployment — the four *persistence* guards (routing limit value, claim-lease enforcement mechanism, promotion gate authored not defaulted, no-op detector on) and the two *cost* guards (**QA cap** — review capped at two rounds; **zero-token checks** — routine watchers run headless, idle costs $0). Record each as *enforced* or *advisory* in the index — do not leave it unstated.
 
-**Completion criterion:** config validates, every agent workspace exists, and the team index reflects exactly what the operator approved.
+**Completion criterion:** config validates, the team root holds `reference/`, `diagrams/`, `SHARED.md`, `CADRE.md` and one workspace per approved agent, **no `<...>` placeholder survives**, and the team index reflects exactly what the operator approved.
 
 ---
 
 ## Step 8 — Verify and hand off
 
 1. **Verify:** one canary task per created agent (a trivial round-trip) proving it responds and its mailbox works. Report pass/fail — do not claim success on an unattempted check.
+2. **Verify the wires, not just the agents.** Confirm three things and report each: (a) **no `<...>` placeholder survives** in any installed file; (b) each agent's `AGENTS.md` **convention links resolve** (the `reference/` docs are reachable from its workspace); (c) each agent can state **its role and its hand-off target** — ask one canary agent to name both. These are the failures an install ships silently, so check them rather than assume them.
 2. **Record** the install in the team index with a date and version.
 3. **Hand off:** offer to start the first project through the **Requirements Analyst**.
 

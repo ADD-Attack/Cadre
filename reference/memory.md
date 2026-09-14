@@ -81,4 +81,4 @@ The original failure wasn't a wrong gate; it was an **invisible** wrong gate. Tw
 - **MTM:** exactly **one** writer — the PM or a designated consolidator. Never two.
 - **LTM:** append-only by its one writer; promotions land here, curations are visible edits.
 
-Shared entries that are *team-scoped* (decisions, conventions, file ownership) do **not** go in a private tier — they belong in [`SHARED.md`](../templates/SHARED.md). See [`guardrails.md`](./guardrails.md) §2 for the claim lease that guards it.
+Shared entries that are *team-scoped* (decisions, conventions, file ownership) do **not** go in a private tier — they belong in `SHARED.md` at the team root. See [`guardrails.md`](./guardrails.md) §2 for the claim lease that guards it.

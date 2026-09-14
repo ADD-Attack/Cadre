@@ -1,7 +1,8 @@
 # Mailbox placeholder
 
-This directory is an agent's **outbox**: messages this agent wants the
-*operator* to see. See [`reference/mailboxes.md`](../../../reference/mailboxes.md).
+This directory is an agent's **outbox**: only what the *operator* must see —
+decisions, blockers, deliverables, anomalies. Agent-to-agent messages go to the
+peer's inbox, **never** here. See `reference/mailboxes.md` (at the team root).
 
 Files are not tracked in this repo — each installed agent's mailbox is its own.
 This `.gitkeep` only preserves the directory shape for the template.

@@ -2,7 +2,9 @@
 
 > **Team-scoped truth**, one append-only ledger that every agent reads at session
 > start and any agent may append to **under a claim lease**.
-> A ledger, not a scratchpad. See [`reference/guardrails.md`](../reference/guardrails.md).
+> A ledger, not a scratchpad. See [`./reference/guardrails.md`](./reference/guardrails.md).
+>
+> *This file installs at the **team root**, beside `reference/`. Links are written for that layout.*
 
 ## What belongs here
 

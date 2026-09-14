@@ -1,6 +1,6 @@
 # Reference — Agents
 
-The Cadre roster. Roles are **fixed**; names, models, and budgets are the operator's (see [`../WIZARD.md`](../WIZARD.md)).
+The Cadre roster. Roles are **fixed**; names, models, and budgets are the operator's (set by the Cadre Wizard at install).
 
 Every agent is a **persistent OpenClaw agent**: its own workspace, persona files, memory, session store, and mailboxes. None are ephemeral subagents — subagents are spawned *by* these agents for disposable work.
 

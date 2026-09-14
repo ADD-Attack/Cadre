@@ -1,7 +1,7 @@
 # Mailbox placeholder
 
 This directory is an agent's **inbox**: messages and work addressed *to* this
-agent. See [`reference/mailboxes.md`](../../../reference/mailboxes.md).
+agent. See `reference/mailboxes.md` (at the team root).
 
 Files are not tracked in this repo — each installed agent's mailbox is its own.
 This `.gitkeep` only preserves the directory shape for the template.
