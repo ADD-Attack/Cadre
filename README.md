@@ -12,11 +12,11 @@ Cadre gives you a persistent, chat-native multi-agent hierarchy: a small nucleus
 
 ## Before you start — if you don't have OpenClaw yet
 
-Cadre is an **overlay, not a standalone app.** It installs *into* an OpenClaw deployment, so there has to be one first. If you're arriving with a ChatGPT subscription, an OpenAI API key, or a coding assistant like **Codex**, that's a great starting point — but it is not OpenClaw yet:
+Cadre is an **overlay, not a standalone app.** It installs *into* an OpenClaw deployment, so there has to be one first. If you're arriving with a **ChatGPT, Gemini, or Claude** subscription, an OpenAI API key, or a coding assistant like **Codex** or **Hermes**, that's a great starting point — but it is not OpenClaw yet:
 
-- **ChatGPT / the OpenAI API** is a *model* — the thing that generates text. **OpenClaw is the runtime** your agents live in: the process that gives them a workspace, memory, mailboxes, budgets, and a chat interface. Cadre builds a team *inside* that runtime.
-- **Codex** is a coding agent (it works in a repo). OpenClaw runs a *team* of agents with roles and a shared workspace. Different jobs.
-- OpenClaw talks to a model provider. **An OpenAI API key works** — that's the piece you already have.
+- **A model subscription or API key is a *model*** — the thing that generates the text. ChatGPT, Google **Gemini**, Anthropic **Claude**, DeepSeek, Groq, Mistral, or a local model all count here. **OpenClaw is the runtime** your agents live in: the process that gives them a workspace, memory, mailboxes, budgets, and a chat interface. Cadre builds a team *inside* that runtime.
+- **Codex and Hermes are coding agents** — they work inside a repo. OpenClaw runs a *team* of agents with roles and a shared workspace. Different jobs, and both sit happily next door.
+- OpenClaw talks to whichever provider you choose. **What you already pay for usually just works** — an OpenAI, Gemini, or Anthropic key — and onboarding can bring your existing setup across.
 
 **1. Check the machine.** Node **24.16+** (Node 26 recommended) on **macOS, Linux, or Windows** (Windows via WSL2, or the Windows Hub app).
 
@@ -33,9 +33,9 @@ Cadre is an **overlay, not a standalone app.** It installs *into* an OpenClaw de
 
 Prefer an app download over the CLI? There are desktop companions for Windows and macOS — see the [install docs](https://docs.openclaw.ai/install).
 
-**3. Run onboarding.** The installer walks you through it: choose a model provider (this is where your OpenAI key goes), name your main agent, and connect a chat channel (Discord, Telegram, or similar). **Cadre is chat-native** — a connected channel is what makes the team usable.
+**3. Run onboarding.** The installer walks you through it: choose a model provider (your **OpenAI, Gemini, or Anthropic** key goes here — or point it at a local model), name your main agent, and connect a chat channel (Discord, Telegram, or similar). **Cadre is chat-native** — a connected channel is what makes the team usable.
 
-> **Coming from Codex?** Onboarding can **import detected Codex (and Claude Code / Hermes) memories** into the agent workspace, so the new agent starts out knowing what you've been working on.
+> **Coming from Codex or Hermes?** Onboarding can **import detected memories from Codex, Hermes, or Claude Code** into the agent workspace, so the new agent starts out knowing what you've been working on.
 
 **4. Come back here.** Once `openclaw` is installed and your main agent answers you in a chat, you're ready — continue with *Installing it* below.
 
