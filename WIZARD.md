@@ -141,8 +141,10 @@ For each detected project, offer to bring it into Cadre: create a `PROJECT.md`, 
 Only now, write:
 1. Agent entries in OpenClaw config (via `openclaw config set` — never hand-edit JSON).
 2. Each agent's workspace: `AGENTS.md`, `IDENTITY.md`, `SOUL.md`, `USER.md`, `MEMORY.md`, `BUDGET.md`, `inbox/`, `outbox/` from [`templates/agent-workspace`](./templates/agent-workspace).
-3. The shared team ledger `SHARED.md` from [`templates/SHARED.md`](./templates/SHARED.md) — read by every agent at session start.
-4. A team index (`CADRE.md`) summarising the installed roster, names, models, budgets, interface mode, and which guardrails are enforced vs advisory.
+3. The shared team ledger `SHARED.md` from [`templates/SHARED.md`](./templates/SHARED.md).
+4. The **team directory** `CADRE.md` from [`templates/CADRE.md`](./templates/CADRE.md) — the record of *who exists*: roles, names, models, budgets, reports-to, interface mode, and guardrail enforcement. Write it beside `SHARED.md` in the **team root** (the shared location that holds `SHARED.md`).
+
+Both `SHARED.md` and `CADRE.md` are **session-start reads**: every agent reads them before it does anything, so each agent knows the team's standing decisions *and* who its teammates are. Fill the path to each into every agent's `AGENTS.md` (item 2), so the read is not a guess.
 
 **Guardrails are not optional.** Before writing, confirm the six guardrails from [`reference/guardrails.md`](./reference/guardrails.md) are set for this deployment — the four *persistence* guards (routing limit value, claim-lease enforcement mechanism, promotion gate authored not defaulted, no-op detector on) and the two *cost* guards (**QA cap** — review capped at two rounds; **zero-token checks** — routine watchers run headless, idle costs $0). Record each as *enforced* or *advisory* in the index — do not leave it unstated.
 

@@ -8,6 +8,10 @@
 
 <one-paragraph charter from reference/agents.md>
 
+## Team
+
+I am one of a team. **Who exists — my teammates, their roles, models, budgets and who they report to — is the team directory [`CADRE.md`](<team index path>)**, which I read at session start. Team-wide decisions and standing conventions live in the shared ledger `SHARED.md` (also a session-start read). I do not invent teammates: if I need to know who does a job, I check the directory.
+
 ## Authority
 
 - **May:** <list>

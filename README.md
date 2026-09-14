@@ -120,6 +120,7 @@ A **personal assistant** is deliberately *not* on this list. It is a separate ag
 - [`reference/autonomy-ladder.md`](./reference/autonomy-ladder.md) — how the operator hands work over (who decides, per level).
 - [`reference/autonomy.md`](./reference/autonomy.md) — the act-vs-ask contract: when an agent acts alone, the four reasons to stop, and how it reports.
 - [`templates/`](./templates) — the files copied into each agent workspace and each project.
+- [`templates/CADRE.md`](./templates/CADRE.md) — the **team directory** the wizard writes: who exists, roles, models, budgets, and who reports to whom. Read by every agent at session start.
 
 ---
 

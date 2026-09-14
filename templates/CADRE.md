@@ -3,6 +3,10 @@
 > Written by the **Cadre Wizard** at the end of setup. This is the record of *what
 > was actually installed* on this deployment — the source of truth for who exists,
 > what they cost, and how they're reached.
+>
+> **Every agent reads this at session start**, alongside the shared ledger
+> [`SHARED.md`](./SHARED.md). Each agent's `AGENTS.md` records its path, so an agent
+> always knows who its teammates are and how they are reached — it does not guess.
 
 **Installed:** <date>
 **Cadre version:** v0.1
