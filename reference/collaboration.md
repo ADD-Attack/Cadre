@@ -31,8 +31,7 @@ agent are **different operations with different allowlists**.
 | **Message** | sends text to an existing/standing agent session | `tools.agentToAgent.allow` |
 
 **They do not overlap by default.** A team can be configured so that agent A may *message* agent B
-but may *not spawn* B — and vice versa. In the subject deployment, for example: the PM may spawn
-only `worker` and `oscar`, while all six standing agents may message each other. So **"can they talk?"
+but may *not spawn* B — and vice versa. A common shape: the supervisor may spawn **only the builder lanes**, while every standing agent may message every other. So **"can they talk?"
 and "can they be spawned?" are two separate questions.**
 
 **Consequences to design for:**
@@ -87,8 +86,8 @@ working" from a permanent state into a loud failure.
 Two agents writing one file is a data-loss bug (last writer wins, the other's work vanishes silently).
 So **shared-file writes require a claim**: a lane holds an exclusive scope, overlapping scopes are
 refused at claim time, and a commit touching another lane's files is refused. *Enforced, not
-advisory.* (See [`guardrails.md`](./guardrails.md) §2; in the subject deployment this ships as a
-claim tool plus a pre-commit hook.)
+advisory.* (See [`guardrails.md`](./guardrails.md) §2: adopt a claim tool plus a pre-commit hook — the
+enforcement surface is the operator's, and it must be labeled *enforced* or *advisory*.)
 
 The corollary for collaboration: **parallel lanes must hold disjoint scopes.** If two lanes truly
 need the same file, they *serialize* — they do not share.

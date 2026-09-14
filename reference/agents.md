@@ -14,7 +14,7 @@ Every agent is a **persistent OpenClaw agent**: its own workspace, persona files
 | **Requirements Analyst (RA)** | reasoning | intake, clarification, scope, acceptance criteria | write requirements; no build authority |
 | **Project Designer (PD)** | reasoning | architecture, approach, specs | write design; no build authority |
 | **Security / IT** | reasoning | audit, exposure, hygiene, remediation queue | **advise only** — never self-edits config |
-| **QA / Verifier** | reasoning | independent verification, evidence | **veto** — may block a "done" claim |
+| **QA / Verifier** | reasoning | independent verification, evidence (method: [`verification.md`](./verification.md)) | **veto** — may block a "done" claim |
 | **Social Media Manager (SMM)** | fast | external comms, posting, community | external-send (gated) |
 | **Finance Manager (FM)** | fast | budgets, spend tracking, alerts | budget enforcement (report; cap if configured) |
 | **Agent Resources (AR)** | fast | roster, onboarding, loadouts, agent health | create/retire subagents; no config authority |
@@ -28,8 +28,8 @@ This set is not arbitrary. It maps onto the reference architecture in the compan
 
 Two roles carry a hard constitutional limit:
 
-- **Security/IT advises, never edits.** An agent that can rewrite its own permissions or safety config defeats the point of having one. Security finds and recommends; a human or an explicit config change applies. (This is the self-modification perimeter.)
-- **QA is independent.** QA must not be the agent that built the thing. Where a build is done by a worker subagent, QA is a separate persistent agent — otherwise "verification" is a second opinion from the same priors.
+- **Security/IT advises, never edits.** An agent that can rewrite its own permissions or safety config defeats the point of having one. Security finds and recommends; a human or an explicit config change applies. (This is the self-modification perimeter.) The seat's method — scheduled audit, a confidentiality sweep of every agent's session logs, exposure posture, and a current remediation queue — is [`security.md`](./security.md).
+- **QA is independent.** QA must not be the agent that built the thing. Where a build is done by a worker subagent, QA is a separate persistent agent — otherwise "verification" is a second opinion from the same priors. How QA reaches a verdict — restate the pass condition, capture the real artifact, read the whole of it, report an unverified gap honestly — is [`verification.md`](./verification.md).
 
 ---
 
