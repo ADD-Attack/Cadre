@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 720" width="1160" height="720" role="img" aria-labelledby="fig6-title fig6-desc" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
-  <title id="fig6-title">The Cadre project pipeline: wizard once, then Requirements Analyst, Project Designer, Project Manager with its workers, QA verifier, finished product — with support roles on call</title>
-  <desc id="fig6-desc">A left-to-right flow diagram. At the top left, a human operator connects through one chat channel to a wizard, which runs once at install to confirm roles and budgets. A connector carries the flow down into the project pipeline, a horizontal chain of four stations followed by a result. Station one is the Requirements Analyst: intake, clarification and scope. Station two is the Project Designer: architecture and approach. Station three is the Project Manager, which plans and dispatches and holds the workers in its scope. Station four is the QA verifier, an independent check that returns evidence. The chain ends in the finished, shipped product. A dashed red rework path runs from the finished product all the way back to the Requirements Analyst, labelled: a new product, or a scope change or new feature, either way goes back to the Requirements Analyst. Along the bottom, a dashed panel lists support roles on call as needed: Security/IT, Consultant, Social Media Manager, Finance Manager and Agent Resources. A footer states that every project enters the same way, nothing skips the Requirements Analyst, and a new product or a scope change is a new pass through the pipeline rather than an edit to work already in flight.</desc>
+  <title id="fig6-title">The Cadre project pipeline: the Cadre Wizard once, then Requirements Analyst, Project Designer, Project Manager with its workers, QA verifier, finished product — with support roles on call</title>
+  <desc id="fig6-desc">A left-to-right flow diagram. At the top left, a human operator connects through one chat channel to the Cadre Wizard, which runs once at install to confirm roles and budgets. A connector carries the flow down into the project pipeline, a horizontal chain of four stations followed by a result. Station one is the Requirements Analyst: intake, clarification and scope. Station two is the Project Designer: architecture and approach. Station three is the Project Manager, which plans and dispatches and holds the workers in its scope. Station four is the QA verifier, an independent check that returns evidence. The chain ends in the finished, shipped product. A dashed amber path runs from the QA verifier back to the Project Manager, labelled requirements not met, so a build that misses the requirements returns to the plan owner rather than to intake. A dashed blue path runs from the Project Manager back to the Requirements Analyst, labelled new requirements, so a requirement surfaced during planning returns to where requirements live. A dashed red rework path runs from the finished product all the way back to the Requirements Analyst, labelled: a new product, or a scope change or new feature, either way goes back to the Requirements Analyst. Along the bottom, a dashed panel lists support roles on call as needed: Security/IT, Consultant, Social Media Manager, Finance Manager and Agent Resources. A footer states that every project enters the same way, nothing skips the Requirements Analyst, and a new product or a scope change is a new pass through the pipeline rather than an edit to work already in flight.</desc>
   <defs>
     <marker id="p-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
@@ -8,12 +8,18 @@
     <marker id="p-arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#b91c1c"/>
     </marker>
+    <marker id="p-arrow-amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#b45309"/>
+    </marker>
+    <marker id="p-arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1d4ed8"/>
+    </marker>
   </defs>
 
   <rect x="0" y="0" width="1160" height="720" fill="#f8fafc"/>
 
   <text x="40" y="46" font-size="24" font-weight="700" fill="#0f172a">How a project runs</text>
-  <text x="40" y="72" font-size="14" fill="#64748b">One wizard at setup. Then a fixed path &#8212; with support roles on call beside it.</text>
+  <text x="40" y="72" font-size="14" fill="#64748b">One Cadre Wizard at setup. Then a fixed path &#8212; with support roles on call beside it.</text>
 
   <!-- ===== entry: operator -> wizard ===== -->
   <rect x="60" y="104" width="200" height="72" rx="10" fill="#e0e7ff" stroke="#4338ca" stroke-width="2.5"/>
@@ -24,7 +30,7 @@
   <text x="283" y="130" font-size="10.5" fill="#64748b" text-anchor="middle">once</text>
 
   <rect x="308" y="104" width="250" height="72" rx="10" fill="#f3e8ff" stroke="#7c3aed" stroke-width="2.5"/>
-  <text x="328" y="132" font-size="15" font-weight="700" fill="#3b0764">&#129497; Wizard</text>
+  <text x="328" y="132" font-size="15" font-weight="700" fill="#3b0764">&#129497; Cadre Wizard</text>
   <text x="328" y="153" font-size="12" fill="#6d28d9">runs once, at install</text>
   <text x="328" y="169" font-size="11" font-style="italic" fill="#8b5cf6">roles + budgets confirmed</text>
 
@@ -69,11 +75,18 @@
   <text x="1025" y="318" font-size="15" font-weight="700" fill="#14532d" text-anchor="middle">product</text>
   <text x="1025" y="338" font-size="11.5" fill="#166534" text-anchor="middle">shipped</text>
 
-  <!-- ===== rework loop (from the finished product) ===== -->
-  <path d="M 1025 350 L 1025 424 L 155 424 L 155 354" fill="none" stroke="#b91c1c" stroke-width="2.4" stroke-dasharray="7 5" marker-end="url(#p-arrow-red)"/>
-  <rect x="470" y="404" width="470" height="52" rx="8" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.2"/>
-  <text x="705" y="424" font-size="12" font-weight="700" fill="#7f1d1d" text-anchor="middle">New product, or scope change / new feature?</text>
-  <text x="705" y="443" font-size="11.5" fill="#991b1b" text-anchor="middle">Either way &#8212; back to the Requirements Analyst.</text>
+  <!-- ===== rework gates ===== -->
+  <!-- QA -> PM: requirements not met -->
+  <path d="M 815 350 L 815 380 L 575 380 L 575 354" fill="none" stroke="#b45309" stroke-width="2.2" stroke-dasharray="6 4" marker-end="url(#p-arrow-amber)"/>
+  <text x="700" y="374" font-size="10.5" font-weight="600" fill="#b45309" text-anchor="middle">Requirements not met</text>
+
+  <!-- PM -> RA: new requirements surfaced while planning -->
+  <path d="M 515 350 L 515 408 L 175 408 L 175 354" fill="none" stroke="#1d4ed8" stroke-width="2.2" stroke-dasharray="6 4" marker-end="url(#p-arrow-blue)"/>
+  <text x="395" y="402" font-size="10.5" font-weight="600" fill="#1d4ed8" text-anchor="middle">New requirements</text>
+
+  <!-- finished product -> RA: new product / scope change -->
+  <path d="M 1025 350 L 1025 436 L 135 436 L 135 354" fill="none" stroke="#b91c1c" stroke-width="2.4" stroke-dasharray="7 5" marker-end="url(#p-arrow-red)"/>
+  <text x="760" y="430" font-size="10.5" font-weight="600" fill="#b91c1c" text-anchor="middle">New product, or scope change / new feature</text>
 
   <!-- ===== support roles ===== -->
   <rect x="60" y="486" width="1050" height="140" rx="10" fill="#ffffff" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="8 5"/>
@@ -102,5 +115,5 @@
 
   <!-- ===== footer ===== -->
   <text x="40" y="668" font-size="13" font-weight="600" fill="#334155">Every project enters the same way. Nothing skips the Requirements Analyst.</text>
-  <text x="40" y="692" font-size="12" fill="#94a3b8">A new product, or a scope change, is a new pass through the pipeline &#8212; not an edit to work already in flight.</text>
+  <text x="40" y="692" font-size="12" fill="#94a3b8">Rework goes to a defined gate: QA&#8594;PM (requirements unmet), PM&#8594;intake (new requirements), product&#8594;intake (scope change or new product).</text>
 </svg>

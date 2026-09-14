@@ -6,7 +6,7 @@
 
 **A downloadable system of agents and Markdown files that turns any OpenClaw deployment into a coordinated team.**
 
-Cadre gives you a persistent, chat-native multi-agent hierarchy: a small nucleus of specialist agents with roles, budgets, mailboxes, and a project pipeline — installed by a guided wizard and adapted to your preferences.
+Cadre gives you a persistent, chat-native multi-agent hierarchy: a small nucleus of specialist agents with roles, budgets, mailboxes, and a project pipeline — installed by the guided **Cadre Wizard** and adapted to your preferences.
 
 ---
 
@@ -33,15 +33,15 @@ Everything is plain files. Nothing is hidden in a database you can't read.
 2. **Tell your OpenClaw main agent:**
    > Read `Cadre/README.md` and set up Cadre on this deployment.
 
-3. **Follow the wizard.** The main agent reads this file, then creates and runs the **Cadre Wizard** (see [`WIZARD.md`](./WIZARD.md)). The wizard interviews you, confirms every choice, and only then writes anything.
+3. **Follow the Cadre Wizard.** The main agent reads this file, then creates and runs the **Cadre Wizard** (see [`WIZARD.md`](./WIZARD.md)). The wizard interviews you, confirms every choice, and only then writes anything.
 
-That's it. The wizard does the rest.
+That's it. The Cadre Wizard does the rest.
 
 ---
 
 ## The flow
 
-![How a project runs: wizard once, then Requirements Analyst to Project Designer to Project Manager (workers in its scope) to QA to the finished product, with support roles on call beside the line and a rework path from the finished product back to the Requirements Analyst](./diagrams/project-pipeline.svg)
+![How a project runs: the Cadre Wizard once, then Requirements Analyst to Project Designer to Project Manager (workers in its scope) to QA to the finished product; QA can return work to the PM, the PM can return new requirements to the Requirements Analyst, and a rework path runs from the finished product back to the Requirements Analyst, with support roles on call beside the line](./diagrams/project-pipeline.svg)
 
 ```
  Operator
@@ -84,7 +84,7 @@ Every project enters at the **Requirements Analyst** and moves through **Project
 | **Agent Resources (AR)** | agent roster, onboarding, loadouts | fast |
 | **Consultant** | second opinion, red-team, advice | reasoning |
 
-Full charters, budgets, and authority: [`reference/agents.md`](./reference/agents.md). The wizard confirms which of these to create — you don't have to take all nine.
+Full charters, budgets, and authority: [`reference/agents.md`](./reference/agents.md). The Cadre Wizard confirms which of these to create — you don't have to take all nine.
 
 ---
 
@@ -105,7 +105,7 @@ Full charters, budgets, and authority: [`reference/agents.md`](./reference/agent
 
 ## Principles
 
-1. **Confirm before writing.** The wizard proposes; the operator disposes.
+1. **Confirm before writing.** The Cadre Wizard proposes; the operator disposes.
 2. **Evidence over status.** "Running" is not "done". QA returns proof.
 3. **Real limits live outside the prompt.** Budgets are enforced by policy and accounting, not by asking the model nicely.
 4. **Security advises, never self-edits.** No agent may modify its own permissions, prompt, or safety config.
