@@ -18,7 +18,7 @@ Every agent is a **persistent OpenClaw agent**: its own workspace, persona files
 | **Social Media Manager (SMM)** | fast | external comms, posting, community | external-send (gated) |
 | **Finance Manager (FM)** | fast | budgets, spend tracking, alerts | budget enforcement (report; cap if configured) |
 | **Agent Resources (AR)** | fast | roster, onboarding, loadouts, agent health | create/retire subagents; no config authority |
-| **Consultant** | reasoning | second opinion, red-team, advice | none — pure advice |
+| **Consultant** | reasoning | second opinion, red-team, advice; hard problems get the **heavier models / deeper reasoning** | none — pure advice |
 
 ---
 
@@ -60,7 +60,7 @@ See [`autonomy-ladder.md`](./autonomy-ladder.md) for the per-role levels.
 
 The original design spec: *"project manager is able to take over responsibilities depending on configuration."*
 
-This is deliberate — a solo operator may want the PM to also cover requirements or QA early on (fewer agents, faster). The wizard records a **PM coverage** setting:
+This is deliberate — a solo operator may want the PM to also cover requirements or QA early on (fewer agents, faster). The Cadre Wizard records a **PM coverage** setting:
 
 | Mode | PM covers | Use when |
 |---|---|---|
@@ -75,7 +75,7 @@ Coverage is a **configuration**, not a merge. A covered role can be split out la
 
 ## Default models (class, not name)
 
-The wizard binds a concrete model to each class *for the operator's deployment*. Cadre states classes so it doesn't rot as models change:
+The Cadre Wizard binds a concrete model to each class *for the operator's deployment*. Cadre states classes so it doesn't rot as models change:
 
 - `reasoning` — planning, verification, security, design. Pay for thinking here.
 - `fast` — routine relay, accounting, posting. Cheap and quick.

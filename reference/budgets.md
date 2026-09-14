@@ -40,7 +40,7 @@ Cadre's default is **light, accurate, and cheap**: token units, daily period, wa
 | Consultant | 100k tokens/day |
 | **Global ceiling** | **1.5M tokens/day** |
 
-These are **starting points, not science**. The wizard states them plainly; the operator adjusts. A quiet solo deployment will sit far under them.
+These are **starting points, not science**. The Cadre Wizard states them plainly; the operator adjusts. A quiet solo deployment will sit far under them.
 
 **Default enforcement is `warn`, not `cap`** — because an unexpected hard stop mid-project is worse than a cost surprise for a small operator. Turn on `cap` where you mean it.
 
@@ -48,7 +48,7 @@ These are **starting points, not science**. The wizard states them plainly; the 
 
 ## With Finance Manager
 
-If the operator installs **FM**, the wizard runs the full interview instead of applying defaults:
+If the operator installs **FM**, the Cadre Wizard runs the full interview instead of applying defaults:
 
 1. **Unit** — tokens or currency? (Currency requires a per-model price table.)
 2. **Period** — daily, weekly, monthly?

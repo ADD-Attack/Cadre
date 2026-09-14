@@ -1,6 +1,6 @@
 # USER.md — About the Operator
 
-> Template. The wizard fills what it knows; the agent learns the rest over time.
+> Template. The Cadre Wizard fills what it knows; the agent learns the rest over time.
 
 ## Who I work for
 

@@ -33,7 +33,7 @@ Everything is plain files. Nothing is hidden in a database you can't read.
 2. **Tell your OpenClaw main agent:**
    > Read `Cadre/README.md` and set up Cadre on this deployment.
 
-3. **Follow the Cadre Wizard.** The main agent reads this file, then creates and runs the **Cadre Wizard** (see [`WIZARD.md`](./WIZARD.md)). The wizard interviews you, confirms every choice, and only then writes anything.
+3. **Follow the Cadre Wizard.** The main agent reads this file, then creates and runs the **Cadre Wizard** (see [`WIZARD.md`](./WIZARD.md)). The Cadre Wizard interviews you, confirms every choice, and only then writes anything.
 
 That's it. The Cadre Wizard does the rest.
 
@@ -116,7 +116,7 @@ Full charters, budgets, and authority: [`reference/agents.md`](./reference/agent
 
 ## Status
 
-Early. This is v0.1 — the conventions are stable enough to build on, and the wizard is the intended entry point. Contributions and issue reports welcome.
+Early. This is v0.1 — the conventions are stable enough to build on, and the Cadre Wizard is the intended entry point. Contributions and issue reports welcome.
 
 ## License
 

@@ -1,6 +1,6 @@
 # AGENTS.md — <agent name>
 
-> Template. The wizard fills `<...>` placeholders. See `reference/agents.md` for the role charter.
+> Template. The Cadre Wizard fills `<...>` placeholders. See `reference/agents.md` for the role charter.
 
 ## Role
 

@@ -1,12 +1,12 @@
 # The Cadre Wizard
 
-The wizard is the **only** supported entry point. It is not a script — it is a *procedure the OpenClaw main agent performs by talking to the operator*, then writing files only after confirmation.
+The Cadre Wizard is the **only** supported entry point. It is not a script — it is a *procedure the OpenClaw main agent performs by talking to the operator*, then writing files only after confirmation.
 
 **Trigger:** the operator says some form of *"set up Cadre"*, *"read the Cadre README"*, or *"install Cadre"*.
 
 **Who runs it:** the OpenClaw **main agent** on the target deployment (the agent the operator already talks to). It may delegate file-writing to a subagent, but it owns the interview.
 
-**Hard rule:** at every step the wizard **proposes and waits**. Nothing is written to config or to a workspace until the operator confirms that step. A wizard that installs silently is a bug.
+**Hard rule:** at every step the Cadre Wizard **proposes and waits**. Nothing is written to config or to a workspace until the operator confirms that step. A Cadre Wizard that installs silently is a bug.
 
 ---
 
@@ -46,14 +46,14 @@ Recommend a starting set based on what the operator says they want:
 
 ## Step 2 — Models per role
 
-Cadre ships **model classes**, not hard-coded model names (models drift). The wizard maps each class to a concrete model that exists *on this deployment*.
+Cadre ships **model classes**, not hard-coded model names (models drift). The Cadre Wizard maps each class to a concrete model that exists *on this deployment*.
 
 | Class | Use for | Cost posture |
 |---|---|---|
 | `reasoning` | PM, Requirements, Designer, Security, QA, Consultant | higher |
 | `fast` | Social, Finance, Agent Resources, routine relay | lower |
 
-Default mapping = *lightest, most accurate model that fits the class*, decided by the wizard from the deployment's available models. **The operator may override any single role.**
+Default mapping = *lightest, most accurate model that fits the class*, decided by the Cadre Wizard from the deployment's available models. **The operator may override any single role.**
 
 **Completion criterion:** a model bound to every selected role, each confirmed.
 
@@ -132,5 +132,5 @@ Only now, write:
 ## Failure handling
 
 - **A step can't complete** (no model for a class, no channel, config write fails): stop at that step, report the exact blocker, and leave prior steps' writes in place. Never roll forward on an assumption.
-- **The operator changes their mind mid-wizard:** re-run from the affected step; the wizard is idempotent — it proposes current state and only writes deltas.
-- **Re-run on an installed deployment:** the wizard detects existing Cadre agents and offers to *extend* (add roles) rather than reinstall.
+- **The operator changes their mind mid-wizard:** re-run from the affected step; the Cadre Wizard is idempotent — it proposes current state and only writes deltas.
+- **Re-run on an installed deployment:** the Cadre Wizard detects existing Cadre agents and offers to *extend* (add roles) rather than reinstall.
