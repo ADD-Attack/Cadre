@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="cadre-wizard.png" alt="The Cadre Wizard" width="220">
+</p>
+
 # Cadre
 
 **A downloadable system of agents and Markdown files that turns any OpenClaw deployment into a coordinated team.**
