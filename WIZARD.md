@@ -6,12 +6,16 @@ The Cadre Wizard is the **only** supported entry point. It is not a script, and 
 
 **Who runs it — the spawn flow:**
 
-1. **The main agent reads [`README.md`](./README.md) and this file**, then **explains Cadre to the operator and asks permission** (see *First: explain, then ask* below). It does **not** begin installing on its own.
-2. **On a yes, the main agent spawns a `CadreWizard` agent** — a fresh session with its own context, its own workspace, and the interview as its only job. Concretely: a **visible, thread-bound spawn** (`sessions_spawn`, `visible: true`) so the operator can talk to the wizard directly; or, for a deployment that wants a **reusable** installer, a persistent agent created with `openclaw agents add cadre-wizard`. Either way it is **a separate agent** — not one of the team roles being created, and not the main agent inline.
+1. **The main agent reads the whole project** — [`README.md`](./README.md), this file, everything under [`reference/`](./reference), and [`templates/`](./templates) — then **explains Cadre to the operator and asks permission** (see *First: explain, then ask* below). It does **not** begin installing on its own. Reading only the README is not enough: the guardrails, the agent charters, and the hand-off rules live in `reference/`.
+2. **On a yes, the main agent spawns a `CadreWizard` agent — persistent.** A separate agent with its own context, its own workspace, and the interview as its first job:
+   ```bash
+   openclaw agents add cadre-wizard
+   ```
+   (Or a **visible, thread-bound spawn** — `sessions_spawn`, `visible: true` — when the operator wants to talk to a one-shot wizard directly.) Either way it is **a separate agent** — not one of the team roles being created, and not the main agent inline.
 3. **The CadreWizard runs the interview** (Step 0 onward) *with the operator*: preflight, then each question. It owns the conversation end to end.
-4. **It writes only on confirmation, verifies (Step 8), hands back, and retires.** The wizard is scaffolding — once the team exists it steps away, and the main agent resumes the operator's normal work.
+4. **It writes only on confirmation, verifies (Step 8), hands back, and stays on call.** Setup is the wizard's first run, not its only one: it persists so the operator can re-run the interview to **update** the team — add or remove roles, adjust budgets, re-check the roster.
 
-**Why a separate agent.** The wizard's job is to interrogate the deployment and write files; the main agent's job is to keep running the operator's work. Folding them together makes the main agent unavailable for the length of an interview, and puts the installer *inside* the team it is setting up. Spawn it, let it work, let it go.
+**Why a separate agent, and why persistent.** The wizard's job is to interrogate the deployment and write files; the main agent's job is to keep running the operator's work. Folding them together makes the main agent unavailable for the length of an interview, and puts the installer *inside* the team it is setting up. **Persistent**, because Cadre itself is a *persistent* team — the installer should match the thing it installs, and setup is the first of many runs. It is also the standing owner of a job the team may not have: a lean deployment that omits **Agent Resources** has no agent to onboard, retire, or re-shape the roster, so the wizard carries that duty for updates. (On a full deployment the wizard and AR divide it: AR keeps agents healthy day to day; the wizard re-runs the install interview when the *team shape* changes.) Keep it outside the team either way — separate agent, separate job.
 
 **Hard rule:** at every step the Cadre Wizard **proposes and waits**. Nothing is written to config or to a workspace until the operator confirms that step. A Cadre Wizard that installs silently is a bug.
 

@@ -51,18 +51,23 @@ Cadre is installed by a dedicated **`CadreWizard` agent** that your **main agent
 
 **The operator's part** is one sentence, said to their main agent:
 
-> Read `Cadre/README.md`, tell me what Cadre is, and set it up if I agree.
+> Read the whole `Cadre` project — `README.md`, [`WIZARD.md`](./WIZARD.md), and everything under [`reference/`](./reference) — tell me what Cadre is, and set it up if I agree.
 
 **The agent's part** — if you are that main agent, and the operator has asked you to look into Cadre, work through this *with them*:
 
-1. **Explain before anything else.** Say what Cadre is, what installing it will create (agents, config entries, workspaces), and that it is reversible. Then **ask the operator for permission to proceed** — and wait for a yes.
-2. **Clone the files** only once they agree:
+1. **Read the whole project before you explain anything.** Not just this file: also [`WIZARD.md`](./WIZARD.md), everything under [`reference/`](./reference), and [`templates/`](./templates). Cadre's rules live across those files — an install driven from the README alone will miss the guardrails, the agent charters, and the hand-off rules. Read them first, *then* explain.
+2. **Explain before anything else.** Say what Cadre is, what installing it will create (agents, config entries, workspaces), and that it is reversible. Then **ask the operator for permission to proceed** — and wait for a yes.
+3. **Clone the files** only once they agree:
    ```bash
    git clone https://github.com/ADD-Attack/Cadre.git
    ```
-3. **Spawn the `CadreWizard`** — do **not** run the install inline as yourself. Create a **separate agent** whose only job is the interview: a visible, thread-bound spawn so the operator can talk to it directly (`sessions_spawn`, `visible: true`), or a persistent agent via `openclaw agents add cadre-wizard` if you want a reusable installer. Point it at [`WIZARD.md`](./WIZARD.md).
-4. **Let the `CadreWizard` interview the operator** (WIZARD.md Step 0 onward). It **proposes and waits** at every step — nothing is written to OpenClaw config or to a workspace until the operator confirms that step. If they say stop, it stops.
-5. **It writes only what was approved**, via `openclaw config set` (never hand-edit JSON), runs the canary check (WIZARD.md Step 8), then **hands back and retires**. You resume the operator's normal work.
+4. **Spawn the `CadreWizard` as a persistent agent** — do **not** run the install inline as yourself. Create a **separate, persistent agent** whose job is the install *and every update after it*:
+   ```bash
+   openclaw agents add cadre-wizard
+   ```
+   Point it at [`WIZARD.md`](./WIZARD.md). It stands *outside* the team it builds — not one of the team roles, and not the main agent wearing a hat. **The wizard is persistent by design:** setup is its first run, not its only one. Keep it on call to re-run the interview for updates — add or remove roles, adjust budgets, re-check the roster — which matters most for a lean deployment that omits Agent Resources and so has no standing owner of the roster.
+5. **Let the `CadreWizard` interview the operator** (WIZARD.md Step 0 onward). It **proposes and waits** at every step — nothing is written to OpenClaw config or to a workspace until the operator confirms that step. If they say stop, it stops.
+6. **It writes only what was approved**, via `openclaw config set` (never hand-edit JSON), runs the canary check (WIZARD.md Step 8), then **hands back and stays on call**. You resume the operator's normal work; the wizard stays available for the next update.
 
 Nothing here runs on its own. This repo describes a procedure; **the operator decides whether to run it.**
 
@@ -91,7 +96,7 @@ Everything is plain files. Nothing is hidden in a database you can't read.
    git clone https://github.com/ADD-Attack/Cadre.git
    ```
 2. **Tell your OpenClaw main agent:**
-   > Read `Cadre/README.md`, tell me what Cadre is, and set it up if I agree.
+   > Read the whole `Cadre` project — `README.md`, [`WIZARD.md`](./WIZARD.md), and everything under [`reference/`](./reference) — tell me what Cadre is, and set it up if I agree.
 
 3. **The main agent spawns the `CadreWizard`.** It reads this file, then creates a **separate `CadreWizard` agent** to run the install (see [`WIZARD.md`](./WIZARD.md)) — the wizard is not the main agent wearing a hat. The `CadreWizard` interviews you, confirms every choice, and only then writes anything.
 
@@ -112,8 +117,8 @@ That's it. The Cadre Wizard does the rest.
     │  spawns
     ▼
  CadreWizard (separate agent) ──interviews──▶ you (agents, models, names, budgets, interface)
-    │  writes on confirmation, verifies, then retires
-    │  hands back
+    │  writes on confirmation, verifies, then stays on call
+    │  hands back (persists for future updates)
     ▼
  Cadre team (installed)
 
