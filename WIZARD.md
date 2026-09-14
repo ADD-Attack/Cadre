@@ -107,7 +107,10 @@ For each detected project, offer to bring it into Cadre: create a `PROJECT.md`, 
 Only now, write:
 1. Agent entries in OpenClaw config (via `openclaw config set` — never hand-edit JSON).
 2. Each agent's workspace: `AGENTS.md`, `IDENTITY.md`, `SOUL.md`, `USER.md`, `MEMORY.md`, `BUDGET.md`, `inbox/`, `outbox/` from [`templates/agent-workspace`](./templates/agent-workspace).
-3. A team index (`CADRE.md`) summarising the installed roster, names, models, budgets, and interface mode.
+3. The shared team ledger `SHARED.md` from [`templates/SHARED.md`](./templates/SHARED.md) — read by every agent at session start.
+4. A team index (`CADRE.md`) summarising the installed roster, names, models, budgets, interface mode, and which guardrails are enforced vs advisory.
+
+**Guardrails are not optional.** Before writing, confirm the four guardrails from [`reference/guardrails.md`](./reference/guardrails.md) are set for this deployment (routing limit value, claim-lease enforcement mechanism, promotion gate authored not defaulted, no-op detector on). Record each as *enforced* or *advisory* in the index — do not leave it unstated.
 
 **Completion criterion:** config validates, every agent workspace exists, and the team index reflects exactly what the operator approved.
 

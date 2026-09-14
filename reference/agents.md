@@ -39,7 +39,7 @@ Two roles carry a hard constitutional limit:
 |---|---|
 | Create/plan tasks, maintain Gantt | PM |
 | Dispatch work to workers | PM (and any agent within its own scope) |
-| Claim a file for exclusive write | any agent (via the claim/lease convention) |
+| Claim a file for exclusive write | any agent (via the [claim/lease convention](./guardrails.md#2-file-claim-lease)) |
 | Verify and pass/fail a deliverable | QA only |
 | Send external/public messages | SMM (gated by operator policy) |
 | Change budgets | FM (within operator-set ceilings) |

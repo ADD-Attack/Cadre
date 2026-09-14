@@ -79,6 +79,8 @@ Full charters, budgets, and authority: [`reference/agents.md`](./reference/agent
 
 - [`WIZARD.md`](./WIZARD.md) — the setup interview, step by step.
 - [`reference/agents.md`](./reference/agents.md) — roster, charters, budgets, authority.
+- [`reference/guardrails.md`](./reference/guardrails.md) — the four guardrails: routing limit, file-claim lease, promotion gate, no-op detector.
+- [`reference/memory.md`](./reference/memory.md) — tiered memory (STM/MTM/LTM), loose gates, size-triggered eviction.
 - [`reference/mailboxes.md`](./reference/mailboxes.md) — inbox/outbox format, the doorway pattern, delivery guarantees.
 - [`reference/budgets.md`](./reference/budgets.md) — budget model, defaults, enforcement.
 - [`reference/autonomy-ladder.md`](./reference/autonomy-ladder.md) — how the operator hands work over.

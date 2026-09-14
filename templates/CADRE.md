@@ -33,11 +33,21 @@
 - **Overflow policy:** <stop | borrow | escalate>
 
 ## Doorway (if enabled)
-
 - **Agent:** <name>
 - **Cadence:** <every N hours>
 - **Scope:** <which outboxes it reads>
 - **Urgency lane:** immediate for `priority: urgent` / `kind: blocked`
+
+## Guardrails
+
+Record enforcement honestly — *advisory* is better than *unstated*.
+
+| Guardrail | Setting | Enforcement |
+|---|---|---|
+| Routing limit (hop cap) | <n> | enforced \| advisory |
+| File-claim lease | `.claims/` | enforced \| advisory |
+| Promotion gate | <thresholds> | authored \| defaulted |
+| No-op detector | on | enforced \| advisory |
 
 ## Projects under Cadre
 
