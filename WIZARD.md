@@ -8,6 +8,8 @@ The Cadre Wizard is the **only** supported entry point. It is not a script — i
 
 **Hard rule:** at every step the Cadre Wizard **proposes and waits**. Nothing is written to config or to a workspace until the operator confirms that step. A Cadre Wizard that installs silently is a bug.
 
+**First: explain, then ask.** Before the preflight, the agent **explains what Cadre is**, states what installing it will change (agent entries, new workspaces, budgets), and notes it is reversible — then **asks the operator whether to proceed**. The wizard begins only on a yes. Do not treat being handed this file as permission to install; reading it is not consent.
+
 ---
 
 ## Step 0 — Preflight (read-only)

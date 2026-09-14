@@ -10,19 +10,26 @@ Cadre gives you a persistent, chat-native multi-agent hierarchy: a small nucleus
 
 ---
 
-## Install it on your OpenClaw — instructions for the agent
+## Installing it — a decision for the operator
 
-> **If you are the LLM reading this, this is your job.** The operator points you at this repo and asks you to install Cadre. Do exactly this, in order, and **write nothing until the operator confirms each step**:
->
-> 1. **Clone the files** onto the machine running OpenClaw:
->    ```bash
->    git clone https://github.com/ADD-Attack/Cadre.git
->    ```
-> 2. **Read [`README.md`](./README.md) and [`WIZARD.md`](./WIZARD.md)** in that clone. `WIZARD.md` is the install procedure — you run it *by talking to the operator*, not as a script.
-> 3. **Run the Cadre Wizard** (WIZARD.md Step 0 onward): a read-only preflight, then the interview. At every step you **propose and wait** — nothing is written to OpenClaw config or a workspace until the operator confirms that step. A wizard that installs silently is a bug.
-> 4. **Write only on confirmation**, via `openclaw config set` (never hand-edit JSON), then run the canary verification (WIZARD.md Step 8) before claiming success.
->
-> The operator says no more than: *"Read `Cadre/README.md` and set up Cadre on this deployment."* Everything above is the instruction; the rest of this file is context.
+Cadre is installed by **your own OpenClaw main agent**, and the install is a **conversation**, not a script. It also changes your deployment — it writes agent entries and creates agent workspaces — so it should be an explicit choice the operator makes, never something that happens because a file said so.
+
+**The operator's part** is one sentence, said to their main agent:
+
+> Read `Cadre/README.md`, tell me what Cadre is, and set it up if I agree.
+
+**The agent's part** — if you are that agent, and the operator has asked you to look into Cadre, work through this *with them*:
+
+1. **Explain before anything else.** Say what Cadre is, what installing it will create (agents, config entries, workspaces), and that it is reversible. Then **ask the operator for permission to proceed** — and wait for a yes.
+2. **Clone the files** only once they agree:
+   ```bash
+   git clone https://github.com/ADD-Attack/Cadre.git
+   ```
+3. **Read [`WIZARD.md`](./WIZARD.md)** — that is the install procedure. It is a *conversation*: you walk the operator through it, step by step.
+4. **Propose and wait at every step.** Nothing is written to OpenClaw config or to a workspace until the operator confirms that step. If they say stop, you stop. A wizard that installs silently is a bug.
+5. **Write only what they approved**, via `openclaw config set` (never hand-edit JSON), then run the canary check (WIZARD.md Step 8) before claiming success.
+
+Nothing here runs on its own. This repo describes a procedure; **the operator decides whether to run it.**
 
 ---
 
@@ -49,7 +56,7 @@ Everything is plain files. Nothing is hidden in a database you can't read.
    git clone https://github.com/ADD-Attack/Cadre.git
    ```
 2. **Tell your OpenClaw main agent:**
-   > Read `Cadre/README.md` and set up Cadre on this deployment.
+   > Read `Cadre/README.md`, tell me what Cadre is, and set it up if I agree.
 
 3. **Follow the Cadre Wizard.** The main agent reads this file, then creates and runs the **Cadre Wizard** (see [`WIZARD.md`](./WIZARD.md)). The Cadre Wizard interviews you, confirms every choice, and only then writes anything.
 
