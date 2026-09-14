@@ -12,6 +12,8 @@ The Cadre Wizard is the **only** supported entry point. It is not a script, and 
    openclaw agents add cadre-wizard
    ```
    (Or a **visible, thread-bound spawn** — `sessions_spawn`, `visible: true` — when the operator wants to talk to a one-shot wizard directly.) Either way it is **a separate agent** — not one of the team roles being created, and not the main agent inline.
+
+   **Bootstrap order — wire the door before you open it.** The main agent spawns the wizard, so `cadre-wizard` must be in **both** collaboration gates, *and the change must have taken effect*, before the spawn is accepted: `agents.defaults.subagents.allowAgents` (dispatch) and `tools.agentToAgent.allow` (messaging). This is the one allowlist change the main agent makes **itself**, ahead of Step 7 — the wizard cannot wire its own door. And a spawn-allowlist change may not take effect in a running gateway even though `config set` reports it applied: if the spawn is refused with the **old** list, **restart the gateway** and retry — the value is already persisted, and the refusal is staleness, not a config error. Full mechanism: [`reference/collaboration.md`](./reference/collaboration.md) §2.
 3. **The CadreWizard runs the interview** (Step 0 onward) *with the operator*: preflight, then each question. It owns the conversation end to end.
 4. **It writes only on confirmation, verifies (Step 8), hands back, and stays on call.** Setup is the wizard's first run, not its only one: it persists so the operator can re-run the interview to **update** the team — add or remove roles, adjust budgets, re-check the roster.
 

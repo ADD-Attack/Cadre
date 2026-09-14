@@ -41,7 +41,16 @@ and "can they be spawned?" are two separate questions.**
 2. **A refusal is a routing fact, not a config bug.** When a spawn is refused unexpectedly, fall back
    to messaging that agent — don't conclude the config is wrong.
 3. **A spawn gate may be cached in the running session.** After changing the allowlist, the live gate
-   can still report the old list until the runtime reloads.
+   can still report the old list until the runtime reloads. The trap: `openclaw config set` can report
+   *"Change will apply without restarting the gateway"* even when the spawn gate is **not** actually
+   hot-reloadable — so `config get` shows the new list while the spawn still refuses with the **old**
+   one. Do not route around the refusal, and do not conclude the config is wrong: the value is already
+   persisted, so **restart the gateway**, then **re-verify by attempting the spawn** — reading the config
+   back is not proof the gate has reloaded.
+4. **Wiring is a bootstrap order, not a single step.** The agent that *spawns* a teammate must be able
+   to spawn it *before* that teammate exists to wire its own door — so the spawner adds the target to
+   `allowAgents` (and to `agentToAgent.allow`) first, and confirms the change took effect, before the
+   spawn. The spawner cannot delegate this one to the thing it is creating.
 
 **Which mechanism to use.** Spawn when the work needs the target's *own* capabilities (its tools, its
 verification, its context) and should run under its identity. Message when you need to *talk* to an
