@@ -95,6 +95,7 @@ Coverage is a **configuration**, not a merge. A covered role can be split out la
 The Cadre Wizard binds a concrete model to each class *for the operator's deployment*. Cadre states classes so it doesn't rot as models change:
 
 - `reasoning` — planning, verification, security, design. Pay for thinking here.
+- `builder` — executing dispatched build tasks: code, GUI work, artifacts. Fleet-rate execution, not deep planning; the PM thinks, the builder makes.
 - `fast` — routine relay, accounting, posting. Cheap and quick.
 
 A role's class may be overridden per-role by the operator.

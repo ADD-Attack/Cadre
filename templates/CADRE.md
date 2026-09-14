@@ -22,6 +22,7 @@
 | Agent | Role | Model | Budget | Autonomy | Reports to |
 |---|---|---|---|---|---|
 | <name> | Project Manager | <model> | <ceiling>/<period> | L1 | operator |
+| <name> | Worker | <model> | <ceiling>/<period> | L1 | PM |
 | <name> | Requirements Analyst | <model> | … | L1 | PM |
 | … | | | | | |
 

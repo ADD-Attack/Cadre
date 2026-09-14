@@ -83,6 +83,7 @@ Cadre ships **model classes**, not hard-coded model names (models drift). The Ca
 | Class | Use for | Cost posture |
 |---|---|---|
 | `reasoning` | PM, Requirements, Designer, Security, QA, Consultant | higher |
+| `builder` | Worker — dispatched build execution | mid |
 | `fast` | Social, Finance, Agent Resources, routine relay | lower |
 
 Default mapping = *lightest, most accurate model that fits the class*, decided by the Cadre Wizard from the deployment's available models. **The operator may override any single role.**

@@ -145,6 +145,7 @@ Every project enters at the **Requirements Analyst** and moves through **Project
 | Agent | Owns | Default model class |
 |---|---|---|
 | **Project Manager** | plan, tasks, Gantt, dispatch, tracking | reasoning |
+| **Worker** | executing dispatched build tasks; self-verifies and reports back with evidence | builder |
 | **Requirements Analyst** | intake, clarification, scope | reasoning |
 | **Project Designer** | architecture, approach, specs | reasoning |
 | **Security / IT** | audit, exposure, hygiene (advises, never self-edits) | reasoning |
@@ -154,7 +155,7 @@ Every project enters at the **Requirements Analyst** and moves through **Project
 | **Agent Resources (AR)** | agent roster, onboarding, loadouts | fast |
 | **Consultant** | second opinion, red-team, advice | reasoning |
 
-Full charters, budgets, and authority: [`reference/agents.md`](./reference/agents.md). The Cadre Wizard confirms which of these to create — you don't have to take all nine.
+Full charters, budgets, and authority: [`reference/agents.md`](./reference/agents.md). The Cadre Wizard confirms which of these to create — you don't have to take all ten.
 
 A **personal assistant** is deliberately *not* on this list. It is a separate agent in its own environment, not a Cadre role (see *What this is* above).
 
