@@ -112,6 +112,8 @@ role is a distinct seat, and why QA starts at a higher autonomy level.)
 
 Collaboration needs a defined route *out* as much as between peers.
 
+The whole picture — who can reach whom, the optional doorway, and the rework loop — is drawn in [`../diagrams/topology.md`](../diagrams/topology.md).
+
 - **The doorway.** In a single-interface deployment, one agent (often the Social Media Manager) is the
   doorway that batches outboxes to the operator. The operator talks to one agent; the team still runs.
 - **The single-conduit risk.** If one agent is the only route to the operator, that agent is a

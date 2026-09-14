@@ -56,6 +56,17 @@ Record the level and the date in the team index. A level without a date is folkl
 
 Drop a level when: a wrong call with real cost, a boundary crossed, or the operator simply wants to re-watch. **Dropping is not punishment** — it is the ladder working. Record it the same way.
 
+## Standing deploy authorization
+
+The ladder says *who decides*. One rung (typically the PM at L2–L3) also needs a **standing permission slip** for routine work — otherwise the team is just a slower operator, queued on approval for every ordinary change.
+
+- **A stated scope.** The operator grants a lead authority to ship *ordinary* changes on its own judgment, inside a written boundary (which files, which repos, which kinds of change).
+- **Report after, not before.** The lead acts and *reports what it did* — the record is the price of the up-front approval.
+- **Out-of-scope reverts to asking.** Anything outside the stated boundary, or risky, is not covered — the team is back to proposing and waiting.
+- **Revocable at any time.** The operator keeps revocation; the slip is a standing grant, not a transferred right. Record it in the team index.
+
+This is the same trade as the rest of the ladder: authority granted up front, paid for with evidence.
+
 ---
 
 ## The anti-pattern this avoids

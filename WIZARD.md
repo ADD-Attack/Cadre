@@ -1,14 +1,21 @@
 # The Cadre Wizard
 
-The Cadre Wizard is the **only** supported entry point. It is not a script — it is a *procedure the OpenClaw main agent performs by talking to the operator*, then writing files only after confirmation.
+The Cadre Wizard is the **only** supported entry point. It is not a script, and it is **not the main agent wearing a hat** — it is a **dedicated agent the main agent spawns** to run the install. The separation is the point: the installer stands *outside* the thing it installs.
 
 **Trigger:** the operator says some form of *"set up Cadre"*, *"read the Cadre README"*, or *"install Cadre"*.
 
-**Who runs it:** the OpenClaw **main agent** on the target deployment (the agent the operator already talks to). It may delegate file-writing to a subagent, but it owns the interview.
+**Who runs it — the spawn flow:**
+
+1. **The main agent reads [`README.md`](./README.md) and this file**, then **explains Cadre to the operator and asks permission** (see *First: explain, then ask* below). It does **not** begin installing on its own.
+2. **On a yes, the main agent spawns a `CadreWizard` agent** — a fresh session with its own context, its own workspace, and the interview as its only job. Concretely: a **visible, thread-bound spawn** (`sessions_spawn`, `visible: true`) so the operator can talk to the wizard directly; or, for a deployment that wants a **reusable** installer, a persistent agent created with `openclaw agents add cadre-wizard`. Either way it is **a separate agent** — not one of the team roles being created, and not the main agent inline.
+3. **The CadreWizard runs the interview** (Step 0 onward) *with the operator*: preflight, then each question. It owns the conversation end to end.
+4. **It writes only on confirmation, verifies (Step 8), hands back, and retires.** The wizard is scaffolding — once the team exists it steps away, and the main agent resumes the operator's normal work.
+
+**Why a separate agent.** The wizard's job is to interrogate the deployment and write files; the main agent's job is to keep running the operator's work. Folding them together makes the main agent unavailable for the length of an interview, and puts the installer *inside* the team it is setting up. Spawn it, let it work, let it go.
 
 **Hard rule:** at every step the Cadre Wizard **proposes and waits**. Nothing is written to config or to a workspace until the operator confirms that step. A Cadre Wizard that installs silently is a bug.
 
-**First: explain, then ask.** Before the preflight, the agent **explains what Cadre is**, states what installing it will change (agent entries, new workspaces, budgets), and notes it is reversible — then **asks the operator whether to proceed**. The wizard begins only on a yes. Do not treat being handed this file as permission to install; reading it is not consent.
+**First: explain, then ask.** Before the preflight, the wizard **explains what Cadre is**, states what installing it will change (agent entries, new workspaces, budgets), and notes it is reversible — then **asks the operator whether to proceed**. The wizard begins only on a yes. Do not treat being handed this file as permission to install; reading it is not consent.
 
 ---
 
@@ -130,7 +137,7 @@ If single-doorway: confirm the door agent, the polling cadence, and the **scope*
 
 ## Step 6 — Port existing projects
 
-For each detected project, offer to bring it into Cadre: create a `PROJECT.md`, seed the task board, and route it through Requirements Analyst → Designer → PM.
+For each detected project, offer to bring it into Cadre: create a `PROJECT.md` and a `DECISIONS.md` (from [`templates/project`](./templates/project)), seed the task board, and route it through Requirements Analyst → Designer → PM.
 
 **This is an offer, not a migration.** Existing work is never moved or restructured without explicit per-project confirmation.
 

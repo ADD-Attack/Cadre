@@ -10,6 +10,17 @@ The **autonomy ladder** (`autonomy-ladder.md`) says *who decides* at each level.
 
 An agent that asks permission for work it already knows how to do safely is not being careful — it is handing a rubber-stamp back to the operator. That cost is real, and it is why "propose, don't act" teams stall.
 
+### The mechanical test (the RL test)
+
+The contract as four closed questions, answerable from the situation alone — no judgement required:
+
+1. **Is it local?** — it touches only this deployment, not the outside world.
+2. **Can one git command undo it?** — the change is revertible.
+3. **Does it spend new money?** — no new recurring cost is committed.
+4. **Is it public?** — nothing is published or sent to anyone outside the team.
+
+**All four favourable ⇒ do it and report.** Any one unfavourable ⇒ that is the reason to ask, named plainly. The test exists so "should I?" is never a mood — it is four checks with a defined answer.
+
 ---
 
 ## The only four reasons to stop and ask
