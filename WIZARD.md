@@ -70,14 +70,19 @@ Default mapping = *lightest, most accurate model that fits the class*, decided b
 
 ## Step 3 — Naming conventions
 
-Cadre roles are fixed; **the team name and the agent names are the operator's.**
+Cadre roles are **fixed**; the team name and the agent names are the operator's.
 
-1. **Name the team.** Ask what the operator wants to call the team itself. The default is the product name, **Cadre** — and *Cadre* is also the correct answer if they don't care. Whatever they choose is what goes in the agent identity files and the team index, so a deployment is never branded something the operator didn't pick.
-2. **Name the agents.** Ask for a theme (a TV show, a ship's crew, a colour set, or plain role names) and derive one name per agent. Show the mapping before writing.
+1. **Name the team.** Ask what to call the team. The default is the product name, **Cadre** — and *Cadre* is also the right answer if they don't care. Whatever they choose goes into the identity files and the team index, so a deployment is never branded something the operator didn't pick.
 
-The **naming convention** is recorded so later additions (subagents, new roles) match it.
+2. **Name the agents — start by offering a theme.** A themed crew is easier to remember and to steer than a set of job titles, so offer the operator a theme to name the agents after. **Suggest a movie, TV show, or video game** — a cast with enough distinct characters to cover the roster — and give two or three concrete examples, then let them name their own. Derive one name per selected agent.
 
-**Completion criterion:** a team name, and a name for every selected agent, agreed.
+   - **The no-theme option.** Some operators want none of it. Offer it plainly as the alternative: **"I'm a serious business man — give me the official names."** With this choice every agent is named after its role (Project Manager, Requirements Analyst, …). This is a first-class option, not a fallback — say so.
+
+   - **If a theme is chosen, the name always carries the official title.** The themed name is the *label*; the role is the *function*. Write **both** into each agent's identity file and the team index — e.g. **"Sam — Finance Manager"**, never just "Sam". Reason: the role is what the team routes by and what a reader understands cold; a bare theme name is ambiguous the moment someone joins or reads the roster.
+
+3. **Show the full mapping before writing.** The team name, and for each selected agent its themed name **and** its official title. Record the **naming convention** (in [`templates/CADRE.md`](./templates/CADRE.md)) so later additions — subagents, new roles — match it.
+
+**Completion criterion:** a team name, and for every selected agent a name **and** official title, agreed.
 
 ---
 

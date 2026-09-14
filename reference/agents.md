@@ -16,7 +16,7 @@ Every agent is a **persistent OpenClaw agent**: its own workspace, persona files
 | **Security / IT** | reasoning | audit, exposure, hygiene, remediation queue | **advise only** — never self-edits config |
 | **QA / Verifier** | reasoning | independent verification, evidence (method: [`verification.md`](./verification.md)) | **veto** — may block a "done" claim |
 | **Social Media Manager (SMM)** | fast | external comms, posting, community | external-send (gated) |
-| **Finance Manager (FM)** | fast | budgets, spend tracking, alerts | budget enforcement (report; cap if configured) |
+| **Finance Manager (FM)** | fast | budgets, spend tracking, alerts, **scheduled-work audit** (recurring spend) | budget enforcement (report; cap if configured); owns the [scheduled-work](./scheduled-work.md) cost audit |
 | **Agent Resources (AR)** | fast | roster, onboarding, loadouts, agent health | create/retire subagents; no config authority |
 | **Consultant** | reasoning | second opinion, red-team, advice; hard problems get the **heavier models / deeper reasoning** | none — pure advice |
 
@@ -43,6 +43,7 @@ Two roles carry a hard constitutional limit:
 | Verify and pass/fail a deliverable | QA only |
 | Send external/public messages | SMM (gated by operator policy) |
 | Change budgets | FM (within operator-set ceilings) |
+| Audit scheduled jobs (owner, purpose, idle cost) | FM — reports; removing a job is the operator's call |
 | Add/retire agents | AR (roster) — config changes require the operator |
 | Change config, permissions, safety | **operator only** |
 

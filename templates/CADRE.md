@@ -55,6 +55,16 @@ Record enforcement honestly — *advisory* is better than *unstated*.
 | File-claim lease | `.claims/` | enforced \| advisory |
 | Promotion gate | <thresholds> | authored \| defaulted |
 | No-op detector | on | enforced \| advisory |
+| QA cap (max 2 review rounds) | 2 | enforced \| advisory |
+| Zero-token checks | on | enforced \| advisory |
+
+## Scheduled work
+
+Recurring jobs and watchers. Every job names an **owner**, and idle must cost **$0** ([`../reference/scheduled-work.md`](../reference/scheduled-work.md)).
+
+| Job | Owner | Kind | Cadence | Idle cost |
+|---|---|---|---|---|
+| <name> | <agent> | timer \| sentinel | <at / every / on-event> | $0 |
 
 ## Projects under <team name>
 

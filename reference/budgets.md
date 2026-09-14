@@ -60,6 +60,8 @@ If the operator installs **FM**, the Cadre Wizard runs the full interview instea
 
 FM then **owns** the numbers, reports burn against them, and raises breaches. FM does **not** silently raise a ceiling — only the operator can.
 
+FM also **owns the scheduled-work audit**: recurring jobs and watchers are where spend is *created*, so FM audits every scheduled job for **owner, purpose, and $0 idle cost** ([`scheduled-work.md`](./scheduled-work.md)). Keep it **one batched pass on FM's cadence** — an efficient audit, not a ceremony. The checks that matter run as sentinels, so the audit itself does not add spend.
+
 ---
 
 ## Where budgets live

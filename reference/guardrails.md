@@ -126,6 +126,8 @@ A claim written only in prose is advisory. Enforcement needs teeth:
 
 **Litmus:** *does this tick cost tokens when nothing is happening?* If yes, rewrite it as a sentinel.
 
+**Full policy:** what a team may run on a schedule — timers vs sentinels, the banned forms, and FM's cost audit — is [`scheduled-work.md`](./scheduled-work.md).
+
 ---
 
 ## How they fit together
