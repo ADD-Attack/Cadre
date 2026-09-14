@@ -13,7 +13,7 @@
 **Installed:** <date>
 **Cadre version:** v0.1
 **Team name:** <team name>
-**Interface mode:** <direct | single-doorway via <agent>>
+**Interface mode:** `<interface mode — direct, or single-doorway via one agent>`
 
 ---
 
@@ -38,7 +38,7 @@
 - **Global ceiling:** <amount> <unit>/<period>
 - **Enforcement:** <warn | cap>
 - **Overflow policy:** <stop | borrow | escalate>
-- **Enforcement mechanism:** <none (accounting-only) | LiteLLM gateway at <url> — per-model caps + fallback at <threshold>%>
+- **Enforcement mechanism:** `<none (accounting-only) — or a LiteLLM gateway with per-model caps and fallback at a set threshold>`
 - **Model routing:** <direct to providers | via the gateway>
 
 ## Doorway (if enabled)

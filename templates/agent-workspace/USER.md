@@ -1,12 +1,12 @@
 # USER.md — About the Operator
 
-> Template. The Cadre Wizard fills what it knows; the agent learns the rest over time.
+<!-- Template note (strip on install): the Cadre Wizard fills what it knows; the agent learns the rest over time. -->
 
 ## Who I work for
 
 - **Operator:** <name / handle>
 - **How they reach me:** <channel(s)>
-- **Interface mode:** <direct | single-doorway via <agent>>
+- **Interface mode:** `<direct, or single-doorway via one agent>`
 
 ## Preferences
 

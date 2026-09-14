@@ -168,7 +168,13 @@ Only now, write. Four things: the config, the shared conventions, each agent's w
 
 Each agent workspace sits **beside** `reference/`, so the relative links in the agent template (`../reference/...`) resolve after install. If you lay the workspaces out any other way, you **must** fill the absolute team-root path into every `AGENTS.md` — an agent that cannot reach its own conventions is a broken install.
 
-1. Agent entries in OpenClaw config (via `openclaw config set` — never hand-edit JSON).
+1. **Create each agent with the agent CLI — not a raw config write.**
+   ```bash
+   openclaw agents add <agent-id> --workspace "<team root>/<agent-name>" --model <bound model> --non-interactive
+   ```
+   **Never hand-edit `openclaw.json`.** Two traps here, both verified against `--dry-run`:
+   - Per-agent *settings* beyond creation (model, tools, heartbeat) live at **`agents.entries.<agent-id>.<field>`** — e.g. `openclaw config set agents.entries.<agent-id>.model <model>`. The bare **`agents.<agent-id>` path is rejected by the schema** (`Unrecognized keys`) — the map is `agents.entries`.
+   - **Dry-run any batch before writing it:** `openclaw config set --batch-file <file> --dry-run`. It validates against the live schema and costs nothing; a rejected key is a five-second fix here and a broken install later.
 2. **Copy `reference/` and `diagrams/` into the team root.** *This is required, not optional.* The agent templates cite these files as the source of role charters, guardrails, methods, and the flow itself. An install that omits them ships agents who cannot read their own rules.
 3. Each agent's workspace — `AGENTS.md`, `IDENTITY.md`, `SOUL.md`, `USER.md`, `MEMORY.md`, `BUDGET.md`, `inbox/`, `outbox/` from [`templates/agent-workspace`](./templates/agent-workspace) — one per selected agent, each under the team root.
 4. The shared team ledger `SHARED.md` from [`templates/SHARED.md`](./templates/SHARED.md), at the team root.
@@ -204,7 +210,14 @@ An installed file with a literal `<role>` or `<team index path>` is an **install
 ## Step 8 — Verify and hand off
 
 1. **Verify:** one canary task per created agent (a trivial round-trip) proving it responds and its mailbox works. Report pass/fail — do not claim success on an unattempted check.
-2. **Verify the wires, not just the agents.** Confirm three things and report each: (a) **no `<...>` placeholder survives** in any installed file; (b) each agent's `AGENTS.md` **convention links resolve** (the `reference/` docs are reachable from its workspace); (c) each agent can state **its role and its hand-off target** — ask one canary agent to name both. These are the failures an install ships silently, so check them rather than assume them.
+2. **Verify the wires, not just the agents.** Confirm three things and report each:
+   - **(a) No placeholder survives in a file the wizard owns.** Scope this to each agent's filled files (`AGENTS.md`, `IDENTITY.md`, `SOUL.md`, `USER.md`, `MEMORY.md`, `BUDGET.md`) and the team index `CADRE.md`. Two rules so the check does not lie:
+     - **Angle brackets in `reference/` and inside fenced code blocks are correct and must NOT be "fixed."** `reference/budgets.md` shows a `BUDGET.md` example; `SHARED.md` shows a log-entry skeleton. Those are documentation, not unfilled placeholders.
+     - **Strip the template meta-note** (the `> Template. …` / HTML-comment note at the top of a template) and **ignore HTML comments** when scanning — a comment is not a live placeholder.
+   - **(b) Each agent's `AGENTS.md` convention links resolve** — the `reference/` docs are reachable from its workspace (a workspace that sits *beside* `reference/` resolves `../reference/...`).
+   - **(c) Each agent can state its role and its hand-off target** — ask one canary agent to name both.
+
+   These are the failures an install ships silently, so check them rather than assume them.
 2. **Record** the install in the team index with a date and version.
 3. **Hand off:** offer to start the first project through the **Requirements Analyst**.
 

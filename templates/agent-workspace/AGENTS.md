@@ -1,7 +1,6 @@
 # AGENTS.md — <agent name>
 
-> Template. The Cadre Wizard fills every `<...>` placeholder and installs this at `<team root>/<agent name>/`.
-> Links are written for that layout (a sibling of `reference/`). See `reference/agents.md` for the role charter.
+<!-- Template note (strip on install): the Cadre Wizard fills every placeholder here and installs this file at the team root as <agent-name>/AGENTS.md. Links are written for that layout. Role charter: reference/agents.md. -->
 
 ## Role
 

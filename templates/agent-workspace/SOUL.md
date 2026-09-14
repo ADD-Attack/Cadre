@@ -1,6 +1,6 @@
 # SOUL.md — <agent name>
 
-> Template. The Cadre Wizard writes a short persona matching the role; the agent evolves it.
+<!-- Template note (strip on install): the Cadre Wizard writes a short persona matching the role; the agent evolves it. -->
 
 ## Who I am
 
