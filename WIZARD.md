@@ -182,6 +182,18 @@ Each agent workspace sits **beside** `reference/`, so the relative links in the 
 
 Both `SHARED.md` and `CADRE.md` are **session-start reads**: every agent reads them before it does anything, so each agent knows the team's standing decisions *and* who its teammates are.
 
+6. **Wire the collaboration allowlists — or the team cannot actually talk.** This is the step that makes the difference between "agents exist" and "agents work": creating the agent does **not** let it message or be dispatched to. Two independent gates (see [`reference/collaboration.md`](./reference/collaboration.md) §2), both verified against `--dry-run`:
+   - **Messaging:** `tools.agentToAgent.allow` — the list of agents the team may message. **Add each new agent id.** An agent missing here gets `Agent-to-agent messaging denied by tools.agentToAgent.allow` the moment a peer or the PM tries to reach it.
+   - **Dispatch (spawn):** `agents.defaults.subagents.allowAgents` — who the PM may spawn for build work. Add the builder/disposable lanes you intend the PM to dispatch.
+
+   ```bash
+   # read current, then set the extended list
+   openclaw config get tools.agentToAgent.allow
+   openclaw config set tools.agentToAgent.allow '["main","cadre-pm","cadre-ra","cadre-pd","cadre-qa"]'
+   ```
+
+   **Run your canary *after* this step**, or it will be refused for a reason that looks like a broken install but is really an un-wired allowlist. These are **permission** changes: confirm them with the operator, never silently widen access.
+
 **Fill every placeholder — no `<...>` may survive into an installed file.** This is a completion condition, not a nicety. Each agent's `AGENTS.md` must end up carrying, concretely:
 
 - its **role name and charter** (from [`reference/agents.md`](./reference/agents.md));
