@@ -94,6 +94,7 @@ Full charters, budgets, and authority: [`reference/agents.md`](./reference/agent
 - [`reference/agents.md`](./reference/agents.md) — roster, charters, budgets, authority.
 - [`reference/guardrails.md`](./reference/guardrails.md) — the four guardrails: routing limit, file-claim lease, promotion gate, no-op detector.
 - [`reference/memory.md`](./reference/memory.md) — tiered memory (STM/MTM/LTM), loose gates, size-triggered eviction.
+- [`reference/collaboration.md`](./reference/collaboration.md) — how agents work together: the two peer mechanisms (dispatch vs message), the guards that stop a team looping/colliding/stalling, escalation topology.
 - [`reference/mailboxes.md`](./reference/mailboxes.md) — inbox/outbox format, the doorway pattern, delivery guarantees.
 - [`reference/budgets.md`](./reference/budgets.md) — budget model, defaults, enforcement.
 - [`reference/autonomy-ladder.md`](./reference/autonomy-ladder.md) — how the operator hands work over (who decides, per level).
