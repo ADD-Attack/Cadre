@@ -10,6 +10,22 @@ Cadre gives you a persistent, chat-native multi-agent hierarchy: a small nucleus
 
 ---
 
+## Install it on your OpenClaw — instructions for the agent
+
+> **If you are the LLM reading this, this is your job.** The operator points you at this repo and asks you to install Cadre. Do exactly this, in order, and **write nothing until the operator confirms each step**:
+>
+> 1. **Clone the files** onto the machine running OpenClaw:
+>    ```bash
+>    git clone https://github.com/ADD-Attack/Cadre.git
+>    ```
+> 2. **Read [`README.md`](./README.md) and [`WIZARD.md`](./WIZARD.md)** in that clone. `WIZARD.md` is the install procedure — you run it *by talking to the operator*, not as a script.
+> 3. **Run the Cadre Wizard** (WIZARD.md Step 0 onward): a read-only preflight, then the interview. At every step you **propose and wait** — nothing is written to OpenClaw config or a workspace until the operator confirms that step. A wizard that installs silently is a bug.
+> 4. **Write only on confirmation**, via `openclaw config set` (never hand-edit JSON), then run the canary verification (WIZARD.md Step 8) before claiming success.
+>
+> The operator says no more than: *"Read `Cadre/README.md` and set up Cadre on this deployment."* Everything above is the instruction; the rest of this file is context.
+
+---
+
 ## What this is
 
 Cadre is **not** a framework you install as a package. It is a **folder of Markdown conventions + a setup procedure** that your OpenClaw main agent reads and executes. You get:

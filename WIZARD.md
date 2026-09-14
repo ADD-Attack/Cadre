@@ -82,6 +82,37 @@ Otherwise, apply **Cadre's light defaults** (see [`reference/budgets.md`](./refe
 
 ---
 
+## Step 4b — Budget enforcement (ask ONLY if Finance Manager is approved)
+
+Ask **once**, plainly, before moving on:
+
+> *"You set a ceiling. Should the deployment actually **enforce** it — cap spend and switch models automatically — or is accounting enough for now?"*
+
+**Why this is a question and not a default.** The platform ships **no native spend cap** (see [`reference/budgets.md`](./reference/budgets.md) — "Platform reality"). Without a mechanism, a ceiling is a *promise*, not a limit. The mechanism is a **local AI gateway** — **LiteLLM** — that sits between this deployment and the model providers:
+
+- **Per-model budget caps** — spend stops at the ceiling you set.
+- **Automatic model fallback at a threshold** — e.g. at **95%** of a model's budget, requests are silently rerouted to a cheaper model instead of failing. This is the "flag at 95% and move to a new model" behaviour FM exists to promise.
+
+**If the operator says yes:**
+
+1. **Propose the install, then wait for confirmation.** LiteLLM runs as a local service (Docker is the lightest path) on port **4000**, configured by a `config.yaml` plus a master key. **The operator approves the install command before it runs** — this is a new background service, and it is the operator's machine.
+2. **Wire OpenClaw to it**, once confirmed: add a custom provider pointed at the gateway, and route the budgeted models through it.
+   ```bash
+   openclaw config set models.providers.litellm.baseUrl http://127.0.0.1:4000/v1
+   openclaw config set models.providers.litellm.apiKey "${LITELLM_MASTER_KEY}"
+   openclaw config set models.providers.litellm.api openai-completions
+   ```
+   (Set the master key as a secret, never inline. Model entries and any override of `agents.defaults.model` follow per [`reference/budgets.md`](./reference/budgets.md).)
+3. **Record it** in the team index: the gateway, its port, and which models route through it.
+
+**If the operator says no:** say so plainly in the index — *budget = accounting + convention, no enforcement binary installed* — and move on. Do not imply a cap that isn't there.
+
+**Honest limits to state when proposing it:** LiteLLM is a **third-party service** the operator now runs and maintains; it is a **single point of failure** for model traffic (if it is down, so is the team's inference); and it only enforces what is routed *through* it — a call that bypasses the gateway bypasses the cap. Recommend it, do not oversell it.
+
+**Completion criterion:** the operator has decided yes/no; if yes, the gateway is installed, OpenClaw points at it, and the index records the routing; if no, the index records *accounting-only*.
+
+---
+
 ## Step 5 — Interface & the doorway
 
 Ask how the operator wants to *talk to the team*.

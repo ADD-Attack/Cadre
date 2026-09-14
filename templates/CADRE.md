@@ -32,6 +32,8 @@
 - **Global ceiling:** <amount> <unit>/<period>
 - **Enforcement:** <warn | cap>
 - **Overflow policy:** <stop | borrow | escalate>
+- **Enforcement mechanism:** <none (accounting-only) | LiteLLM gateway at <url> — per-model caps + fallback at <threshold>%>
+- **Model routing:** <direct to providers | via the gateway>
 
 ## Doorway (if enabled)
 - **Agent:** <name>
