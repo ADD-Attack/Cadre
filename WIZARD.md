@@ -61,11 +61,14 @@ Default mapping = *lightest, most accurate model that fits the class*, decided b
 
 ## Step 3 — Naming conventions
 
-Cadre roles are fixed; **agent names are the operator's.** Ask for a theme (a TV show, a ship's crew, a colour set, or plain role names) and derive one name per agent. Show the mapping before writing.
+Cadre roles are fixed; **the team name and the agent names are the operator's.**
+
+1. **Name the team.** Ask what the operator wants to call the team itself. The default is the product name, **Cadre** — and *Cadre* is also the correct answer if they don't care. Whatever they choose is what goes in the agent identity files and the team index, so a deployment is never branded something the operator didn't pick.
+2. **Name the agents.** Ask for a theme (a TV show, a ship's crew, a colour set, or plain role names) and derive one name per agent. Show the mapping before writing.
 
 The **naming convention** is recorded so later additions (subagents, new roles) match it.
 
-**Completion criterion:** a name for every selected agent, agreed.
+**Completion criterion:** a team name, and a name for every selected agent, agreed.
 
 ---
 

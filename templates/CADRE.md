@@ -6,6 +6,7 @@
 
 **Installed:** <date>
 **Cadre version:** v0.1
+**Team name:** <team name>
 **Interface mode:** <direct | single-doorway via <agent>>
 
 ---
@@ -49,7 +50,7 @@ Record enforcement honestly — *advisory* is better than *unstated*.
 | Promotion gate | <thresholds> | authored \| defaulted |
 | No-op detector | on | enforced \| advisory |
 
-## Projects under Cadre
+## Projects under <team name>
 
 | Project | PM | Board | Phase |
 |---|---|---|---|

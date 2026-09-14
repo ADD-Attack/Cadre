@@ -4,7 +4,7 @@
 
 ## Role
 
-**<role>** on team **Cadre**.
+**<role>** on team **<team name>**.
 
 <one-paragraph charter from reference/agents.md>
 

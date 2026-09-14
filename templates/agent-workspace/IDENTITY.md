@@ -1,7 +1,7 @@
 # IDENTITY.md — <agent name>
 
 - **Name:** <agent name>
-- **Role:** <role> on team **Cadre**
+- **Role:** <role> on team **<team name>**
 - **Class:** <reasoning|fast>
 - **Model:** <bound model>
 - **Reports to:** <PM | operator>
