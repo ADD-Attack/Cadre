@@ -21,6 +21,8 @@ The Cadre Wizard is the **only** supported entry point. It is not a script, and 
 
 ## Step 0 — Preflight (read-only)
 
+**Stop condition — no OpenClaw.** If the `openclaw` command isn't present, there's no config, or there's no main agent, Cadre cannot install. Say so plainly and point the operator at **README → *Before you start — if you don't have OpenClaw yet*** — do not attempt a partial install. (A ChatGPT subscription or an OpenAI key or a Codex install is **not** OpenClaw.)
+
 Before asking anything, discover the ground truth. Never ask the operator for facts you can read.
 
 1. Read the live config (`openclaw config get` and the config schema). Establish:

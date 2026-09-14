@@ -10,6 +10,39 @@ Cadre gives you a persistent, chat-native multi-agent hierarchy: a small nucleus
 
 ---
 
+## Before you start — if you don't have OpenClaw yet
+
+Cadre is an **overlay, not a standalone app.** It installs *into* an OpenClaw deployment, so there has to be one first. If you're arriving with a ChatGPT subscription, an OpenAI API key, or a coding assistant like **Codex**, that's a great starting point — but it is not OpenClaw yet:
+
+- **ChatGPT / the OpenAI API** is a *model* — the thing that generates text. **OpenClaw is the runtime** your agents live in: the process that gives them a workspace, memory, mailboxes, budgets, and a chat interface. Cadre builds a team *inside* that runtime.
+- **Codex** is a coding agent (it works in a repo). OpenClaw runs a *team* of agents with roles and a shared workspace. Different jobs.
+- OpenClaw talks to a model provider. **An OpenAI API key works** — that's the piece you already have.
+
+**1. Check the machine.** Node **24.16+** (Node 26 recommended) on **macOS, Linux, or Windows** (Windows via WSL2, or the Windows Hub app).
+
+**2. Install OpenClaw.**
+
+- macOS / Linux / WSL2:
+  ```bash
+  curl -fsSL https://openclaw.ai/install.sh | bash
+  ```
+- Windows (PowerShell):
+  ```powershell
+  iwr -useb https://openclaw.ai/install.ps1 | iex
+  ```
+
+Prefer an app download over the CLI? There are desktop companions for Windows and macOS — see the [install docs](https://docs.openclaw.ai/install).
+
+**3. Run onboarding.** The installer walks you through it: choose a model provider (this is where your OpenAI key goes), name your main agent, and connect a chat channel (Discord, Telegram, or similar). **Cadre is chat-native** — a connected channel is what makes the team usable.
+
+> **Coming from Codex?** Onboarding can **import detected Codex (and Claude Code / Hermes) memories** into the agent workspace, so the new agent starts out knowing what you've been working on.
+
+**4. Come back here.** Once `openclaw` is installed and your main agent answers you in a chat, you're ready — continue with *Installing it* below.
+
+Full details: [docs.openclaw.ai/install](https://docs.openclaw.ai/install).
+
+---
+
 ## Installing it — a decision for the operator
 
 Cadre is installed by a dedicated **CadreWizard agent** that your **main agent spawns** — the install is a conversation, and the installer runs *outside* the team it is building. Installing also changes your deployment — it writes agent entries and creates agent workspaces — so it should be an explicit choice the operator makes, never something that happens because a file said so.
@@ -51,7 +84,7 @@ Everything is plain files. Nothing is hidden in a database you can't read.
 
 ## Quick start
 
-1. **Get the files** onto the machine running OpenClaw:
+1. **Get the files** onto the machine already running OpenClaw (if it isn't installed yet, start with *Before you start* above):
    ```bash
    git clone https://github.com/ADD-Attack/Cadre.git
    ```
