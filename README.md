@@ -126,6 +126,8 @@ A **personal assistant** is deliberately *not* on this list. It is a separate ag
 - [`reference/agents.md`](./reference/agents.md) — roster, charters, budgets, authority.
 - [`reference/guardrails.md`](./reference/guardrails.md) — the guardrails: routing limit, file-claim lease, promotion gate, no-op detector, **QA cap**, **zero-token checks**.
 - [`reference/verification.md`](./reference/verification.md) — how to produce evidence: restate the pass condition, capture the real artifact, check the whole of it, report "could not verify" honestly.
+- [`reference/requirements.md`](./reference/requirements.md) — the Requirements Analyst's method: tough-love scope defense, want-vs-need, acceptance criteria, the doable first version.
+- [`reference/design.md`](./reference/design.md) — the Project Designer's method: the feature inventory, the style guide, and the ordered hand-off a builder can execute without guessing.
 - [`reference/security.md`](./reference/security.md) — the Security/IT seat's method: scheduled audit, confidentiality sweep, exposure posture, remediation queue (advises, never edits).
 - [`reference/scheduled-work.md`](./reference/scheduled-work.md) — what may run on a schedule: timers vs sentinels, idle must cost $0, and FM audits every job.
 - [`reference/memory.md`](./reference/memory.md) — tiered memory (STM/MTM/LTM), loose gates, size-triggered eviction.

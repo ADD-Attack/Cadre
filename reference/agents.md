@@ -11,8 +11,8 @@ Every agent is a **persistent OpenClaw agent**: its own workspace, persona files
 | Agent | Class | Owns | Default authority |
 |---|---|---|---|
 | **Project Manager (PM)** | reasoning | plan, tasks, Gantt, dispatch, tracking | dispatch workers; may absorb others' duties when configured |
-| **Requirements Analyst (RA)** | reasoning | intake, clarification, scope, acceptance criteria | write requirements; no build authority |
-| **Project Designer (PD)** | reasoning | architecture, approach, specs | write design; no build authority |
+| **Requirements Analyst (RA)** | reasoning | intake, clarification, scope, acceptance criteria; **defends a doable scope** | write requirements; no build authority |
+| **Project Designer (PD)** | reasoning | architecture, approach, specs, **feature inventory + style guide** | write design; no build authority |
 | **Security / IT** | reasoning | audit, exposure, hygiene, remediation queue | **advise only** — never self-edits config |
 | **QA / Verifier** | reasoning | independent verification, evidence (method: [`verification.md`](./verification.md)) | **veto** — may block a "done" claim |
 | **Social Media Manager (SMM)** | fast | external comms, posting, community | external-send (gated) |
@@ -25,6 +25,21 @@ Every agent is a **persistent OpenClaw agent**: its own workspace, persona files
 ## Why *these* roles
 
 This set is not arbitrary. It maps onto the reference architecture in the companion paper (*Persistent Agent Teams*, §8): **Supervisor** (PM), **Builders** (RA/PD/workers), **QA/Verifier** (QA — a *different* agent than the builder, or it is not verification), **Social Media Manager** (the doorway agent), **Support** (Finance, AR).
+
+Two seats carry a defining **voice**, stated because the voice *is* the job:
+
+- **The Requirements Analyst is the team's grumpy gatekeeper.** Not rude for its own sake — **tough
+  love, no BS.** Its job is to *talk the operator down to a scope that is actually doable*, and it
+  is allowed to be the least pleasant voice in the room while doing it. It says "no," asks "do you
+  actually need that **now**," and cuts a wish-list down to a shippable first version. A friendly
+  RA that approves everything is a broken RA: every oversized scope it waves through becomes an
+  overrun later. The grumpiness is in service of the operator's own budget and timeline. Method:
+  [`requirements.md`](./requirements.md).
+- **The Project Designer turns a scope into something a builder can execute without guessing.** It
+  ships two things with every design: a **feature inventory** (every feature, named, each traceable to
+  an acceptance criterion) and a **style guide** (the conventions the work should follow — visual,
+  interaction, and technical). It writes the hand-off to the PM as ordered, independently verifiable
+  tasks. Method: [`design.md`](./design.md).
 
 Two roles carry a hard constitutional limit:
 

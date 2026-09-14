@@ -5,7 +5,9 @@ main way a quiet team becomes a quiet **bill**. This file is the policy for *wha
 schedule, in what form, and who is accountable for it.*
 
 **Owner: the Finance Manager** (`agents.md`) owns the cost side of this file, because scheduled work
-is where recurring spend is created.
+is where recurring spend is created. **What FM can and cannot claim about a job's cost is stated
+precisely below** — the short version is *bounded estimate, labeled as such*, never a pretended exact
+figure.
 
 ---
 
@@ -60,16 +62,53 @@ returning `{fire, message, state}`.
 - **No unattributed job.** Every scheduled job names an **owner**, so a cost question always has an
   answer.
 
+## Can a job's cost be known *exactly*? — the honest answer
+
+**Not from the job record.** Be precise about this, because a wrong promise here is worse than no
+promise:
+
+- **Run history carries no money.** A run row records `status`, `completionStatus`, `durationMs`,
+  delivery, diagnostics, and timing — and **no token count and no cost** (verified against the live
+  run records, 2026-09-14). A job definition carries no cost field either.
+- **Cost lives one layer over: the session.** OpenClaw derives token and **estimated** cost from the
+  session transcript (`/usage cost`, the Control UI **Usage** view — which breaks down by provider,
+  model, **agent**, and channel). The number is an *estimate from local pricing config*, not a
+  provider invoice; provider Admin/usage APIs (Anthropic, OpenAI) are the only true billing figures.
+- **Attribution is the gap.** A single run's cost is only known if that run writes to a
+  cost-visible session with a known model. A **`command`/`script` payload costs $0 in model tokens**
+  by construction — nothing to measure. An **isolated `agentTurn`** runs in its own session, so its
+  spend can be read from that session; the generic job record itself still shows nothing.
+
+**So the deliverable is a bounded *estimate*, clearly labeled — never an "exact cost":**
+
+```
+job cost/day  ≈  (runs/day) × (avg model tokens/run) × (model price)
+                 └ cadence ─┘   └ attributable session ─┘   └ pricing config ┘
+```
+
+Where a term cannot be resolved, FM says so. "$0 (script — no model tokens)" and "not
+attributable — isolated run, price the session" are both acceptable answers. A fabricated precise
+figure is not. **The real value is comparative, not exact:** a $0 script versus a model turn on a
+1-minute cadence is the finding — that is the misfire that quietly bills you.
+
 ## Finance Manager: the scheduled-work audit
 
 FM owns this file's cost side. On its cadence, FM lists the deployment's scheduled jobs and checks
-each against three questions:
+each against four questions — kept to **one batched pass**, because the audit is a routine, not a
+ceremony:
 
 1. **Owner?** Every job names the agent responsible. An orphaned job is a finding.
 2. **Purpose + cadence?** The job can state why it exists and why that often. "Just in case" is a
    finding.
 3. **Idle cost $0?** A job whose tick spends tokens while nothing is happening is a finding — rewrite
    it as a sentinel (`guardrails.md` §6).
+4. **Cost estimate, labeled.** A per-job estimate per the formula above, or an explicit "analytics
+   only / not attributable" — never a made-up exact figure.
+
+**Run the audit as a sentinel, not an agent turn.** The cheap audit reads job state and session
+usage deterministically and wakes the model **only** when a finding exists (a job with no owner, an
+idle-costing once-clean job, a new unbounded cadence). An audit that itself costs money every tick
+has missed the point of the file it is enforcing.
 
 Findings go in FM's report and the remediation queue. FM **reports and recommends** — it does not
 delete another agent's job unilaterally (that is an operator decision, like every other config
