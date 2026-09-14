@@ -24,7 +24,7 @@ Every agent is a **persistent OpenClaw agent**: its own workspace, persona files
 
 ## Why *these* roles
 
-This set is not arbitrary. It maps onto the reference architecture in the companion paper (*Persistent Agent Teams*, §8): **Supervisor** (PM), **Builders** (RA/PD/workers), **QA/Verifier** (QA — a *different* agent than the builder, or it is not verification), **Liaison** (the doorway agent — usually SMM), **Support** (Finance, AR).
+This set is not arbitrary. It maps onto the reference architecture in the companion paper (*Persistent Agent Teams*, §8): **Supervisor** (PM), **Builders** (RA/PD/workers), **QA/Verifier** (QA — a *different* agent than the builder, or it is not verification), **Social Media Manager** (the doorway agent), **Support** (Finance, AR).
 
 Two roles carry a hard constitutional limit:
 

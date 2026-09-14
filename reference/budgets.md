@@ -109,6 +109,41 @@ If you want teeth, add them at the operator layer (a checker that reads your pro
 
 ---
 
+## Switching models at a spend threshold (a gateway-layer pattern)
+
+A tester asked whether **Finance Manager / Agent Resources can flag a model at 95% spend and move the
+agent onto a different model**. It is a common, well-understood pattern — but it lives one layer
+*above* the agent runtime, not inside it.
+
+**Where it is implemented today.** AI **gateways** do exactly this:
+
+- **LiteLLM** — `budget_fallbacks`: set a per-model `budget_limit`; when spend on that model crosses it,
+  requests are *silently rerouted* to the first fallback model that still has budget. Set the limit at
+  95% of your intended ceiling to get "switch at 95%". Spend is attributed to the fallback model.
+- **Portkey / Edgee** — percentage-tier routing: e.g. 0–80% premium model, 80–95% mid-tier, 95%+ cheapest.
+
+**What OpenClaw does natively.** `agents.defaults.model.fallbacks` exists — but it triggers on
+**failover-worthy errors** (rate limits, provider outages), **not on budget**, and the fallback is
+*turn-local* (it does not persist as the next turn's model). And per the section above, the platform
+exposes **no spend cap and no cost-report command** — so there is nothing native to bind a
+"95% of budget" trigger to.
+
+**Consequence for Cadre — an operator-layer capability, exactly like `enforcement: cap`:**
+
+1. **Flag at threshold** — FM (or the operator) reads provider billing / per-model `cost` metadata and
+   raises a breach at the configured threshold (default 80%; settable to 95%). This is a *role duty*
+   Cadre already defines.
+2. **Switch the model** — the switch needs a mechanism *outside* the model: either (a) route the
+   deployment through an AI gateway (LiteLLM et al.) that does budget fallbacks, or (b) a deterministic
+   checker that reads spend and rewrites the deployment's model config when the threshold trips.
+   Cadre ships neither binary; it defines the duty and points at the pattern.
+
+**Honest limit.** As with the cap, a threshold switch that relies on the agent *remembering* to check is
+not enforcement. The switch must be made by something deterministic — a gateway rule or a scheduled
+checker — or it will not fire at the moment it matters.
+
+---
+
 ## Why not enforce purely in the prompt
 
 Telling an agent "stay under 250k tokens" is a wish. The model cannot reliably count its own spend. Real enforcement is **accounting plus policy**:

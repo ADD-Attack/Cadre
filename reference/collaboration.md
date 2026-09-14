@@ -112,7 +112,7 @@ role is a distinct seat, and why QA starts at a higher autonomy level.)
 
 Collaboration needs a defined route *out* as much as between peers.
 
-- **The doorway.** In a single-interface deployment, one agent (often the Liaison/SMM) is the
+- **The doorway.** In a single-interface deployment, one agent (often the Social Media Manager) is the
   doorway that batches outboxes to the operator. The operator talks to one agent; the team still runs.
 - **The single-conduit risk.** If one agent is the only route to the operator, that agent is a
   single point of failure. The mitigation is a **designated relay**: a second agent the operator can
