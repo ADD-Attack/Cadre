@@ -82,11 +82,38 @@ A team-level `CADRE.md` records the global ceiling and the overflow policy.
 
 ---
 
+## Platform reality: there is no native spend cap
+
+**Verified against `openclaw config schema` (2026-09-14).** This is the constraint that shapes everything above, so state it plainly:
+
+- **No monetary ceiling primitive exists.** There is no `spendLimit`, `maxSpend`, `costCap`, `dollarBudget`, or `budgetUsd` key anywhere in the configuration schema. A budget cannot be *enforced by the platform* — there is nothing to bind the ceiling to.
+- **No usage/cost report command exists** either. The CLI exposes no `usage`, `cost`, or `spend` report. The closest surfaces are telemetry (anonymous, not billing) and per-model `cost` metadata.
+- **Per-model `cost` metadata** (`input` / `output` / `cacheRead` / `cacheWrite` / `tieredPricing`) exists — but it lets you **price** usage, not **stop** it.
+- **`maxTokens` and context/compaction budgets** bound *context windows*, not dollars. They are not a spend control.
+- Beware the near-miss key `suspendAfter`: it reads like a cap and is not one. It is *"Cloud Worker Idle Suspend Duration"* — it reclaims an idle cloud worker after e.g. `45m`; it has nothing to do with money.
+
+**Consequence for Cadre:** the budget layer is **accounting plus convention, and nothing more**. `enforcement: cap` is a **team promise the operator's policy layer keeps** — a wrapper, a scheduled checker, or a manual review — *not* a platform guarantee. Cadre does not ship that checker (see below).
+
+No one deploying Cadre should believe a hard stop will save them. It will not. The honest offer is: *you will know your spend, and you will decide what happens at the ceiling.*
+
+### What Cadre ships — and what it deliberately does not
+
+| Piece | Cadre ships it? |
+|---|---|
+| Budget schema (`BUDGET.md`, unit/period/ceiling/threshold/enforcement) | **Yes** — the format and the defaults |
+| Team ledger of ceilings + overflow policy (`CADRE.md`) | **Yes** |
+| Accounting discipline (who reads spend, who reports breaches) | **Yes** — as a role duty |
+| An enforcement binary that reads platform usage and halts a role | **No** — and it cannot, because the platform exposes no cap to bind to |
+
+If you want teeth, add them at the operator layer (a checker that reads your provider's billing API and mutates `BUDGET.md` enforcement to `cap` + suspends the role). Cadre will adopt such a checker as an optional component; it will not pretend to contain one.
+
+---
+
 ## Why not enforce purely in the prompt
 
 Telling an agent "stay under 250k tokens" is a wish. The model cannot reliably count its own spend. Real enforcement is **accounting plus policy**:
 
-- the platform's usage/cost reporting is the source of truth,
+- the operator's own usage/cost reporting (provider billing, or per-model `cost` metadata) is the source of truth — the platform ships no report of its own,
 - FM (or the operator, without FM) reads it and compares to the envelope,
 - a breach triggers the configured behaviour (warn or cap) via policy, not persuasion.
 
