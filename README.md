@@ -96,7 +96,8 @@ Full charters, budgets, and authority: [`reference/agents.md`](./reference/agent
 - [`reference/memory.md`](./reference/memory.md) — tiered memory (STM/MTM/LTM), loose gates, size-triggered eviction.
 - [`reference/mailboxes.md`](./reference/mailboxes.md) — inbox/outbox format, the doorway pattern, delivery guarantees.
 - [`reference/budgets.md`](./reference/budgets.md) — budget model, defaults, enforcement.
-- [`reference/autonomy-ladder.md`](./reference/autonomy-ladder.md) — how the operator hands work over.
+- [`reference/autonomy-ladder.md`](./reference/autonomy-ladder.md) — how the operator hands work over (who decides, per level).
+- [`reference/autonomy.md`](./reference/autonomy.md) — the act-vs-ask contract: when an agent acts alone, the four reasons to stop, and how it reports.
 - [`templates/`](./templates) — the files copied into each agent workspace and each project.
 
 ---
