@@ -4,11 +4,28 @@ Every Cadre agent workspace contains two mailboxes:
 
 ```
 <agent-workspace>/
-  inbox/    ← messages and work addressed TO this agent
-  outbox/   ← messages this agent wants the OPERATOR to see
+  inbox/    ← messages and work addressed TO this agent (from other agents OR the operator)
+  outbox/   ← messages this agent wants the OPERATOR to see — and only the operator
 ```
 
 They are plain directories of small files. Inspectable, greppable, survive restarts, no database.
+
+---
+
+## Two channels: peers vs the operator
+
+Cadre separates **two communication paths**, and conflating them is a real bug:
+
+| Path | Direction | How it works | Purpose |
+|---|---|---|---|
+| **Agent ↔ agent** (peer) | either way | direct agent-to-agent messaging; the recipient finds it in its **`inbox/`** | collaboration — dispatch, questions, handoffs, reviews |
+| **Agent → operator** | one way | the agent's **`outbox/`**, relayed by the doorway | what the *human* must see — decisions, blockers, deliverables, anomalies |
+
+> **The rule in one line:** the outbox is for the operator, and *only* the operator. Anything an agent wants to say to **another agent** goes **directly to that agent** (and lands in the recipient's `inbox/`) — it never goes in the sender's `outbox/`.
+
+**Why the split matters.** An operator reads their team the way a manager reads a status report; they do not want to be cc'd on every peer exchange. If agent-to-agent chatter goes through outboxes, the operator is flooded, the doorway batches noise, and **real blockers get missed**. Peers collaborate on their own channel; only operator-relevant items cross into the outbox.
+
+The routing limit (see [`guardrails.md`](./guardrails.md) §1) governs the **peer** channel — it caps how many agent-to-agent hops one unit of work may take, so collaboration cannot loop silently without finishing.
 
 ---
 
@@ -77,7 +94,7 @@ A doorway without these is a message-loss bug:
 
 ## What goes in an outbox
 
-Only things the **operator** must see: decisions needed, blockers, completed deliverables, anomalies. Not routine logs, not chatter between agents (that goes agent-to-agent directly), not "I'm still working".
+Only things the **operator** must see: decisions needed, blockers, completed deliverables, anomalies. Not routine logs, **not chatter between agents** (that goes agent-to-agent directly, landing in the peer's `inbox/`), not "I'm still working".
 
 An agent that fills its outbox with noise gets muted by the operator — and then real blockers are missed. **Assert-meaningful, not assert-noisy.**
 
@@ -85,7 +102,9 @@ An agent that fills its outbox with noise gets muted by the operator — and the
 
 ## What goes in an inbox
 
-Work assignments, questions from other agents, and routed operator replies. An agent **checks its inbox at the start of any unit of work** — that is the contract that makes dispatch reliable without a live push.
+Work assignments, **questions and messages from other agents**, and routed operator replies. An agent **checks its inbox at the start of any unit of work** — that is the contract that makes dispatch reliable without a live push.
+
+Note the asymmetry, and that it is intentional: the **inbox accepts peer messages**, but the **outbox never sends them**. A peer exchange is written to the *recipient's* inbox, not the sender's outbox.
 
 ---
 
