@@ -48,19 +48,19 @@ These are **starting points, not science**. The Cadre Wizard states them plainly
 
 ## With Finance Manager
 
-If the operator installs **FM**, the Cadre Wizard runs the full interview instead of applying defaults:
+If the operator installs the **Finance Manager**, the Cadre Wizard runs the full budget interview instead of applying defaults. **Every question arrives pre-filled with a default**, so the operator can accept the whole block in one word ("use the defaults") or tune any single line. *An **envelope** is just a spend limit for one role — the most that role may use in a period.*
 
-1. **Unit** — tokens or currency? (Currency requires a per-model price table.)
-2. **Period** — daily, weekly, monthly?
-3. **Per-role envelopes** — bespoke, role by role.
-4. **Global ceiling** — the number that must never be crossed.
-5. **Enforcement** — `warn` or `cap`, per role.
-6. **Alert routing** — who hears about a breach? (FM's outbox → doorway → operator.)
-7. **Overflow policy** — when a role is out of budget: stop, borrow from a pool, or escalate for a top-up?
+1. **Unit** — what are we counting? **Default: tokens** (what the model bills in; needs no price table). Currency requires a per-model price table.
+2. **Period** — how long is one budget window? **Default: daily.**
+3. **Per-role envelopes** — the spend limit for each role. **Default: the standard table above** (Project Manager 400k, QA 250k, …). "Bespoke" is optional tuning, never a blank the operator must fill — say so.
+4. **Global ceiling** — the total that must never be crossed. **Default: 1.5M tokens/day.**
+5. **Enforcement** — at a role's limit: keep going and report (`warn`), or stop the work (`cap`)? **Default: `warn`.**
+6. **Alert routing** — who hears about a breach? **Default: the Finance Manager → the doorway → the operator.**
+7. **Overflow policy** — a role has spent its envelope; then what? **Default: escalate to the operator for a top-up** (never silently borrow from another role).
 
-FM then **owns** the numbers, reports burn against them, and raises breaches. FM does **not** silently raise a ceiling — only the operator can.
+The Finance Manager then **owns** the numbers, reports burn against them, and raises breaches. The Finance Manager does **not** silently raise a ceiling — only the operator can.
 
-FM also **owns the scheduled-work audit**: recurring jobs and watchers are where spend is *created*, so FM audits every scheduled job for **owner, purpose, and $0 idle cost** ([`scheduled-work.md`](./scheduled-work.md)). Keep it **one batched pass on FM's cadence** — an efficient audit, not a ceremony. The checks that matter run as sentinels, so the audit itself does not add spend.
+The Finance Manager also **owns the scheduled-work audit**: recurring jobs and watchers are where spend is *created*, so it audits every scheduled job for **owner, purpose, and $0 idle cost** ([`scheduled-work.md`](./scheduled-work.md)). Keep it **one batched pass on the Finance Manager's cadence** — an efficient audit, not a ceremony. The checks that matter run as sentinels, so the audit itself does not add spend.
 
 ---
 
@@ -132,7 +132,7 @@ exposes **no spend cap and no cost-report command** — so there is nothing nati
 
 **Consequence for Cadre — an operator-layer capability, exactly like `enforcement: cap`:**
 
-1. **Flag at threshold** — FM (or the operator) reads provider billing / per-model `cost` metadata and
+1. **Flag at threshold** — the Finance Manager (or the operator) reads provider billing / per-model `cost` metadata and
    raises a breach at the configured threshold (default 80%; settable to 95%). This is a *role duty*
    Cadre already defines.
 2. **Switch the model** — the switch needs a mechanism *outside* the model: either (a) route the
@@ -151,7 +151,7 @@ checker — or it will not fire at the moment it matters.
 Telling an agent "stay under 250k tokens" is a wish. The model cannot reliably count its own spend. Real enforcement is **accounting plus policy**:
 
 - the operator's own usage/cost reporting (provider billing, or per-model `cost` metadata) is the source of truth — the platform ships no report of its own,
-- FM (or the operator, without FM) reads it and compares to the envelope,
+- The Finance Manager (or the operator, without one) reads it and compares to the envelope,
 - a breach triggers the configured behaviour (warn or cap) via policy, not persuasion.
 
 This mirrors Cadre principle #3: **real limits live outside the prompt.**

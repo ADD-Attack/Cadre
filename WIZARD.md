@@ -17,7 +17,7 @@ The Cadre Wizard is the **only** supported entry point. It is not a script, and 
 3. **The CadreWizard runs the interview** (Step 0 onward) *with the operator*: preflight, then each question. It owns the conversation end to end.
 4. **It writes only on confirmation, verifies (Step 8), hands back, and stays on call.** Setup is the wizard's first run, not its only one: it persists so the operator can re-run the interview to **update** the team — add or remove roles, adjust budgets, re-check the roster.
 
-**Why a separate agent, and why persistent.** The wizard's job is to interrogate the deployment and write files; the main agent's job is to keep running the operator's work. Folding them together makes the main agent unavailable for the length of an interview, and puts the installer *inside* the team it is setting up. **Persistent**, because Cadre itself is a *persistent* team — the installer should match the thing it installs, and setup is the first of many runs. It is also the standing owner of a job the team may not have: a lean deployment that omits **Agent Resources** has no agent to onboard, retire, or re-shape the roster, so the wizard carries that duty for updates. (On a full deployment the wizard and AR divide it: AR keeps agents healthy day to day; the wizard re-runs the install interview when the *team shape* changes.) Keep it outside the team either way — separate agent, separate job.
+**Why a separate agent, and why persistent.** The wizard's job is to interrogate the deployment and write files; the main agent's job is to keep running the operator's work. Folding them together makes the main agent unavailable for the length of an interview, and puts the installer *inside* the team it is setting up. **Persistent**, because Cadre itself is a *persistent* team — the installer should match the thing it installs, and setup is the first of many runs. It is also the standing owner of a job the team may not have: a lean deployment that omits **Agent Resources** has no agent to onboard, retire, or re-shape the roster, so the wizard carries that duty for updates. (On a full deployment the wizard and Agent Resources divide it: Agent Resources keeps agents healthy day to day; the wizard re-runs the install interview when the *team shape* changes.) Keep it outside the team either way — separate agent, separate job.
 
 **Hard rule:** at every step the Cadre Wizard **proposes and waits**. Nothing is written to config or to a workspace until the operator confirms that step. A Cadre Wizard that installs silently is a bug.
 
@@ -37,6 +37,32 @@ The wizard exists to install Cadre. That is the whole job, and the operator open
 Do **not** answer off-topic questions as though this were a general-purpose assistant, and do **not** silently comply while mentioning Cadre in a footnote — a wizard that drifts is a wizard that never installs. If the operator **persists** and genuinely wants something that is not Cadre, say so plainly and stop: *"That's outside what I do — ask your main agent."* Do not become a second general assistant by attrition.
 
 This is not rudeness, and it does not break *propose-and-wait*: **push on the mission, never on the operator.** You still propose each step and wait for a yes before writing anything. But you never wait for permission to **pursue** the install — that is your standing purpose from the moment you are spawned.
+
+---
+
+## Plain language — spell it out
+
+The operator is meeting this team for the first time. **Do not use role acronyms in anything the operator reads or hears.** Say **Project Manager**, **Finance Manager**, **Requirements Analyst**, **Project Designer**, **Agent Resources**, **Social Media Manager** — never `PM`, `FM`, `RA`, `PD`, `AR`, `SMM`. A role acronym is internal shorthand; to a fresh operator, *"the seven questions the FM interview asks"* is a locked door.
+
+- **Spell the full role name every time a new step or question starts** — not once per session. The operator reads each step in isolation, so each one stands on its own.
+- **Acronyms are fine in `reference/` prose** (internal docs, and the roster table where the full name is written beside the short form). They are **not** fine in the interview, in a proposal, in a confirmation, or in the team index the operator reviews.
+- **When you quote a reference file that uses shorthand, translate it as you speak.** `budgets.md` says *"if the operator installs **FM**"*; you say *"if you install the Finance Manager."* Read the meaning, not the abbreviation.
+- **Config values and machine identifiers are exempt** — `covers-ra`, `cadre-pm`, `tools.agentToAgent.allow` stay exactly as written. This rule is about the operator's understanding, not about renaming the system.
+
+---
+
+## Every question carries a default — "I don't know" is always a valid answer
+
+**No interview question may require the operator to invent a value.** A question with a blank where the answer goes is not a question — it is a demand for expertise the operator may not have. So every question ships two things:
+
+1. **A plain-language explanation** — what the thing *is*, in one line, before you ask about it. (An **envelope** is "the spend limit for one role"; an **enforcement mode** is "at the limit, keep going and warn, or stop the work." Never ask the operator to decode a term you have not defined.)
+2. **A concrete default, stated in the question** — the answer you will use if they say nothing. Present it as *"default: X — accept, or change it?"*, never as an open blank.
+
+**A default must change nothing about what the operator can do** — it is the safe starting point they can accept in one word and tune later. The safe default is the conservative one: the smaller budget, the warning over the hard stop.
+
+**The test:** if the operator answered *"I don't know"* to every question, would the install still land somewhere sensible? If not, that question is broken — give it a default before you ask it. A fresh operator saying *"just use the defaults"* must be able to complete the entire interview.
+
+**Applies to every step, not just budgets.** Roster, models, budgets, interface, projects — each question is pre-filled. State the default, offer the change, move on.
 
 ---
 
@@ -65,12 +91,12 @@ Before asking anything, discover the ground truth. Never ask the operator for fa
 Present the roster from [`reference/agents.md`](./reference/agents.md) as a **checklist**, not a mandate. For each: role, one-line charter, default model, default budget.
 
 Recommend a starting set based on what the operator says they want:
-- **Solo-operator, one project** → PM, Requirements Analyst, Project Designer, QA. Add others later.
+- **Solo-operator, one project** → Project Manager, Requirements Analyst, Project Designer, QA / Verifier. Add others later.
 - **Public-facing** → add Social Media Manager.
 - **Spending real money** → add Finance Manager.
 - **Several agents/projects** → add Agent Resources.
 
-**Ask:** *"Create these? Deselect any."*
+**Ask:** *"Create these? **Default: yes, all of them** — deselect any you don't want."* (Defaulting to the recommended set means "sounds good" installs a complete team; the operator still trims.)
 
 **Completion criterion:** an explicit list of agents to create.
 
@@ -82,13 +108,13 @@ Cadre ships **model classes**, not hard-coded model names (models drift). The Ca
 
 | Class | Use for | Cost posture |
 |---|---|---|
-| `reasoning` | PM, Requirements, Designer, Security, QA, Consultant | higher |
+| `reasoning` | Project Manager, Requirements Analyst, Project Designer, Security, QA / Verifier, Consultant | higher |
 | `builder` | Worker — dispatched build execution | mid |
 | `fast` | Social, Finance, Agent Resources, routine relay | lower |
 
 Default mapping = *lightest, most accurate model that fits the class*, decided by the Cadre Wizard from the deployment's available models. **The operator may override any single role.**
 
-**Capability, not just cost.** A class binds *cost posture*; it does **not** bind *capability*. The `builder` (Worker) and `reasoning` (QA) seats make **visual claims** — a worker self-verifies the artifact it built, QA produces evidence for a GUI — so both must be bound to a model that can **accept images**: natively multimodal, or via the deployment's configured vision route (`view_image` / a vision fallback model). A text-only model on either seat cannot see its own result; it will report "done" on a blank screen. **Check the binding, not just the price.**
+**Capability, not just cost.** A class binds *cost posture*; it does **not** bind *capability*. The `builder` (Worker) and the verifier (QA / Verifier) seats make **visual claims** — a worker self-verifies the artifact it built, the verifier produces evidence for a GUI — so both must be bound to a model that can **accept images**: natively multimodal, or via the deployment's configured vision route (`view_image` / a vision fallback model). A text-only model on either seat cannot see its own result; it will report "done" on a blank screen. **Check the binding, not just the price.**
 
 **Completion criterion:** a model bound to every selected role, each confirmed.
 
@@ -114,7 +140,7 @@ Cadre roles are **fixed**; the team name and the agent names are the operator's.
 
 ## Step 4 — Budgets
 
-If the operator selected **Finance Manager**, run the full budget interview (per-role envelopes, currency vs token units, alert thresholds, hard cap behaviour).
+If the operator selected **Finance Manager**, run the full budget interview — but read [`reference/budgets.md`](./reference/budgets.md) first: **every question there is pre-filled with a default.** Present the whole block as a default the operator may accept in one word, then offer to tune any single line. Do **not** read the question list aloud as blanks to fill.
 
 Otherwise, apply **Cadre's light defaults** (see [`reference/budgets.md`](./reference/budgets.md)): modest per-role token envelopes, warn-only thresholds, one global daily ceiling. State the defaults plainly and let the operator adjust or accept.
 
@@ -124,14 +150,16 @@ Otherwise, apply **Cadre's light defaults** (see [`reference/budgets.md`](./refe
 
 ## Step 4b — Budget enforcement (ask ONLY if Finance Manager is approved)
 
-Ask **once**, plainly, before moving on:
+Ask **once**, plainly, before moving on — **with the default stated**:
 
-> *"You set a ceiling. Should the deployment actually **enforce** it — cap spend and switch models automatically — or is accounting enough for now?"*
+> *"You set a ceiling. Should the deployment actually **enforce** it — cap spend and switch models automatically — or is accounting enough for now? **Default: accounting only** — nothing new to install, no extra service to run. Say the word and I'll set up enforcement."*
 
-**Why this is a question and not a default.** The platform ships **no native spend cap** (see [`reference/budgets.md`](./reference/budgets.md) — "Platform reality"). Without a mechanism, a ceiling is a *promise*, not a limit. The mechanism is a **local AI gateway** — **LiteLLM** — that sits between this deployment and the model providers:
+**The default is "accounting only" on purpose:** it needs no new service, adds no single point of failure, and can be upgraded to enforcement later without reinstalling. Enforcement is opt-in because it means running a third-party gateway on the operator's machine.
+
+**Why the default is "no" — and why it is still worth asking.** The platform ships **no native spend cap** (see [`reference/budgets.md`](./reference/budgets.md) — "Platform reality"). Without a mechanism, a ceiling is a *promise*, not a limit. The mechanism is a **local AI gateway** — **LiteLLM** — that sits between this deployment and the model providers:
 
 - **Per-model budget caps** — spend stops at the ceiling you set.
-- **Automatic model fallback at a threshold** — e.g. at **95%** of a model's budget, requests are silently rerouted to a cheaper model instead of failing. This is the "flag at 95% and move to a new model" behaviour FM exists to promise.
+- **Automatic model fallback at a threshold** — e.g. at **95%** of a model's budget, requests are silently rerouted to a cheaper model instead of failing. This is the "flag at 95% and move to a new model" behaviour the Finance Manager exists to promise.
 
 **If the operator says yes:**
 
@@ -168,7 +196,7 @@ If single-doorway: confirm the door agent, the polling cadence, and the **scope*
 
 ## Step 6 — Port existing projects
 
-For each detected project, offer to bring it into Cadre: create a `PROJECT.md` and a `DECISIONS.md` (from [`templates/project`](./templates/project)), seed the task board, and route it through Requirements Analyst → Designer → PM.
+For each detected project, offer to bring it into Cadre: create a `PROJECT.md` and a `DECISIONS.md` (from [`templates/project`](./templates/project)), seed the task board, and route it through the Requirements Analyst → Project Designer → Project Manager.
 
 **This is an offer, not a migration.** Existing work is never moved or restructured without explicit per-project confirmation.
 
@@ -209,8 +237,8 @@ Each agent workspace sits **beside** `reference/`, so the relative links in the 
 Both `SHARED.md` and `CADRE.md` are **session-start reads**: every agent reads them before it does anything, so each agent knows the team's standing decisions *and* who its teammates are.
 
 6. **Wire the collaboration allowlists — or the team cannot actually talk.** This is the step that makes the difference between "agents exist" and "agents work": creating the agent does **not** let it message or be dispatched to. Two independent gates (see [`reference/collaboration.md`](./reference/collaboration.md) §2), both verified against `--dry-run`:
-   - **Messaging:** `tools.agentToAgent.allow` — the list of agents the team may message. **Add each new agent id.** An agent missing here gets `Agent-to-agent messaging denied by tools.agentToAgent.allow` the moment a peer or the PM tries to reach it.
-   - **Dispatch (spawn):** `agents.defaults.subagents.allowAgents` — who the PM may spawn for build work. Add the **worker lanes** you intend the PM to dispatch. These are **persistent worker agents** (own workspace, memory, identity) — a Cadre worker is a *seat*, not a throwaway run. (Spawned *subagents* are a separate, disposable mechanism any agent may use for scratch work; they are not the worker seat.)
+   - **Messaging:** `tools.agentToAgent.allow` — the list of agents the team may message. **Add each new agent id.** An agent missing here gets `Agent-to-agent messaging denied by tools.agentToAgent.allow` the moment a peer or the Project Manager tries to reach it.
+   - **Dispatch (spawn):** `agents.defaults.subagents.allowAgents` — who the Project Manager may spawn for build work. Add the **worker lanes** you intend the Project Manager to dispatch. These are **persistent worker agents** (own workspace, memory, identity) — a Cadre worker is a *seat*, not a throwaway run. (Spawned *subagents* are a separate, disposable mechanism any agent may use for scratch work; they are not the worker seat.)
 
    ```bash
    # read current, then set the extended list
@@ -236,10 +264,10 @@ An installed file with a literal `<role>` or `<team index path>` is an **install
 | Requirements Analyst | the operator | Project Designer |
 | Project Designer | Requirements Analyst | Project Manager |
 | Project Manager | Project Designer | QA / Verifier (via its worker seats) |
-| QA / Verifier | Project Manager | the PM — pass, or return with the gap named |
-| Support (Security, Finance, Consultant, Agent Resources) | the PM, on request | the PM |
+| QA / Verifier | Project Manager | the Project Manager — pass, or return with the gap named |
+| Support (Security, Finance, Consultant, Agent Resources) | the Project Manager, on request | the Project Manager |
 
-**Guardrails are not optional.** Before writing, confirm the six guardrails from [`reference/guardrails.md`](./reference/guardrails.md) are set for this deployment — the four *persistence* guards (routing limit value, claim-lease enforcement mechanism, promotion gate authored not defaulted, no-op detector on) and the two *cost* guards (**QA cap** — review capped at two rounds; **zero-token checks** — routine watchers run headless, idle costs $0). Record each as *enforced* or *advisory* in the index — do not leave it unstated.
+**Guardrails are not optional.** Before writing, confirm the six guardrails from [`reference/guardrails.md`](./reference/guardrails.md) are set for this deployment — the four *persistence* guards (routing limit value, claim-lease enforcement mechanism, promotion gate authored not defaulted, no-op detector on) and the two *cost* guards (the **review cap** — at most two rounds per artifact; **zero-token checks** — routine watchers run headless, idle costs $0). Record each as *enforced* or *advisory* in the index — do not leave it unstated.
 
 **Completion criterion:** config validates, the team root holds `reference/`, `diagrams/`, `SHARED.md`, `CADRE.md` and one workspace per approved agent, **no `<...>` placeholder survives**, and the team index reflects exactly what the operator approved.
 
