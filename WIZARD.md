@@ -88,6 +88,8 @@ Cadre ships **model classes**, not hard-coded model names (models drift). The Ca
 
 Default mapping = *lightest, most accurate model that fits the class*, decided by the Cadre Wizard from the deployment's available models. **The operator may override any single role.**
 
+**Capability, not just cost.** A class binds *cost posture*; it does **not** bind *capability*. The `builder` (Worker) and `reasoning` (QA) seats make **visual claims** — a worker self-verifies the artifact it built, QA produces evidence for a GUI — so both must be bound to a model that can **accept images**: natively multimodal, or via the deployment's configured vision route (`view_image` / a vision fallback model). A text-only model on either seat cannot see its own result; it will report "done" on a blank screen. **Check the binding, not just the price.**
+
 **Completion criterion:** a model bound to every selected role, each confirmed.
 
 ---

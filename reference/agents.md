@@ -98,4 +98,6 @@ The Cadre Wizard binds a concrete model to each class *for the operator's deploy
 - `builder` — executing dispatched build tasks: code, GUI work, artifacts. Fleet-rate execution, not deep planning; the PM thinks, the builder makes.
 - `fast` — routine relay, accounting, posting. Cheap and quick.
 
+**A class sets cost posture, not capability.** The `builder` and QA seats must be bound to a model that can **accept images** (native vision, or the deployment's configured vision route), or "self-verify" and "evidence" are claims nobody can actually see — see [`verification.md`](./verification.md).
+
 A role's class may be overridden per-role by the operator.

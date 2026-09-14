@@ -25,6 +25,9 @@ described. The check passes; the brief fails.
 ## 2. Capture the real artifact, not a proxy
 
 Evidence is the thing itself, at the moment the requester would see it — not a computed proxy for it.
+**This requires a verifier that can accept images.** The evidence for anything visual is a screenshot or
+render, so bind QA to a vision-capable model (native, or the deployment's configured vision route). A
+text-only verifier cannot capture what it cannot see — it will pass a blank screen. (`agents.md` — models.)
 
 - **Drive the actual action.** If they will click a button, click that button and capture *that* frame.
 - **Not** "element X has class Y" or "the function returned 200" when the claim is about what a person
