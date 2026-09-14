@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 720" width="1160" height="720" role="img" aria-labelledby="fig6-title fig6-desc" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 780" width="1160" height="780" role="img" aria-labelledby="fig6-title fig6-desc" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
   <title id="fig6-title">The Cadre project pipeline: the Cadre Wizard once, then Requirements Analyst, Project Designer, Project Manager with its workers, QA verifier, finished product — with support roles on call</title>
-  <desc id="fig6-desc">A left-to-right flow diagram. At the top left, a human operator connects through one chat channel to the Cadre Wizard, which runs once at install to confirm roles and budgets. A connector carries the flow down into the project pipeline, a horizontal chain of four stations followed by a result. Station one is the Requirements Analyst: intake, clarification and scope. Station two is the Project Designer: architecture and approach. Station three is the Project Manager, which plans and dispatches and holds the workers in its scope. Station four is the QA verifier, an independent check that returns evidence. The chain ends in the finished, shipped product. A dashed amber path runs from the QA verifier back to the Project Manager, labelled requirements not met, so a build that misses the requirements returns to the plan owner rather than to intake. A dashed blue path runs from the Project Manager back to the Requirements Analyst, labelled new requirements, so a requirement surfaced during planning returns to where requirements live. A dashed red rework path runs from the finished product all the way back to the Requirements Analyst, labelled: a new product, or a scope change or new feature, either way goes back to the Requirements Analyst. Along the bottom, a dashed panel lists support roles on call as needed: Security/IT, Consultant, Social Media Manager, Finance Manager and Agent Resources; alongside project duty they carry scheduled, repetitive upkeep that keeps the flow environment healthy. A footer states that every project enters the same way, nothing skips the Requirements Analyst, and that rework goes to a defined gate — QA to the PM when requirements are unmet, the PM to intake for a new requirement, and the product to intake for a scope change or new product.</desc>
+  <desc id="fig6-desc">A left-to-right flow diagram. At the top left, a human operator connects through one chat channel to the Cadre Wizard, which runs once at install to confirm roles and budgets. A connector carries the flow down into the project pipeline, a horizontal chain of four stations followed by a result. Station one is the Requirements Analyst: intake, clarification and scope. Station two is the Project Designer: architecture and approach. Station three is the Project Manager, which plans and dispatches and holds the workers in its scope. Station four is the QA verifier, an independent check that returns evidence. The chain ends in the finished, shipped product. A dashed amber path runs from the QA verifier back to the Project Manager, labelled requirements not met, so a build that misses the requirements returns to the plan owner rather than to intake. A dashed blue path runs from the Project Manager back to the Requirements Analyst, labelled new requirements, so a requirement surfaced during planning returns to where requirements live. A dashed red rework path runs from the finished product all the way back to the Requirements Analyst, labelled: a new product, or a scope change or new feature, either way goes back to the Requirements Analyst. Along the bottom, a dashed panel lists support roles on call as needed: Security/IT, Consultant, Social Media Manager, Finance Manager and Agent Resources; alongside project duty they carry scheduled, repetitive upkeep that keeps the flow environment healthy, and the Consultant is the one support seat allowed heavier models and deeper reasoning, spent to clarify a hard problem or research a novel challenge. A footer states that every project enters the same way, nothing skips the Requirements Analyst, and that rework goes to a defined gate — QA to the PM when requirements are unmet, the PM to intake for a new requirement, and the product to intake for a scope change or new product.</desc>
   <defs>
     <marker id="p-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
@@ -16,7 +16,7 @@
     </marker>
   </defs>
 
-  <rect x="0" y="0" width="1160" height="720" fill="#f8fafc"/>
+  <rect x="0" y="0" width="1160" height="780" fill="#f8fafc"/>
 
   <text x="40" y="46" font-size="24" font-weight="700" fill="#0f172a">How a project runs</text>
   <text x="40" y="72" font-size="14" fill="#64748b">One Cadre Wizard at setup. Then a fixed path &#8212; with support roles on call beside it.</text>
@@ -89,10 +89,11 @@
   <text x="760" y="430" font-size="10.5" font-weight="600" fill="#b91c1c" text-anchor="middle">New product, or scope change / new feature</text>
 
   <!-- ===== support roles ===== -->
-  <rect x="60" y="486" width="1050" height="140" rx="10" fill="#ffffff" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="8 5"/>
+  <rect x="60" y="486" width="1050" height="200" rx="10" fill="#ffffff" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="8 5"/>
   <text x="84" y="516" font-size="14" font-weight="700" fill="#0f172a">Support roles &#8212; on call as needed</text>
   <text x="84" y="536" font-size="11.5" fill="#64748b">Not stations in the flow. They attach to whichever project needs them, and go quiet when it doesn't.</text>
   <text x="84" y="618" font-size="11" fill="#64748b">They also carry scheduled, repetitive upkeep &#8212; health checks, backups, housekeeping &#8212; keeping the flow environment healthy.</text>
+  <text x="84" y="640" font-size="11" fill="#64748b">The Consultant escalates to heavier models and deeper reasoning to clarify hard problems and research novel challenges.</text>
 
   <rect x="84" y="552" width="180" height="52" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.4"/>
   <text x="174" y="575" font-size="12.5" font-weight="700" fill="#334155" text-anchor="middle">Security / IT</text>
@@ -100,7 +101,7 @@
 
   <rect x="282" y="552" width="180" height="52" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.4"/>
   <text x="372" y="575" font-size="12.5" font-weight="700" fill="#334155" text-anchor="middle">Consultant</text>
-  <text x="372" y="592" font-size="10.5" fill="#64748b" text-anchor="middle">second opinion</text>
+  <text x="372" y="592" font-size="10.5" fill="#64748b" text-anchor="middle">dissent &#183; deep research</text>
 
   <rect x="480" y="552" width="180" height="52" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.4"/>
   <text x="570" y="575" font-size="12.5" font-weight="700" fill="#334155" text-anchor="middle">Social Media Mgr</text>
@@ -115,6 +116,6 @@
   <text x="981" y="592" font-size="10.5" fill="#64748b" text-anchor="middle">the roster itself</text>
 
   <!-- ===== footer ===== -->
-  <text x="40" y="668" font-size="13" font-weight="600" fill="#334155">Every project enters the same way. Nothing skips the Requirements Analyst.</text>
-  <text x="40" y="692" font-size="12" fill="#94a3b8">Rework goes to a defined gate: QA&#8594;PM (requirements unmet), PM&#8594;intake (new requirements), product&#8594;intake (scope change or new product).</text>
+  <text x="40" y="716" font-size="13" font-weight="600" fill="#334155">Every project enters the same way. Nothing skips the Requirements Analyst.</text>
+  <text x="40" y="740" font-size="12" fill="#94a3b8">Rework goes to a defined gate: QA&#8594;PM (requirements unmet), PM&#8594;intake (new requirements), product&#8594;intake (scope change or new product).</text>
 </svg>
