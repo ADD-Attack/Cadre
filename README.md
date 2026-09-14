@@ -41,6 +41,8 @@ That's it. The wizard does the rest.
 
 ## The flow
 
+![How a project runs: wizard once, then Requirements Analyst to Project Designer to Project Manager (workers in its scope) to QA to the finished product, with support roles on call beside the line and a rework path from the finished product back to the Requirements Analyst](./diagrams/project-pipeline.svg)
+
 ```
  Operator
     │  "set up Cadre"
@@ -49,15 +51,22 @@ That's it. The wizard does the rest.
     │
     ▼
  Cadre Wizard ──interviews──▶ you (agents, models, names, budgets, interface)
-    │
-    ▼
- Requirements Analyst ──▶ Project Designer ──▶ Project Manager
-                                                    │
-                                    tasks + Gantt + worker tracking
-                                    (FlowBoard)
+
+                            new product, or scope change / new feature
+      ┌────────────────────────────────────────────────────────────────┐
+      │                                                                │
+      ▼                                                                │
+ Requirements Analyst ─▶ Project Designer ─▶ Project Manager ─▶ QA / Verifier ─▶ Finished product
+                                                   │
+                            tasks + Gantt + worker tracking (FlowBoard)
+                            workers sit in the PM's scope
 ```
 
-Every project enters through **Requirements Analyst → Project Designer → Project Manager**. The PM owns execution: it breaks work into tasks, maintains the Gantt chart, and dispatches/tracks worker agents.
+Every project enters at the **Requirements Analyst** and moves through **Project Designer → Project Manager → QA / Verifier → finished product**. The PM owns execution: it breaks work into tasks, maintains the Gantt chart, and dispatches/tracks worker agents — **the workers sit in the PM's scope**.
+
+**Rework.** Once something ships, two things send work back to the start: a **scope change or new feature** to what just shipped, or a **new product** entirely. Either way it re-enters at the Requirements Analyst and runs the pipeline again — never patched in mid-stream.
+
+**Support roles ride beside the line, never on it.** Security/IT, Consultant, Social Media Manager, Finance Manager and Agent Resources attach to whichever project needs them and go quiet when it doesn't.
 
 ---
 
