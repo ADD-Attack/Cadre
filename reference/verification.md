@@ -47,8 +47,8 @@ An honest gap is cheap; a false pass is the failure this whole file exists to pr
 ## 5. Independence
 
 The verifier must be a **different agent than the builder**, or it is not verification — it is the same
-priors agreeing with themselves (`agents.md`). Where a build came from a worker subagent, QA is a separate
-persistent agent.
+priorities agreeing with themselves (`agents.md`). Where a build came from a worker agent, QA is always a separate
+persistent agent — a dedicated seat, never the builder.
 
 ## 6. Bound the loop
 

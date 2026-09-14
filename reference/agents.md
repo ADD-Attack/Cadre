@@ -2,7 +2,7 @@
 
 The Cadre roster. Roles are **fixed**; names, models, and budgets are the operator's (set by the Cadre Wizard at install).
 
-Every agent is a **persistent OpenClaw agent**: its own workspace, persona files, memory, session store, and mailboxes. None are ephemeral subagents — subagents are spawned *by* these agents for disposable work.
+Every agent — **including every worker the PM dispatches to** — is a **persistent OpenClaw agent**: its own workspace, persona files, memory, session store, and mailboxes. **A worker is a seat, not a throwaway run:** it keeps its identity and memory across projects, so its skill and context accumulate exactly the way the PM's or QA's do. (Spawned *subagents* — the disposable scratch mechanism any agent may use for bounded side work — are a separate thing; they are not the worker seat.)
 
 ---
 
@@ -11,6 +11,7 @@ Every agent is a **persistent OpenClaw agent**: its own workspace, persona files
 | Agent | Class | Owns | Default authority |
 |---|---|---|---|
 | **Project Manager (PM)** | reasoning | plan, tasks, Gantt, dispatch, tracking | dispatch workers; may absorb others' duties when configured |
+| **Worker** | builder | executing dispatched build tasks within the PM's scope | build + self-verify its own work; visible to the PM, reports back with evidence |
 | **Requirements Analyst (RA)** | reasoning | intake, clarification, scope, acceptance criteria; **defends a doable scope** | write requirements; no build authority |
 | **Project Designer (PD)** | reasoning | architecture, approach, specs, **feature inventory + style guide** | write design; no build authority |
 | **Security / IT** | reasoning | audit, exposure, hygiene, remediation queue | **advise only** — never self-edits config |

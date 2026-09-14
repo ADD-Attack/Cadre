@@ -128,11 +128,11 @@ That's it. The Cadre Wizard does the rest.
       ▼                                                                │
  Requirements Analyst ─▶ Project Designer ─▶ Project Manager ─▶ QA / Verifier ─▶ Finished product
                                                    │
-                            tasks + Gantt + worker tracking (FlowBoard)
+                            tasks + Gantt + worker seats (workers persist, in the PM's scope)
                             workers sit in the PM's scope
 ```
 
-Every project enters at the **Requirements Analyst** and moves through **Project Designer → Project Manager → QA / Verifier → finished product**. The PM owns execution: it breaks work into tasks, maintains the Gantt chart, and dispatches/tracks worker agents — **the workers sit in the PM's scope**.
+Every project enters at the **Requirements Analyst** and moves through **Project Designer → Project Manager → QA / Verifier → finished product**. The PM owns execution: it breaks work into tasks, maintains the Gantt chart, and dispatches/tracks its **worker agents** — **the workers sit in the PM's scope**, and each one is a **persistent agent with its own memory and identity**, not a throwaway run.
 
 **Rework.** Once something ships, two things send work back to the start: a **scope change or new feature** to what just shipped, or a **new product** entirely. Either way it re-enters at the Requirements Analyst and runs the pipeline again — never patched in mid-stream.
 

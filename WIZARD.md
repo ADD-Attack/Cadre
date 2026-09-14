@@ -192,7 +192,7 @@ Both `SHARED.md` and `CADRE.md` are **session-start reads**: every agent reads t
 
 6. **Wire the collaboration allowlists — or the team cannot actually talk.** This is the step that makes the difference between "agents exist" and "agents work": creating the agent does **not** let it message or be dispatched to. Two independent gates (see [`reference/collaboration.md`](./reference/collaboration.md) §2), both verified against `--dry-run`:
    - **Messaging:** `tools.agentToAgent.allow` — the list of agents the team may message. **Add each new agent id.** An agent missing here gets `Agent-to-agent messaging denied by tools.agentToAgent.allow` the moment a peer or the PM tries to reach it.
-   - **Dispatch (spawn):** `agents.defaults.subagents.allowAgents` — who the PM may spawn for build work. Add the builder/disposable lanes you intend the PM to dispatch.
+   - **Dispatch (spawn):** `agents.defaults.subagents.allowAgents` — who the PM may spawn for build work. Add the **worker lanes** you intend the PM to dispatch. These are **persistent worker agents** (own workspace, memory, identity) — a Cadre worker is a *seat*, not a throwaway run. (Spawned *subagents* are a separate, disposable mechanism any agent may use for scratch work; they are not the worker seat.)
 
    ```bash
    # read current, then set the extended list
@@ -217,7 +217,7 @@ An installed file with a literal `<role>` or `<team index path>` is an **install
 |---|---|---|
 | Requirements Analyst | the operator | Project Designer |
 | Project Designer | Requirements Analyst | Project Manager |
-| Project Manager | Project Designer | QA / Verifier (via the worker fleet) |
+| Project Manager | Project Designer | QA / Verifier (via its worker seats) |
 | QA / Verifier | Project Manager | the PM — pass, or return with the gap named |
 | Support (Security, Finance, Consultant, Agent Resources) | the PM, on request | the PM |
 
