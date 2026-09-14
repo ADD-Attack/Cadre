@@ -2,7 +2,9 @@
 
 The paper this system comes from (*Persistent Agent Teams*) names four guardrails for the failure modes that **persistence** introduces. Pipelines don't have these problems because pipelines die. Teams do.
 
-Every Cadre install should have all four. They are cheap; the failures they prevent are not.
+Two more come from the *cost* side, where a persistent team's real risk isn't a crash — it is **quiet, recurring spend**. They are guards 5 and 6 below.
+
+Every Cadre install should have all six. They are cheap; the failures they prevent are not.
 
 ---
 
@@ -99,6 +101,33 @@ A claim written only in prose is advisory. Enforcement needs teeth:
 
 ---
 
+## 5. QA cap (the retry loop has a ceiling)
+
+**Problem.** Verification is a loop, and an unbounded loop is a bill. With no cap, the cheapest available action is always *check it again* — so it is taken until a human notices. The motivating case: one agent captured the same screen **30 times in a single day** because nothing bounded the retry.
+
+**Rule.** **At most two review rounds per artifact.** A round = render the artifact, check it against the spec, give a verdict, and apply the fix the verdict implies. The second round is the last one.
+
+- **Pass** → ship it.
+- **Still failing on round 2** → **stop and escalate to the operator** with both attempts side by side and the remaining gap named. A third pass is refused.
+
+**Enforcement.** Where a script can hold the counter, have it refuse the third round outright rather than trusting memory. Escalating at the cap is the correct cheap move, not a failure — a silent fourth pass is the failure.
+
+---
+
+## 6. Zero-token checks (idleness must be free)
+
+**Problem.** A continuous check — "is there new mail?", "did the build finish?" — is usually written as a model turn: wake, call a tool, report. That makes *idleness itself* expensive, and the cost scales with how many things you watch and how often, **not** with how many events actually happen. A watcher built this way burned **≈$8.03 across 312 turns** while nothing was happening.
+
+**Rule.** Run routine checks as a **deterministic headless script** (a *sentinel*), not a model turn. The model wakes **only when the condition is true**.
+
+- Idle must cost **$0**. If a check costs tokens when the answer is "nothing to do", it is the wrong mechanism.
+- De-duplicate on observed **state**, so a condition that stays true does not re-fire every tick.
+- A recurring watcher needs a purpose and a cadence that makes sense. An hourly-forever wakeup "just in case" is not a watcher; it is a leak.
+
+**Litmus:** *does this tick cost tokens when nothing is happening?* If yes, rewrite it as a sentinel.
+
+---
+
 ## How they fit together
 
 | Guardrail | Failure it prevents | Cost of skipping |
@@ -107,5 +136,7 @@ A claim written only in prose is advisory. Enforcement needs teeth:
 | File-claim lease | two writers, one file | silent data loss |
 | Promotion gate | memory never promotes | the §6 case study |
 | No-op detector | work that looks done and isn't | false success |
+| QA cap | an unbounded review loop | a bill that grows while nothing improves |
+| Zero-token checks | idleness billed as work | recurring spend with no event to show for it |
 
-All four are properties **persistence** creates. Which is why the paper's thesis is short: **a persistent team is a distributed system, and it inherits distributed-systems failure modes.**
+All six come from **persistence** — the first four from its *failure* modes, the last two from its *cost* modes. Which is why the paper's thesis is short: **a persistent team is a distributed system, and it inherits distributed-systems failure modes.** A team that stays up is also a team that keeps *billing*, so its cost discipline is a guardrail, not an optimisation.

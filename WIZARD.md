@@ -113,7 +113,7 @@ Only now, write:
 3. The shared team ledger `SHARED.md` from [`templates/SHARED.md`](./templates/SHARED.md) — read by every agent at session start.
 4. A team index (`CADRE.md`) summarising the installed roster, names, models, budgets, interface mode, and which guardrails are enforced vs advisory.
 
-**Guardrails are not optional.** Before writing, confirm the four guardrails from [`reference/guardrails.md`](./reference/guardrails.md) are set for this deployment (routing limit value, claim-lease enforcement mechanism, promotion gate authored not defaulted, no-op detector on). Record each as *enforced* or *advisory* in the index — do not leave it unstated.
+**Guardrails are not optional.** Before writing, confirm the six guardrails from [`reference/guardrails.md`](./reference/guardrails.md) are set for this deployment — the four *persistence* guards (routing limit value, claim-lease enforcement mechanism, promotion gate authored not defaulted, no-op detector on) and the two *cost* guards (**QA cap** — review capped at two rounds; **zero-token checks** — routine watchers run headless, idle costs $0). Record each as *enforced* or *advisory* in the index — do not leave it unstated.
 
 **Completion criterion:** config validates, every agent workspace exists, and the team index reflects exactly what the operator approved.
 

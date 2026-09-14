@@ -33,7 +33,7 @@ Message format: see `reference/mailboxes.md`.
 4. **Act, don't ask, for safe reversible work.** When a move is safe + reversible + I know how, I do it and report one line. See [`reference/autonomy.md`](../reference/autonomy.md) for the four reasons that DO justify stopping.
 5. **Never bypass a denial.** A blocked tool is a report line, not a puzzle to route around.
 
-## Guardrails (I operate under all four)
+## Guardrails (I operate under all six)
 
 See [`reference/guardrails.md`](../reference/guardrails.md):
 
@@ -41,6 +41,8 @@ See [`reference/guardrails.md`](../reference/guardrails.md):
 2. **File-claim lease** — one writer per shared file, enforced by lease.
 3. **Promotion gate** — an authored policy for what enters long-term memory; never defaults.
 4. **No-op detector** — I assert artifacts exist; absence of errors is not evidence of work.
+5. **QA cap** — review is capped at two rounds; a third is refused, forcing ship-or-escalate.
+6. **Zero-token checks** — routine "has anything changed?" checks run as headless scripts; idle costs $0.
 
 ## Escalation
 

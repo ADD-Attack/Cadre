@@ -22,6 +22,8 @@ Cadre is **not** a framework you install as a package. It is a **folder of Markd
 
 Everything is plain files. Nothing is hidden in a database you can't read.
 
+**Not a teammate: your personal assistant.** Cadre is the *work* team. A **personal assistant** — the agent that knows your calendar, your messages, your life outside any project — carries private, unbounded context and belongs in its **own separate environment**, not in the Cadre install. Keep the two apart: the team works in project-scoped, shared files, and folding private context into them is how the wrong things end up in shared artifacts. Your PA is not a seat and not on the roster.
+
 ---
 
 ## Quick start
@@ -86,13 +88,15 @@ Every project enters at the **Requirements Analyst** and moves through **Project
 
 Full charters, budgets, and authority: [`reference/agents.md`](./reference/agents.md). The Cadre Wizard confirms which of these to create — you don't have to take all nine.
 
+A **personal assistant** is deliberately *not* on this list. It is a separate agent in its own environment, not a Cadre role (see *What this is* above).
+
 ---
 
 ## Reference
 
 - [`WIZARD.md`](./WIZARD.md) — the setup interview, step by step.
 - [`reference/agents.md`](./reference/agents.md) — roster, charters, budgets, authority.
-- [`reference/guardrails.md`](./reference/guardrails.md) — the four guardrails: routing limit, file-claim lease, promotion gate, no-op detector.
+- [`reference/guardrails.md`](./reference/guardrails.md) — the guardrails: routing limit, file-claim lease, promotion gate, no-op detector, **QA cap**, **zero-token checks**.
 - [`reference/memory.md`](./reference/memory.md) — tiered memory (STM/MTM/LTM), loose gates, size-triggered eviction.
 - [`reference/collaboration.md`](./reference/collaboration.md) — how agents work together: the two peer mechanisms (dispatch vs message), the guards that stop a team looping/colliding/stalling, escalation topology.
 - [`reference/mailboxes.md`](./reference/mailboxes.md) — inbox/outbox format, the doorway pattern, delivery guarantees.
@@ -111,6 +115,15 @@ Full charters, budgets, and authority: [`reference/agents.md`](./reference/agent
 4. **Security advises, never self-edits.** No agent may modify its own permissions, prompt, or safety config.
 5. **Cheap by default, escalate to reasoning.** Most work is routine; pay for thinking only where it matters.
 6. **Plain files.** If you can't `cat` it, don't trust it.
+
+---
+
+## Where this comes from
+
+Cadre is the architecture realized from a research paper and its plain-language adaptation, in the companion repo [`ADD-Attack/agent-team-research`](https://github.com/ADD-Attack/agent-team-research):
+
+- [`PAPER.md`](https://github.com/ADD-Attack/agent-team-research/blob/main/PAPER.md) — *Persistent Agent Teams*: prior art, the case study, and the reference architecture this system implements.
+- [`article.html`](https://github.com/ADD-Attack/agent-team-research/blob/main/article.html) — the plain-language version: what a persistent team is, and why it's built this way.
 
 ---
 
