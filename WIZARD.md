@@ -113,6 +113,7 @@ Recommend a starting set based on what the operator says they want:
 - **Public-facing** → add Social Media Manager.
 - **Spending real money** → add Finance Manager.
 - **Several agents/projects** → add Agent Resources.
+- **Workers — recommend two.** The PM dispatches to its **worker seats**, and **two is the set we recommend**. One worker is a single point of failure; two lets the PM run parallel tasks and keep the line moving while one is blocked, reviewing, or mid-task. Because a worker is a **persistent agent** (own workspace, memory, identity), the second one accrues skill over time rather than only paying off in a crunch. For a solo operator on a tight budget, one is a legitimate choice — but propose **two** first, and say why.
 
 **Ask:** *"Create these? **Default: yes, all of them** — deselect any you don't want."* (Defaulting to the recommended set means "sounds good" installs a complete team; the operator still trims.)
 

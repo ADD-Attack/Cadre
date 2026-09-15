@@ -4,6 +4,8 @@ The Cadre roster. Roles are **fixed**; names, models, and budgets are the operat
 
 Every agent — **including every worker the PM dispatches to** — is a **persistent OpenClaw agent**: its own workspace, persona files, memory, session store, and mailboxes. **A worker is a seat, not a throwaway run:** it keeps its identity and memory across projects, so its skill and context accumulate exactly the way the PM's or QA's do. (Spawned *subagents* — the disposable scratch mechanism any agent may use for bounded side work — are a separate thing; they are not the worker seat.)
 
+**Recommend two.** One worker is a single point of failure; two lets the PM run parallel work and keep the line moving while one is blocked, reviewing, or mid-task — and because every worker is persistent, the second accrues skill over time rather than only paying off in a crunch. The Cadre Wizard proposes **two worker seats** by default; an operator may take one.
+
 ---
 
 ## The roster
@@ -11,7 +13,7 @@ Every agent — **including every worker the PM dispatches to** — is a **persi
 | Agent | Class | Owns | Default authority |
 |---|---|---|---|
 | **Project Manager (PM)** | reasoning | plan, tasks, Gantt, dispatch, tracking | dispatch workers; may absorb others' duties when configured |
-| **Worker** | builder | executing dispatched build tasks within the PM's scope | build + self-verify its own work; visible to the PM, reports back with evidence |
+| **Worker** — *recommend two* | builder | executing dispatched build tasks within the PM's scope | build + self-verify its own work; visible to the PM, reports back with evidence |
 | **Requirements Analyst (RA)** | reasoning | intake, clarification, scope, acceptance criteria; **defends a doable scope** | write requirements; no build authority |
 | **Project Designer (PD)** | reasoning | architecture, approach, specs, **feature inventory + style guide** | write design; no build authority |
 | **Security / IT** | reasoning | audit, exposure, hygiene, remediation queue | **advise only** — never self-edits config |
