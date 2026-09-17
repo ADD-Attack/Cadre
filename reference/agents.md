@@ -47,7 +47,7 @@ Two seats carry a defining **voice**, stated because the voice *is* the job:
 Two roles carry a hard constitutional limit:
 
 - **Security/IT advises, never edits.** An agent that can rewrite its own permissions or safety config defeats the point of having one. Security finds and recommends; a human or an explicit config change applies. (This is the self-modification perimeter.) The seat's method — scheduled audit, a confidentiality sweep of every agent's session logs, exposure posture, and a current remediation queue — is [`security.md`](./security.md).
-- **QA is independent.** QA must not be the agent that built the thing. Where a build is done by a worker subagent, QA is a separate persistent agent — otherwise "verification" is a second opinion from the same priors. How QA reaches a verdict — restate the pass condition, capture the real artifact, read the whole of it, report an unverified gap honestly — is [`verification.md`](./verification.md).
+- **QA is independent.** QA must not be the agent that built the thing. Where a build is done by a worker subagent, QA is a separate persistent agent — otherwise "verification" is a second opinion from the same priors. How QA reaches a verdict — restate the pass condition, capture the real artifact, read the whole of it, report an unverified gap honestly — is [`verification.md`](./verification.md). **A pass is not a return.** A return with a named gap goes back to the PM for rework; an approved **final** build — nothing left to send back — is handed to the **operator's agent** (the main agent, on the peer channel), so a finished project reaches the operator instead of stopping at the PM.
 
 ---
 
@@ -59,6 +59,7 @@ Two roles carry a hard constitutional limit:
 | Dispatch work to workers | PM (and any agent within its own scope) |
 | Claim a file for exclusive write | any agent (via the [claim/lease convention](./guardrails.md#2-file-claim-lease)) |
 | Verify and pass/fail a deliverable | QA only |
+| Hand an approved final build to the operator | QA — to the operator's agent (main agent) |
 | Send external/public messages | SMM (gated by operator policy) |
 | Change budgets | FM (within operator-set ceilings) |
 | Audit scheduled jobs (owner, purpose, idle cost) | FM — reports; removing a job is the operator's call |
