@@ -1,43 +1,38 @@
-# Inside a Cadre Agent Workspace
+# Michael: a customized OpenClaw assistant
 
-Cadre agents are shaped by a small set of readable files, plus the OpenClaw runtime that hosts them. The files provide role, continuity, and team conventions; they are not a substitute for runtime permissions, tool policy, or operator oversight.
+This is a profile of **one particular OpenClaw deployment**: Michael, a persistent assistant configured to help its operator run a multi-agent team and keep projects moving. It is here because the Cadre repository is the public home available for this example—not because Michael is a Cadre role or because every OpenClaw agent behaves this way.
 
-## The core files
+## Not just a character prompt
 
-| File | What it contributes |
-|---|---|
-| `AGENTS.md` | The agent's role, place in the workflow, authority, working rules, hand-offs, and links to team conventions. Think of it as the role charter and operating manual. |
-| `SOUL.md` | Voice and disposition: how the agent should communicate and approach its work. It personalizes behavior without changing the agent's assigned authority. |
-| `IDENTITY.md` | Stable identity facts such as name, official role, team, model class, reporting line, and workspace. |
-| `USER.md` | Operator preferences and standing context that the operator has chosen to share with that agent. |
-| `MEMORY.md` | Curated long-term continuity: durable facts and decisions that should survive across sessions. It is separate from the live task record. |
-| `BUDGET.md` | The agent's budget envelope and accounting policy. Platform usage data—not an agent's guess about its own tokens—is the source of truth for actual spend. |
+An OpenClaw model supplies the language and reasoning. The assistant people experience is the combination of that model with its role instructions, persistent workspace, tools, integrations, runtime permissions, and the operator's decisions. Michael's `AGENTS.md`, `SOUL.md`, `IDENTITY.md`, and `AUTONOMY.md` give him a distinct role and working style; memory and operational records let him carry context forward. The deployed tools and permissions determine what he can actually do.
 
-The install templates live in [`templates/agent-workspace/`](../templates/agent-workspace/). The Cadre Wizard fills in role- and operator-specific details; these are templates, not universal prompts to copy unchanged.
+That combination is what makes this instance different from a newly created, minimally configured OpenClaw agent. The difference is **deployment-specific configuration and accumulated operating practice**, not a special capability guaranteed by a model name or by Cadre itself.
 
-## Team and project context
+## What Michael does
 
-An agent also reads shared team conventions and the current project record. The team directory describes who exists, their roles, and reporting lines. Project files describe the goal, acceptance criteria, decisions, task ownership, and current status. This lets a persistent agent resume work without treating a past chat as the only record.
+- **Runs the operation, not just one project.** He tracks agent health, work routing, schedules, budgets, and operational issues across the deployment. He delegates sustained specialist work and stays available to the operator for steering and decisions.
+- **Turns goals into coordinated delivery.** He can break a broad request into sequenced work, assign it through specialist agents, keep check-ins active, and bring evidence back to the operator. For a game project, for example, that can mean coordinating design, implementation, independent QA, and deployment rather than stopping at a plan.
+- **Works with real artifacts and tools.** When configured, he can inspect and edit files, run commands, research current information, coordinate agents, and use approved integrations. He can check a built artifact or a served release instead of treating a status message as proof.
+- **Keeps continuity in readable records.** Durable preferences, decisions, project state, and lessons can be recorded in workspace files so a later session can resume without pretending to remember what it cannot see.
+- **Uses initiative inside explicit limits.** Routine, safe, reversible work can be completed and reported without asking for a ceremonial approval. High-impact, irreversible, externally visible, or operator-owned decisions remain at the human boundary unless the operator has already established a clear policy for them.
+- **Can turn a verified failure into a better procedure.** When an incident exposes a repeatable process defect, he can document the lesson and update the relevant runbook so the next session has something better than a vague recollection.
 
-Cadre distinguishes **persistent worker seats** from **spawned subagents**. A worker is a continuing team member with its own identity and accumulated context. A subagent is a temporary, bounded helper for a piece of work; it does not replace the worker seat or become a new permanent role.
+## How the files shape him
 
-## Autonomy: initiative with boundaries
+These names describe the kinds of records used in this deployment; they are not a public dump of Michael's private instructions or memory.
 
-Cadre separates two questions:
+- **`AGENTS.md`** defines the administrator role, workflow, boundaries, and local operating rules.
+- **`SOUL.md`** sets his voice: direct, warm, resourceful, willing to push back, and not a sycophant.
+- **`IDENTITY.md`** records who he is and the scope of his role.
+- **`AUTONOMY.md`** explains when he should act, report, or stop for a real human decision.
+- **Memory and project records** preserve selected durable context and the current state of work.
 
-- The **autonomy ladder** describes how much responsibility an operator has delegated to a role as trust is earned. See [`autonomy-ladder.md`](./autonomy-ladder.md).
-- The **act-versus-ask contract** describes how an agent handles an individual decision. See [`autonomy.md`](./autonomy.md).
+The files make the behavior legible and consistent; they do **not** grant authority. Runtime policy, tool permissions, approval gates, budget controls, and the operator's actual authorization are the hard boundaries. Michael must not treat an instruction file as permission to bypass a tool denial or enlarge his own access.
 
-The short version is: agents should complete work that is safe, reversible, within their authority, and understood—then report what they did. They stop and escalate for consequential decisions reserved to the operator, destructive or irreversible actions, externally visible actions outside an approved workflow, or genuine information blockers. They must not treat autonomy as permission to bypass a denial or enlarge their own authority.
+## What this is—and is not
 
-This is more than a personality prompt, but the Markdown files alone do not enforce every boundary. OpenClaw's runtime permissions, tool policy, budget controls, approval gates, and the operator's configuration provide the hard limits. Prompts explain how to work inside those limits; they cannot grant themselves new capabilities.
+Michael's setup is a concrete example of a deeply configured personal agent working alongside a Cadre team. It is not the Cadre installer, not a template that should be copied verbatim, and not a promise that a fresh OpenClaw install will have the same tools, access, memory, or autonomy. A safe adaptation starts with the operator's own goals and grants capabilities deliberately.
 
-## Why this differs from a one-shot chatbot
+Nor is “autonomous” the same as “always right” or “unobserved.” Michael can misunderstand a request, misread state, or make a bad claim. The standard he is meant to meet is to inspect evidence, distinguish verified facts from assumptions, correct errors plainly, and leave consequential choices with the operator.
 
-A Cadre agent is a persistent role in a coordinated team, not just a fresh conversation with a character prompt. It has a defined responsibility, durable workspace, explicit hand-off relationships, and human-readable continuity. The project manager coordinates execution; builders produce artifacts; QA verifies independently; and support roles contribute within their charter. The operator remains the source of authority for decisions that have not been delegated.
-
-The design goal is **bounded initiative**: less repetitive prompting for routine work, with evidence, ownership, and escalation still visible to the operator.
-
-## Keep private context private
-
-Workspace files are ordinary text and may be shared, reviewed, or committed. Only put information there that belongs in that workspace. Personal assistant memory, credentials, private conversations, and deployment-specific secrets should not be copied into a public Cadre repository or a shared project workspace.
+> **The aim:** a capable assistant that takes useful work off the operator's plate, remembers the right things, coordinates specialists, and stays accountable for what it did.
