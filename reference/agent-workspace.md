@@ -4,6 +4,46 @@ This is a profile of **one particular OpenClaw deployment**: Michael Scott, a pe
 
 For the practical replication resource, start with [Michael Scott's `AUTONOMY.md`](../examples/michael-scott/AUTONOMY.md), a publication-safe version of the behavior policy used in this deployment. See the [autonomy reference index](./autonomy.md) for related Cadre material.
 
+## Get the files
+
+These are actual Markdown files, not just descriptions. Open **Raw** to copy the text, or save it under the filename shown in your agent's workspace.
+
+| File | Read on GitHub | Raw Markdown | What you are getting |
+| --- | --- | --- | --- |
+| `AUTONOMY.md` | [Read](../examples/michael-scott/AUTONOMY.md) | [Raw / save](https://raw.githubusercontent.com/ADD-Attack/Cadre/main/examples/michael-scott/AUTONOMY.md) | Michael Scott's public replication edition; adapted from the private policy, not a verbatim dump. |
+| `AGENTS.md` | [Read](../templates/agent-workspace/AGENTS.md) | [Raw / save](https://raw.githubusercontent.com/ADD-Attack/Cadre/main/templates/agent-workspace/AGENTS.md) | Generic Cadre role template with an autonomy pointer—not Michael Scott's private administrator file. |
+| `SOUL.md` | [Read](../templates/agent-workspace/SOUL.md) | [Raw / save](https://raw.githubusercontent.com/ADD-Attack/Cadre/main/templates/agent-workspace/SOUL.md) | Generic persona template with an autonomy pointer—not a copy of private identity or memory. |
+
+## Adopt it in an existing agent
+
+1. Have the agent read the linked files first and compare them with its existing instructions. Back up existing workspace files; do not replace a working `AGENTS.md` or `SOUL.md` wholesale with the generic templates.
+2. Adapt and save the public policy as workspace-root `AUTONOMY.md`. Preserve existing higher-priority instructions and operator decisions; surface actual conflicts instead of silently overwriting them.
+3. Merge a pointer into both existing files. For example:
+
+   **In `AGENTS.md`:**
+
+   ```text
+   Read workspace-root AUTONOMY.md at session startup and before planning delegated work.
+   It defines initiative, follow-through, verification, and when to ask the operator.
+   Apply it within higher-priority instructions, runtime permissions, and existing authorizations.
+   ```
+
+   **In `SOUL.md`:**
+
+   ```text
+   My act-versus-ask and follow-through contract is in workspace-root AUTONOMY.md.
+   I act on authorized routine work, verify results, and report genuine blockers precisely.
+   ```
+
+4. Start a fresh session and verify that the agent can identify and summarize the installed file. Do not assume a new filename is automatically loaded by every runtime; use the supported startup-loading mechanism or an explicit read.
+5. Try a small, reversible task. Check that the agent completes and verifies it without unnecessary approval questions, while reporting missing access honestly. Tools, scheduling, memory retrieval, and multi-agent orchestration must be configured separately if you want those capabilities.
+
+**A request you can give your agent with this page:**
+
+> Read this page and its linked AUTONOMY.md. Adapt the reusable behavior rules to my existing agent workspace, preserving my identity, preferences, and existing permissions. If authorized workspace editing is available, back up affected files, install AUTONOMY.md, and merge the AGENTS.md and SOUL.md pointers without replacing those files wholesale. Show the changes, identify unresolved conflicts or missing capabilities, and verify loading in a fresh session. Do not change security controls or claim that copying Markdown installs tools or grants access.
+
+You do not need to install the Cadre team to use the autonomy policy. The repository is its public home; the policy is a starting point for an individual agent too.
+
 ## Not just a character prompt
 
 An OpenClaw model supplies the language and reasoning. The assistant people experience is the combination of that model with its role instructions, persistent workspace, tools, integrations, runtime permissions, and the operator's decisions. Michael Scott's `AGENTS.md`, `SOUL.md`, `IDENTITY.md`, and `AUTONOMY.md` give him a distinct role and working style; memory and operational records let him carry context forward. The deployed tools and permissions determine what he can actually do.
