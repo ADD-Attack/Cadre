@@ -1,6 +1,6 @@
 # Less babysitting: the AUTONOMY.md resource
 
-**Here is the autonomy file promised in the Reddit discussion, plus the clauses that connect it to an agent's `AGENTS.md` and `SOUL.md`.** It comes from Michael Scott's customized OpenClaw workspace. Cadre is simply hosting this resource: you do not need Cadre, a multi-agent team, or Michael Scott's persona to use it.
+**Here is the autonomy file, plus the clauses that connect it to an agent's `AGENTS.md` and `SOUL.md`.** It comes from Michael Scott's customized OpenClaw workspace. Cadre is simply hosting this resource: you do not need Cadre, a multi-agent team, or Michael Scott's persona to use it.
 
 **Start here: [read AUTONOMY.md](../examples/michael-scott/AUTONOMY.md) · [get the raw Markdown](https://raw.githubusercontent.com/ADD-Attack/Cadre/main/examples/michael-scott/AUTONOMY.md).**
 
@@ -22,7 +22,7 @@ There are two different problems: an agent **needlessly asking** when it can act
 | You give a backlog and say “keep going” | Continue through the in-scope work, keep check-ins for delegated tasks, and stop only for a real blocker or reserved decision. |
 | A tool explicitly denies an operation, or a credential is needed | Report the actual restriction or supported credential-entry step. Do not mistake another execution path for authorization. |
 
-So this is **not a claim that AUTONOMY.md solves every complaint in that thread**. It can remove self-imposed hesitation; it cannot remove platform restrictions. An agent should distinguish those cases using evidence rather than inventing a prohibition—or inventing access it does not have.
+So this is **not a claim that AUTONOMY.md solves every autonomy complaint**. It can remove self-imposed hesitation; it cannot remove platform restrictions. An agent should distinguish those cases using evidence rather than inventing a prohibition—or inventing access it does not have.
 
 ## Get the files
 

@@ -178,7 +178,7 @@ A **personal assistant** is deliberately *not* on this list. It is a separate ag
 - [`reference/autonomy-ladder.md`](./reference/autonomy-ladder.md) — how the operator hands work over (who decides, per level).
 - [`examples/michael-scott/AUTONOMY.md`](./examples/michael-scott/AUTONOMY.md) — a complete, self-contained, publication-safe `AUTONOMY.md` adaptation for self-hosters to copy and tailor, including the limits around config, skills, and credentials. [Raw/downloadable Markdown](https://raw.githubusercontent.com/ADD-Attack/Cadre/main/examples/michael-scott/AUTONOMY.md).
 - [`reference/autonomy.md`](./reference/autonomy.md) — related autonomy, guardrail, collaboration, memory, and scheduling references.
-- [`reference/agent-workspace.md`](./reference/agent-workspace.md) — The Reddit autonomy-file resource: direct Markdown downloads, `AGENTS.md` / `SOUL.md` clauses, installation steps, and behavior checks.
+- [`reference/agent-workspace.md`](./reference/agent-workspace.md) — The AUTONOMY.md resource: direct Markdown downloads, `AGENTS.md` / `SOUL.md` clauses, installation steps, and behavior checks.
 - [`templates/`](./templates) — the files copied into each agent workspace and each project.
 - [`templates/CADRE.md`](./templates/CADRE.md) — the **team directory** the wizard writes: who exists, roles, models, budgets, and who reports to whom. Read by every agent at session start.
 - [`templates/project/`](./templates/project) — the per-project files: `PROJECT.md` (goal, status, Gantt) and `DECISIONS.md` (the append-only decision log).
