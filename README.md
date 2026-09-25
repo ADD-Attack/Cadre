@@ -176,7 +176,7 @@ A **personal assistant** is deliberately *not* on this list. It is a separate ag
 - [`reference/mailboxes.md`](./reference/mailboxes.md) — inbox/outbox format, the doorway pattern, delivery guarantees.
 - [`reference/budgets.md`](./reference/budgets.md) — budget model, defaults, enforcement.
 - [`reference/autonomy-ladder.md`](./reference/autonomy-ladder.md) — how the operator hands work over (who decides, per level).
-- [`examples/michael-scott/AUTONOMY.md`](./examples/michael-scott/AUTONOMY.md) — a complete, self-contained, publication-safe `AUTONOMY.md` adaptation for readers to copy and tailor.
+- [`examples/michael-scott/AUTONOMY.md`](./examples/michael-scott/AUTONOMY.md) — a complete, self-contained, publication-safe `AUTONOMY.md` adaptation for self-hosters to copy and tailor, including the limits around config, skills, and credentials.
 - [`reference/autonomy.md`](./reference/autonomy.md) — related autonomy, guardrail, collaboration, memory, and scheduling references.
 - [`reference/agent-workspace.md`](./reference/agent-workspace.md) — a profile of Michael Scott, one customized OpenClaw assistant: what makes his deployment distinctive, what he can do, and where his boundaries are.
 - [`templates/`](./templates) — the files copied into each agent workspace and each project.

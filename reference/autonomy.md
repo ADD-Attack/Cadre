@@ -1,6 +1,6 @@
 # Autonomy resources
 
-The practical starting point is [`examples/michael-scott/AUTONOMY.md`](../examples/michael-scott/AUTONOMY.md): a complete, self-contained public adaptation of the policy used by Michael Scott, one customized OpenClaw assistant. It is intended to be copied and adapted, not pasted blindly. Private operator quotes, incident narratives, host paths, and deployment-specific security procedures were intentionally left out.
+The practical starting point is [`examples/michael-scott/AUTONOMY.md`](../examples/michael-scott/AUTONOMY.md): a complete, self-contained public adaptation of the policy used by Michael Scott, one customized OpenClaw assistant. It is intended to be copied and adapted by self-hosters who want less needless babysitting, not pasted blindly. It distinguishes functional administrator work from changes to safety controls, and explains why prompts cannot override tool, channel, credential, or host restrictions. Private operator quotes, incident narratives, host paths, and deployment-specific security procedures were intentionally left out.
 
 Related Cadre references explain the surrounding system:
 
