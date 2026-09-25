@@ -4,6 +4,16 @@ How to give a persistent agent team predictable usage, quota-aware model routing
 reports. This is an implementation pattern to adapt to your providers and runtime—not a ready-made
 quota switcher or a spend guarantee.
 
+## Downloadable starting points
+
+These are adaptable examples, not drop-in configuration. Review the policy, replace the example
+agents and models, and validate the status parser and route probe for your installation before
+enabling writes. The script defaults to dry-run mode (`APPLY=0`); it may still send a harmless real
+model probe when a transition is due, but it will not write routing configuration.
+
+- [Model-routing policy template](../examples/usage-management/MODEL-ROUTING.md) · [raw download](https://raw.githubusercontent.com/ADD-Attack/Cadre/main/examples/usage-management/MODEL-ROUTING.md)
+- [Quota-routing script template](../examples/usage-management/token-balance.sh) · [raw download](https://raw.githubusercontent.com/ADD-Attack/Cadre/main/examples/usage-management/token-balance.sh)
+
 ## Keep three signals separate
 
 - **Provider quota/headroom:** how much of a provider's time-window allowance remains, and when that

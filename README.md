@@ -175,7 +175,7 @@ A **personal assistant** is deliberately *not* on this list. It is a separate ag
 - [`reference/collaboration.md`](./reference/collaboration.md) — how agents work together: the two peer mechanisms (dispatch vs message), the guards that stop a team looping/colliding/stalling, escalation topology.
 - [`reference/mailboxes.md`](./reference/mailboxes.md) — inbox/outbox format, the doorway pattern, delivery guarantees.
 - [`reference/budgets.md`](./reference/budgets.md) — budget model, defaults, enforcement.
-- [`reference/usage-management.md`](./reference/usage-management.md) — provider quota reporting, model failover/restoration, route probes, and session migration.
+- [`reference/usage-management.md`](./reference/usage-management.md) — provider quota reporting, model failover/restoration, route probes, session migration, and downloadable policy/script templates.
 - [`reference/autonomy-ladder.md`](./reference/autonomy-ladder.md) — how the operator hands work over (who decides, per level).
 - [`examples/michael-scott/AUTONOMY.md`](./examples/michael-scott/AUTONOMY.md) — a complete, self-contained, publication-safe `AUTONOMY.md` adaptation for self-hosters to copy and tailor, including the limits around config, skills, and credentials. [Raw/downloadable Markdown](https://raw.githubusercontent.com/ADD-Attack/Cadre/main/examples/michael-scott/AUTONOMY.md).
 - [`reference/autonomy.md`](./reference/autonomy.md) — related autonomy, guardrail, collaboration, memory, and scheduling references.
