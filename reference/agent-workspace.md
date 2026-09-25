@@ -2,7 +2,7 @@
 
 **Here is the autonomy file promised in the Reddit discussion, plus the clauses that connect it to an agent's `AGENTS.md` and `SOUL.md`.** It comes from Michael Scott's customized OpenClaw workspace. Cadre is simply hosting this resource: you do not need Cadre, a multi-agent team, or Michael Scott's persona to use it.
 
-**Start here: [read AUTONOMY.md](../examples/michael-scott/AUTONOMY.md) · [get the raw Markdown](https://raw.githubusercontent.com/ADD-Attack/Cadre/main/examples/michael-scott/AUTONOMY.md).** The filename is `AUTONOMY.md`, not `autonomous.md`.
+**Start here: [read AUTONOMY.md](../examples/michael-scott/AUTONOMY.md) · [get the raw Markdown](https://raw.githubusercontent.com/ADD-Attack/Cadre/main/examples/michael-scott/AUTONOMY.md).**
 
 The useful change is behavioral: when you have already authorized a task, the agent should carry it through, investigate problems, verify the result, and report back—not stop at every routine step with “want me to continue?” This is the reusable contract behind that behavior:
 
