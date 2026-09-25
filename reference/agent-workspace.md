@@ -10,9 +10,9 @@ The useful change is behavioral: when you have already authorized a task, the ag
 
 **What you are downloading:** a public adaptation of the working policy, not the verbatim private file. It preserves reusable procedures while omitting private context and machine-specific incident history. It is not an installer or an unlock for OpenClaw permissions.
 
-## What this addresses in the Reddit thread
+## Act on authorized work; diagnose real limits
 
-The thread mixes two different problems: an agent **needlessly asking** when it can act, and an agent **actually lacking access**. This file targets the first and asks the agent to diagnose the second accurately. It does not substantiate the thread's claims about particular OpenClaw releases.
+There are two different problems: an agent **needlessly asking** when it can act, and an agent **actually lacking access**. This policy targets the first and asks the agent to diagnose the second accurately. It does not establish whether a particular OpenClaw release changed a permission or capability.
 
 | Situation | Behavior this policy asks for |
 | --- | --- |
