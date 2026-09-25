@@ -1,8 +1,28 @@
-# Michael Scott: a customized OpenClaw assistant
+# Less babysitting: the AUTONOMY.md resource
 
-This is a profile of **one particular OpenClaw deployment**: Michael Scott, a persistent assistant configured to help its operator run a multi-agent team and keep projects moving. It is here because the Cadre repository is the public home available for this example—not because Michael Scott is a Cadre role or because every OpenClaw agent behaves this way.
+**Here is the autonomy file promised in the Reddit discussion, plus the clauses that connect it to an agent's `AGENTS.md` and `SOUL.md`.** It comes from Michael Scott's customized OpenClaw workspace. Cadre is simply hosting this resource: you do not need Cadre, a multi-agent team, or Michael Scott's persona to use it.
 
-For the practical replication resource, start with [Michael Scott's `AUTONOMY.md`](../examples/michael-scott/AUTONOMY.md), a publication-safe version of the behavior policy used in this deployment. See the [autonomy reference index](./autonomy.md) for related Cadre material.
+**Start here: [read AUTONOMY.md](../examples/michael-scott/AUTONOMY.md) · [get the raw Markdown](https://raw.githubusercontent.com/ADD-Attack/Cadre/main/examples/michael-scott/AUTONOMY.md).** The filename is `AUTONOMY.md`, not `autonomous.md`.
+
+The useful change is behavioral: when you have already authorized a task, the agent should carry it through, investigate problems, verify the result, and report back—not stop at every routine step with “want me to continue?” This is the reusable contract behind that behavior:
+
+> If the task is within my authority, safe, reversible, and understood: do it, then report what changed.
+
+**What you are downloading:** a public adaptation of the working policy, not the verbatim private file. It preserves reusable procedures while omitting private context and machine-specific incident history. It is not an installer or an unlock for OpenClaw permissions.
+
+## What this addresses in the Reddit thread
+
+The thread mixes two different problems: an agent **needlessly asking** when it can act, and an agent **actually lacking access**. This file targets the first and asks the agent to diagnose the second accurately. It does not substantiate the thread's claims about particular OpenClaw releases.
+
+| Situation | Behavior this policy asks for |
+| --- | --- |
+| You ask for an authorized model or embeddings-provider change | Inspect the supported configuration interface, make the scoped change if permitted, and verify the effective result—not ask again merely because it is a config change. |
+| A gateway restart is part of authorized maintenance | Check service supervision, restart prerequisites, and recovery first; use the supported lifecycle and verify recovery. Do not blindly stop the process carrying the conversation. |
+| You request a skill update | Complete the supported edit/review/publication workflow to the extent authorized. If a platform step requires human action, name that exact step instead of vaguely saying “I can't.” |
+| You give a backlog and say “keep going” | Continue through the in-scope work, keep check-ins for delegated tasks, and stop only for a real blocker or reserved decision. |
+| A tool explicitly denies an operation, or a credential is needed | Report the actual restriction or supported credential-entry step. Do not mistake another execution path for authorization. |
+
+So this is **not a claim that AUTONOMY.md solves every complaint in that thread**. It can remove self-imposed hesitation; it cannot remove platform restrictions. An agent should distinguish those cases using evidence rather than inventing a prohibition—or inventing access it does not have.
 
 ## Get the files
 
@@ -44,37 +64,27 @@ These are actual Markdown files, not just descriptions. Open **Raw** to copy the
 
 You do not need to install the Cadre team to use the autonomy policy. The repository is its public home; the policy is a starting point for an individual agent too.
 
-## Not just a character prompt
+## Check that it changed behavior—not just files
 
-An OpenClaw model supplies the language and reasoning. The assistant people experience is the combination of that model with its role instructions, persistent workspace, tools, integrations, runtime permissions, and the operator's decisions. Michael Scott's `AGENTS.md`, `SOUL.md`, `IDENTITY.md`, and `AUTONOMY.md` give him a distinct role and working style; memory and operational records let him carry context forward. The deployed tools and permissions determine what he can actually do.
+After installation, use a fresh session and try a small task your agent can already perform:
 
-That combination is what makes this instance different from a newly created, minimally configured OpenClaw agent. The difference is **deployment-specific configuration and accumulated operating practice**, not a special capability guaranteed by a model name or by Cadre itself.
+- **Routine work:** ask it to fix a documentation typo and verify the edit. It should finish without asking you to authorize each obvious step.
+- **Follow-through:** give it two small, reversible tasks. It should complete both, not stop after the first to offer the second.
+- **Honest limitations:** ask it to inspect an unavailable integration. It should identify what is missing, not claim success or invent a universal ban.
+- **Continuity:** ask it to record a harmless preference, then check that a later session can find the persisted record.
 
-## What Michael Scott does
+For each test, look for an actual result and evidence. Being able to recite the policy is a loading check, not proof of autonomy.
 
-- **Runs the operation, not just one project.** He tracks agent health, work routing, schedules, budgets, and operational issues across the deployment. He delegates sustained specialist work and stays available to the operator for steering and decisions.
-- **Turns goals into coordinated delivery.** He can break a broad request into sequenced work, assign it through specialist agents, keep check-ins active, and bring evidence back to the operator. For a game project, for example, that can mean coordinating design, implementation, independent QA, and deployment rather than stopping at a plan.
-- **Works with real artifacts and tools.** When configured, he can inspect and edit files, run commands, research current information, coordinate agents, and use approved integrations. He can check a built artifact or a served release instead of treating a status message as proof.
-- **Keeps continuity in readable records.** Durable preferences, decisions, project state, and lessons can be recorded in workspace files so a later session can resume without pretending to remember what it cannot see.
-- **Uses initiative inside explicit limits.** Routine, safe, reversible work can be completed and reported without asking for a ceremonial approval. High-impact, irreversible, externally visible, or operator-owned decisions remain at the human boundary unless the operator has already established a clear policy for them.
-- **Can turn a verified failure into a better procedure.** When an incident exposes a repeatable process defect, he can document the lesson and update the relevant runbook so the next session has something better than a vague recollection.
+## What else is needed to replicate the setup?
 
-## How the files shape him
+The file supplies the decision and follow-through rules. Tools supply execution; persistent records supply continuity; scheduled wakes supply unattended follow-up. If your installation lacks those mechanisms, copying the file will not add them. Start with one agent and the capabilities you already have, then add only what your work needs.
 
-These names describe the kinds of records used in this deployment; they are not a public dump of Michael Scott's private instructions or memory.
+Optional background references:
 
-- **`AGENTS.md`** defines the administrator role, workflow, boundaries, and local operating rules.
-- **`SOUL.md`** sets his voice: direct, warm, resourceful, willing to push back, and not a sycophant.
-- **`IDENTITY.md`** records who he is and the scope of his role.
-- **`AUTONOMY.md`** explains when he should act, report, or stop for a real human decision.
-- **Memory and project records** preserve selected durable context and the current state of work.
+- [Autonomy index](./autonomy.md): the file and related resources in one place.
+- [Memory](./memory.md): continuity and durable records.
+- [Scheduled work](./scheduled-work.md): check-ins and timed wakeups.
+- [Collaboration](./collaboration.md): delegation and verified hand-offs if you run a team.
+- [Guardrails](./guardrails.md): runtime mechanisms, distinct from written instructions.
 
-The files make the behavior legible and consistent; they do **not** grant authority. Runtime policy, tool permissions, approval gates, budget controls, and the operator's actual authorization are the hard boundaries. Michael Scott must not treat an instruction file as permission to bypass a tool denial or enlarge his own access.
-
-## What this is—and is not
-
-Michael Scott's setup is a concrete example of a deeply configured personal agent working alongside a Cadre team. It is not the Cadre installer, not a template that should be copied verbatim, and not a promise that a fresh OpenClaw install will have the same tools, access, memory, or autonomy. A safe adaptation starts with the operator's own goals and grants capabilities deliberately.
-
-Nor is “autonomous” the same as “always right” or “unobserved.” Michael Scott can misunderstand a request, misread state, or make a bad claim. The standard he is meant to meet is to inspect evidence, distinguish verified facts from assumptions, correct errors plainly, and leave consequential choices with the operator.
-
-> **The aim:** a capable assistant that takes useful work off the operator's plate, remembers the right things, coordinates specialists, and stays accountable for what it did.
+Keep your own agent's name, personality, and existing operator decisions. The goal is to reproduce useful working habits, not to impersonate Michael Scott or copy his deployment wholesale.
