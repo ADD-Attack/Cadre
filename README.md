@@ -176,8 +176,9 @@ A **personal assistant** is deliberately *not* on this list. It is a separate ag
 - [`reference/mailboxes.md`](./reference/mailboxes.md) — inbox/outbox format, the doorway pattern, delivery guarantees.
 - [`reference/budgets.md`](./reference/budgets.md) — budget model, defaults, enforcement.
 - [`reference/autonomy-ladder.md`](./reference/autonomy-ladder.md) — how the operator hands work over (who decides, per level).
-- [`reference/autonomy.md`](./reference/autonomy.md) — the act-vs-ask contract: when an agent acts alone, the four reasons to stop, and how it reports.
-- [`reference/agent-workspace.md`](./reference/agent-workspace.md) — a profile of Michael, one customized OpenClaw assistant: what makes his deployment distinctive, what he can do, and where his boundaries are.
+- [`examples/michael-scott/AUTONOMY.md`](./examples/michael-scott/AUTONOMY.md) — a complete, self-contained, publication-safe `AUTONOMY.md` adaptation for readers to copy and tailor.
+- [`reference/autonomy.md`](./reference/autonomy.md) — related autonomy, guardrail, collaboration, memory, and scheduling references.
+- [`reference/agent-workspace.md`](./reference/agent-workspace.md) — a profile of Michael Scott, one customized OpenClaw assistant: what makes his deployment distinctive, what he can do, and where his boundaries are.
 - [`templates/`](./templates) — the files copied into each agent workspace and each project.
 - [`templates/CADRE.md`](./templates/CADRE.md) — the **team directory** the wizard writes: who exists, roles, models, budgets, and who reports to whom. Read by every agent at session start.
 - [`templates/project/`](./templates/project) — the per-project files: `PROJECT.md` (goal, status, Gantt) and `DECISIONS.md` (the append-only decision log).
