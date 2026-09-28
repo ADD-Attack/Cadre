@@ -14,9 +14,15 @@ The fix is an **inversion**: the old design was **strict in, permanent out** (a 
 |---|---|---|---|---|
 | **STM** — short-term | staged candidates / session recall | high | ~256 KB | raw snippets, recent observations |
 | **MTM** — mid-term | `memory/midterm.md` | moderate | ~128 KB | consolidated, recurring knowledge |
-| **LTM** — long-term | `MEMORY.md` | low (budget-bounded) | ~64 KB | curated, append-only, human-readable |
+| **LTM** — long-term | `MEMORY.md` | low (budget-bounded) | ≤20,000 characters by default* | curated, append-only, human-readable |
 
 Caps are tunable defaults. Size caps — not the platform's default thresholds — bound each tier.
+**Bootstrap is also a size boundary:** OpenClaw's default per-file `bootstrapMaxChars` is 20,000
+characters (with a separate 60,000-character aggregate budget). Therefore the effective LTM cap is
+the lower of Cadre's chosen cap and the live per-file bootstrap limit. A 64 KB `MEMORY.md` can be
+partly omitted from the agent's injected context even if it is within a local byte budget. Check the
+runtime's configured limit before setting a deployment-specific cap; count characters, not UTF-8
+bytes. Leave headroom for deliberate edits rather than targeting the exact boundary.
 
 **Why a middle tier.** `MEMORY.md` should be curated, not a dumping ground; the raw store is too noisy to read. `midterm.md` is the consolidation space between them. Platform note: OpenClaw's `memory-core` exposes a **single** deep phase and **no native middle tier** (verified 2026-09-14), so MTM is a **workspace convention** — a plain file with exactly one writer.
 
@@ -70,8 +76,19 @@ Lowest value goes first. **A frequently-recalled old entry outlives a rarely-rec
 
 The original failure wasn't a wrong gate; it was an **invisible** wrong gate. Two valves:
 
-1. **No-op alert.** Promoting 0 while the window held ≥ 20 candidates is an anomaly, not a quiet week.
-2. **Assert on artifacts.** A healthy cycle produces a visible change in some tier. No change = failed run, not silent success.
+1. **Report the outcome, not just process success.** Distinguish no candidates, candidates ranked,
+   candidates passing numeric gates, candidates rejected by source/provenance policy, candidates
+   selected for durable consolidation, and candidates actually written. OpenClaw's `DREAMS.md`
+   summary may report ranked/promoted totals without explaining every rejection; do not infer the
+   exact failure stage from those two totals alone.
+2. **No-promotion is an observable no-op, not automatically a broken gate.** If candidates were
+   ranked but none were promoted, report `NO_PROMOTION` and preserve the counts. Escalate as a gate
+   anomaly when durable candidates passed the authored gates but none were written, when a large
+   candidate window repeatedly yields zero, or when the run fails to emit its expected report.
+   A high-scoring transient chat line can pass numeric thresholds and still correctly fail the
+   durability test. “Ranked” is not the same as “eligible durable memory.”
+3. **Assert on artifacts.** A cycle must leave a visible outcome record even when no tier changes.
+   A legitimate no-op is reported as a no-op; a missing report or failed write is a failed run.
 
 ---
 
@@ -79,6 +96,8 @@ The original failure wasn't a wrong gate; it was an **invisible** wrong gate. Tw
 
 - **STM:** the memory system (one writer, as configured).
 - **MTM:** exactly **one** writer — the PM or a designated consolidator. Never two.
-- **LTM:** append-only by its one writer; promotions land here, curations are visible edits.
+- **LTM:** one writer; promotions land here and curations are visible edits. Keep the curated file
+  within its *effective injected-context cap*; archive/raw history does not belong in the injected
+  `MEMORY.md` merely to preserve an append-only trail.
 
 Shared entries that are *team-scoped* (decisions, conventions, file ownership) do **not** go in a private tier — they belong in `SHARED.md` at the team root. See [`guardrails.md`](./guardrails.md) §2 for the claim lease that guards it.

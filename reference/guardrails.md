@@ -81,9 +81,17 @@ A claim written only in prose is advisory. Enforcement needs teeth:
 
 - Set the thresholds on purpose, in the deployment's config or the workspace convention — not by omission.
 - Use **loose** gates with **size-triggered eviction** (see [`memory.md`](./memory.md)), not a strict bar calibrated for a busier instance.
-- **Loud on zero:** promoting zero while candidates existed is an **anomaly**, not a quiet week. It must warn.
+- **Loud on zero:** a cycle that ranks candidates but promotes none must report an explicit no-promotion
+  outcome and its available stage counts. This is an audit signal, not by itself proof that the gate
+  is broken: ranked candidates may fail score/recall/provenance gates, or may be transient material
+  that is not durable enough for `MEMORY.md`. Escalate when candidates are confirmed to have passed
+  the authored gates and are durable, yet none are written; also alert on repeated/high-volume
+  zero-promotion runs or a missing outcome artifact. See [`memory.md`](./memory.md).
 
-**The test:** if your promotion report says `0 promoted` and nothing alerts, the gate is broken — even if the config looks fine.
+**The test:** if a promotion report says `0 promoted`, it must not silently say success without
+explaining what stage was reached. A visible `NO_PROMOTION` report with counts/reasons is a valid
+no-op; a missing report, or repeated zero writes despite eligible durable candidates, is a failure
+signal even if the config looks fine.
 
 ---
 
@@ -95,7 +103,8 @@ A claim written only in prose is advisory. Enforcement needs teeth:
 
 - A completed task must produce its output file. Missing output = failed task, regardless of status messages.
 - A mailbox cycle that delivers "0 messages" must first confirm there were 0 messages to send.
-- A memory cycle must show a visible change in some tier, or be reported as a no-op.
+- A memory cycle must leave a visible outcome artifact. If no tier changes, report a no-op with
+  candidate/gate/write counts where available; do not label every no-op as a failed gate.
 
 **Cadre's rule of thumb:** *assert-meaningful, not assert-noisy.* Check the few artifacts that prove work happened; don't log everything and call it monitoring.
 
