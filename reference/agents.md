@@ -6,18 +6,22 @@ Every agent — **including every worker the PM dispatches to** — is a **persi
 
 **Recommend two.** One worker is a single point of failure; two lets the PM run parallel work and keep the line moving while one is blocked, reviewing, or mid-task — and because every worker is persistent, the second accrues skill over time rather than only paying off in a crunch. The Cadre Wizard proposes **two worker seats** by default; an operator may take one.
 
+These are team functions, not a compulsory serial approval chain. Each user-visible outcome has one
+accountable owner (normally the PM), who brings in requirements, design, builders, and support roles
+as the work needs them.
+
 ---
 
 ## The roster
 
 | Agent | Class | Owns | Default authority |
 |---|---|---|---|
-| **Project Manager (PM)** | reasoning | plan, tasks, Gantt, dispatch, tracking | dispatch workers; may absorb others' duties when configured |
+| **Project Manager (PM)** | reasoning | outcome ownership, canonical task/acceptance/evidence record, coordination | dispatch workers and coordinate specialists within configured authority |
 | **Worker** — *recommend two* | builder | executing dispatched build tasks within the PM's scope | build + self-verify its own work; visible to the PM, reports back with evidence |
 | **Requirements Analyst (RA)** | reasoning | intake, clarification, scope, acceptance criteria; **defends a doable scope** | write requirements; no build authority |
 | **Project Designer (PD)** | reasoning | architecture, approach, specs, **feature inventory + style guide** | write design; no build authority |
 | **Security / IT** | reasoning | audit, exposure, hygiene, remediation queue | **advise only** — never self-edits config |
-| **QA / Verifier** | reasoning | independent verification, evidence (method: [`verification.md`](./verification.md)) | **veto** — may block a "done" claim |
+| **QA / Verifier** | reasoning | independent verification and evidence when risk or acceptance criteria warrant it (method: [`verification.md`](./verification.md)) | report findings against the stated criteria; not a mandatory stop for every change |
 | **Social Media Manager (SMM)** | fast | external comms, posting, community | external-send (gated) |
 | **Finance Manager (FM)** | fast | budgets, spend tracking, alerts, **scheduled-work audit** (recurring spend) | budget enforcement (report; cap if configured); owns the [scheduled-work](./scheduled-work.md) cost audit |
 | **Agent Resources (AR)** | fast | roster, onboarding, loadouts, agent health | create/retire subagents; no config authority |
@@ -27,7 +31,7 @@ Every agent — **including every worker the PM dispatches to** — is a **persi
 
 ## Why *these* roles
 
-This set is not arbitrary. It maps onto the reference architecture in the companion paper (*Persistent Agent Teams*, §8): **Supervisor** (PM), **Builders** (RA/PD/workers), **QA/Verifier** (QA — a *different* agent than the builder, or it is not verification), **Social Media Manager** (the doorway agent), **Support** (Finance, AR).
+This set is not arbitrary. It maps onto the reference architecture in the companion paper (*Persistent Agent Teams*, §8): **Supervisor / outcome owner** (PM), **Requirements and Design specialists** (RA/PD), **Builders** (persistent worker seats), **QA/Verifier** (independent review when warranted), **Social Media Manager** (optional doorway), and **Support** (Security/IT, Finance, AR, Consultant).
 
 Two seats carry a defining **voice**, stated because the voice *is* the job:
 
@@ -47,7 +51,7 @@ Two seats carry a defining **voice**, stated because the voice *is* the job:
 Two roles carry a hard constitutional limit:
 
 - **Security/IT advises, never edits.** An agent that can rewrite its own permissions or safety config defeats the point of having one. Security finds and recommends; a human or an explicit config change applies. (This is the self-modification perimeter.) The seat's method — scheduled audit, a confidentiality sweep of every agent's session logs, exposure posture, and a current remediation queue — is [`security.md`](./security.md).
-- **QA is independent.** QA must not be the agent that built the thing. Where a build is done by a worker subagent, QA is a separate persistent agent — otherwise "verification" is a second opinion from the same priors. How QA reaches a verdict — restate the pass condition, capture the real artifact, read the whole of it, report an unverified gap honestly — is [`verification.md`](./verification.md). **A pass is not a return.** A return with a named gap goes back to the PM for rework; an approved **final** build — nothing left to send back — is handed to the **operator's agent** (the main agent, on the peer channel), so a finished project reaches the operator instead of stopping at the PM.
+- **Independent review must be independent when it is required.** If risk or the acceptance target calls for an independent verdict, the reviewer must not be the builder. For routine, reversible work, the accountable owner may verify the change without adding a ceremonial QA handoff. When independent review is used, restate the pass condition, inspect the real artifact, and report any unverified gap honestly; see [`verification.md`](./verification.md). Findings go to the PM/owner for resolution and handoff.
 
 ---
 
@@ -55,11 +59,12 @@ Two roles carry a hard constitutional limit:
 
 | Action | Who may do it |
 |---|---|
-| Create/plan tasks, maintain Gantt | PM |
-| Dispatch work to workers | PM (and any agent within its own scope) |
+| Own the outcome and maintain its canonical task/acceptance/evidence record | PM (or the explicitly accountable owner) |
+| Coordinate specialists and dispatch bounded work | PM within configured authority |
 | Claim a file for exclusive write | any agent (via the [claim/lease convention](./guardrails.md#2-file-claim-lease)) |
-| Verify and pass/fail a deliverable | QA only |
-| Hand an approved final build to the operator | QA — to the operator's agent (main agent) |
+| Check implementation against acceptance points | accountable owner/worker as the work is built |
+| Provide an independent verdict | QA/reviewer, when risk or acceptance criteria require it |
+| Hand off the result, evidence, and open decisions | accountable owner/PM; operator retains choices reserved to them (see [`autonomy-ladder.md`](./autonomy-ladder.md)) |
 | Send external/public messages | SMM (gated by operator policy) |
 | Change budgets | FM (within operator-set ceilings) |
 | Audit scheduled jobs (owner, purpose, idle cost) | FM — reports; removing a job is the operator's call |

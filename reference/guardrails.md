@@ -110,16 +110,17 @@ signal even if the config looks fine.
 
 ---
 
-## 5. QA cap (the retry loop has a ceiling)
+## 5. Risk-tiered verification (no fixed pass cap)
 
-**Problem.** Verification is a loop, and an unbounded loop is a bill. With no cap, the cheapest available action is always *check it again* — so it is taken until a human notices. The motivating case: one agent captured the same screen **30 times in a single day** because nothing bounded the retry.
+**Problem.** Verification can miss consequential defects, but repeating unchanged checks also wastes effort. A role handoff or pass counter is not a substitute for testing the criterion that matters.
 
-**Rule.** **At most two review rounds per artifact.** A round = render the artifact, check it against the spec, give a verdict, and apply the fix the verdict implies. The second round is the last one.
+**Rule.** Verify against named acceptance points, at a depth proportional to risk:
 
-- **Pass** → ship it.
-- **Still failing on round 2** → **stop and escalate to the operator** with both attempts side by side and the remaining gap named. A third pass is refused.
+- **Low risk:** the accountable owner checks the changed result.
+- **Normal feature risk:** test continuously; add focused independent review when it materially reduces risk or the acceptance target requires independence.
+- **High consequence** (for example, security/auth, destructive data work, migrations, or recovery integrity): add targeted independent review and/or the operator's explicit decision for the risky operation.
 
-**Enforcement.** Where a script can hold the counter, have it refuse the third round outright rather than trusting memory. Escalating at the cap is the correct cheap move, not a failure — a silent fourth pass is the failure.
+There is **no fixed global QA/operator pass count**. Each pass should test a concrete criterion, resolve a finding, or add decision-relevant evidence. Preserve the exact artifact identity and who tested it. Fix forward; stop repeating unchanged checks that add no information. Timebox low-value loops, then ship within existing authorization with named residual gaps or escalate a genuine hard stop. This does not waive security, data-integrity, destructive-action, or operator-held gates. See [`verification.md`](./verification.md).
 
 ---
 
@@ -147,7 +148,7 @@ signal even if the config looks fine.
 | File-claim lease | two writers, one file | silent data loss |
 | Promotion gate | memory never promotes | the §6 case study |
 | No-op detector | work that looks done and isn't | false success |
-| QA cap | an unbounded review loop | a bill that grows while nothing improves |
+| Risk-tiered verification | consequential defects or low-information review loops | unchecked risk, or effort without new evidence |
 | Zero-token checks | idleness billed as work | recurring spend with no event to show for it |
 
 All six come from **persistence** — the first four from its *failure* modes, the last two from its *cost* modes. Which is why the paper's thesis is short: **a persistent team is a distributed system, and it inherits distributed-systems failure modes.** A team that stays up is also a team that keeps *billing*, so its cost discipline is a guardrail, not an optimisation.

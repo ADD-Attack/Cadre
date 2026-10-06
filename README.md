@@ -6,7 +6,7 @@
 
 **A downloadable system of agents and Markdown files that turns any OpenClaw deployment into a coordinated team.**
 
-Cadre gives you a persistent, chat-native multi-agent hierarchy: a small nucleus of specialist agents with roles, budgets, mailboxes, and a project pipeline — installed by the guided **Cadre Wizard** and adapted to your preferences.
+Cadre gives you a persistent, chat-native multi-agent team: a project manager coordinates each outcome, persistent worker seats do the implementation, and specialist roles contribute where useful. The guided **Cadre Wizard** installs the roles, workspaces, and conventions selected for your deployment.
 
 ---
 
@@ -78,12 +78,13 @@ Nothing here runs on its own. This repo describes a procedure; **the operator de
 Cadre is **not** a framework you install as a package. It is a **folder of Markdown conventions + a setup procedure** that a spawned **`CadreWizard` agent** carries out for your deployment. You get:
 
 - A **role roster** — requirements analyst, project designer, project manager, plus standing functions (security/IT, social media, finance, QA, agent resources, consultant).
-- A **project pipeline** — requirements → design → plan → execution, with a Gantt chart maintained in `PROJECT.md`.
+- An **outcome-led project workflow** — one accountable PM coordinates the work; requirements, design, builders, and independent review contribute when useful or called for by the acceptance criteria.
+- **Project records and tracking views** — keep one canonical task/acceptance/evidence record. If a project needs both Kanban and Gantt views, derive them from the same plan rather than maintaining competing copies. FlowBoard, when integrated, is an operational tracking mirror unless the team deliberately migrates its canonical board.
 - **Mailboxes** — every agent has an `inbox/` and `outbox/`, so a team can be run from a single chat interface.
 - **Budgets** — per-role spend/effort envelopes so autonomy never means runaway cost.
 - **An autonomy ladder** — the operator starts doing most PM and QA work; agents take over as they prove out.
 
-Everything is plain files. Nothing is hidden in a database you can't read.
+Project requirements, decisions, plans, and evidence stay in readable project artifacts. An operational task tracker may add a convenient status surface, but it does not silently become product or acceptance authority.
 
 **Not a teammate: your personal assistant.** Cadre is the *work* team. A **personal assistant** — the agent that knows your calendar, your messages, your life outside any project — carries private, unbounded context and belongs in its **own separate environment**, not in the Cadre install. Keep the two apart: the team works in project-scoped, shared files, and folding private context into them is how the wrong things end up in shared artifacts. Your PA is not a seat and not on the roster.
 
@@ -106,7 +107,7 @@ That's it. The Cadre Wizard does the rest.
 
 ## The flow
 
-![How a project runs: the Cadre Wizard once, then Requirements Analyst to Project Designer to Project Manager (workers in its scope) to QA to the finished product; QA can return work to the PM, the PM can return new requirements to the Requirements Analyst, and a rework path runs from the finished product back to the Requirements Analyst, with support roles on call beside the line](./diagrams/project-pipeline.svg)
+[See the current team topology and project-flow diagram](./diagrams/topology.md).
 
 ```
  Operator
@@ -122,19 +123,28 @@ That's it. The Cadre Wizard does the rest.
     ▼
  Cadre team (installed)
 
-                            new product, or scope change / new feature
-      ┌────────────────────────────────────────────────────────────────┐
-      │                                                                │
-      ▼                                                                │
- Requirements Analyst ─▶ Project Designer ─▶ Project Manager ─▶ QA / Verifier ─▶ Finished product
-                                                   │
-                            tasks + Gantt + worker seats ×2 (workers persist, in the PM's scope)
-                            workers sit in the PM's scope
+ Project work:
+ Operator ──▶ configured OpenClaw entry point or direct PM contact
+                          │
+                          ▼
+                 Project Manager ───────────────▶ Operator handoff
+                   │       │    \                       ▲
+         as useful │       │     \ dispatch             │
+                   ▼       ▼      ▼                     │
+                  RA      PD   Persistent workers ──▶ owner checks result
+                                               \       │
+                                                └──▶ independent QA/review
+                                                     when risk or criteria call for it
+
+         Requirements, design, and support are specialists—not mandatory approval stops.
+         New scope can return to requirements; project-specific details stay with the tenant.
 ```
 
-Every project enters at the **Requirements Analyst** and moves through **Project Designer → Project Manager → QA / Verifier → finished product**. The PM owns execution: it breaks work into tasks, maintains the Gantt chart, and dispatches/tracks its **worker agents** — **the workers sit in the PM's scope**, and each one is a **persistent agent with its own memory and identity**, not a throwaway run. Cadre recommends **two** worker seats by default: one is a single point of failure, and two lets the PM keep the line moving while one is busy.
+Each user-visible outcome has **one accountable PM/owner**. Requirements and design specialists help shape the work when useful; they are not automatic approval stations. The PM maintains the canonical outcome/task record and coordinates implementation through one or more **persistent worker seats** (each with its own identity and workspace, not a throwaway run). Cadre recommends two seats by default so independent work can proceed without duplicating ownership.
 
-**Rework.** Once something ships, two things send work back to the start: a **scope change or new feature** to what just shipped, or a **new product** entirely. Either way it re-enters at the Requirements Analyst and runs the pipeline again — never patched in mid-stream.
+Verification is **risk-tiered and criterion-driven**: the owner checks work as it is built; an independent QA/reviewer is added when the consequence or acceptance target warrants independence. There is no fixed pass-count ceiling—each check should test a named criterion, resolve a finding, or add useful evidence, with exact artifact identity preserved. FlowBoard can mirror task status and ownership for operations; acceptance truth remains in the canonical project record until an intentional board migration.
+
+**Rework.** A new product or material scope change gets a new, explicit outcome and the relevant requirements work. Do not silently mix new scope into an already accepted result.
 
 **Support roles ride beside the line, never on it.** Security/IT, Consultant, Social Media Manager, Finance Manager and Agent Resources attach to whichever project needs them and go quiet when it doesn't.
 
@@ -165,14 +175,14 @@ A **personal assistant** is deliberately *not* on this list. It is a separate ag
 
 - [`WIZARD.md`](./WIZARD.md) — the setup interview, step by step.
 - [`reference/agents.md`](./reference/agents.md) — roster, charters, budgets, authority.
-- [`reference/guardrails.md`](./reference/guardrails.md) — the guardrails: routing limit, file-claim lease, promotion gate, no-op detector, **QA cap**, **zero-token checks**.
+- [`reference/guardrails.md`](./reference/guardrails.md) — the guardrails: routing limit, file-claim lease, promotion gate, no-op detector, **risk-tiered verification**, and zero-token checks.
 - [`reference/verification.md`](./reference/verification.md) — how to produce evidence: restate the pass condition, capture the real artifact, check the whole of it, report "could not verify" honestly.
 - [`reference/requirements.md`](./reference/requirements.md) — the Requirements Analyst's method: tough-love scope defense, want-vs-need, acceptance criteria, the doable first version.
 - [`reference/design.md`](./reference/design.md) — the Project Designer's method: the feature inventory, the style guide, and the ordered hand-off a builder can execute without guessing.
 - [`reference/security.md`](./reference/security.md) — the Security/IT seat's method: scheduled audit, confidentiality sweep, exposure posture, remediation queue (advises, never edits).
 - [`reference/scheduled-work.md`](./reference/scheduled-work.md) — what may run on a schedule: timers vs sentinels, idle must cost $0, and FM audits every job.
 - [`reference/memory.md`](./reference/memory.md) — tiered memory (STM/MTM/LTM), loose gates, size-triggered eviction.
-- [`reference/collaboration.md`](./reference/collaboration.md) — how agents work together: the two peer mechanisms (dispatch vs message), the guards that stop a team looping/colliding/stalling, escalation topology.
+- [`reference/collaboration.md`](./reference/collaboration.md) — how agents work together: dispatch vs. message, outcome ownership, evidence handoffs, and guards against loops, collisions, and stalls.
 - [`reference/mailboxes.md`](./reference/mailboxes.md) — inbox/outbox format, the doorway pattern, delivery guarantees.
 - [`reference/budgets.md`](./reference/budgets.md) — budget model, defaults, enforcement.
 - [`reference/usage-management.md`](./reference/usage-management.md) — provider quota reporting, model failover/restoration, route probes, session migration, and downloadable policy/script templates.
@@ -190,7 +200,7 @@ A **personal assistant** is deliberately *not* on this list. It is a separate ag
 ## Principles
 
 1. **Confirm before writing.** The Cadre Wizard proposes; the operator disposes.
-2. **Evidence over status.** "Running" is not "done". QA returns proof.
+2. **Evidence over status.** "Running" is not "done". The accountable owner records proof; independent review is used when risk or acceptance criteria warrant it.
 3. **Real limits live outside the prompt.** Budgets are enforced by policy and accounting, not by asking the model nicely.
 4. **Security advises, never self-edits.** No agent may modify its own permissions, prompt, or safety config.
 5. **Cheap by default, escalate to reasoning.** Most work is routine; pay for thinking only where it matters.

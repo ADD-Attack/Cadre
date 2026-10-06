@@ -58,25 +58,29 @@ agent that already exists — a question, a handoff, a steering note.
 
 ---
 
-## 3. The lifecycle of a delegated unit of work
+## 3. The lifecycle of an owned outcome
 
-Collaboration is not free-form chat; it is a pipeline with a defined shape:
+Collaboration is not free-form chat. Keep one accountable owner and one canonical work record, then
+pull in the roles needed for this outcome:
 
 ```
-Operator ──▶ Dispatch (spawn or message)
+Operator ──▶ Accountable owner / PM
                 │
                 ▼
-             Agent does the work ──▶ may collaborate with peers (message)
-                │                        │
-                │                        └──▶ routing limit caps the hops
+             Requirements / design / build / support as useful
                 ▼
-             Handoff: result + EVIDENCE ──▶ back to the dispatcher
+             Owner checks progress against acceptance points
                 │
                 ▼
-             Dispatcher VERIFIES ──▶ retires the check-in ──▶ reports to operator
+             Result + EVIDENCE ──▶ focused independent review when risk or criteria warrant it
+                │
+                ▼
+             Owner resolves findings and hands off to operator
 ```
 
-Each stage has a guard. The guards are what make the shape hold.
+Requirements, design, implementation, and review are functions—not required approval gates in every
+project. Keep operational board status synchronized with the canonical task and acceptance record;
+FlowBoard, when integrated, is a mirror until an explicit board migration.
 
 ---
 
@@ -110,9 +114,14 @@ operator discovers it hours later. The check-in must be a real armed mechanism �
 
 ### 4.4 Evidence over status — collaboration cannot self-certify
 
-A handoff carries a **result plus evidence**, never a status. "Running" is not "done." A verifying
-agent must be a **different agent** than the builder — or it is not verification. (This is why the QA
-role is a distinct seat, and why QA starts at a higher autonomy level.)
+A handoff carries a **result plus evidence**, never a status. "Running" is not "done." The outcome
+owner checks work against its acceptance points as it proceeds. When the risk or acceptance target
+requires an independent verdict, the reviewer must be a **different agent** than the builder. A
+separate QA seat makes that review available; it does not make every low-risk change wait for QA.
+
+Preserve the identity of the artifact that was reviewed and report any criterion that remains
+unverified. There is no fixed pass-count ceiling: continue while a check adds useful evidence or
+resolves a finding, and stop repeating unchanged checks that do not.
 
 ---
 
