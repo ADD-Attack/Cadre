@@ -1,7 +1,8 @@
-# Mailbox placeholder
+# Recipient inbox template
 
-This directory is an agent's **inbox**: messages and work addressed *to* this
-agent. See `reference/mailboxes.md` (at the team root).
+This directory holds durable messages and handoffs addressed to this agent. Use the configured OpenClaw
+route for live delivery; a file here alone does not prove the recipient saw a message. See the team-root
+reference/messaging.md guide.
 
-Files are not tracked in this repo — each installed agent's mailbox is its own.
-This `.gitkeep` only preserves the directory shape for the template.
+Files written here are deployment-local and are not committed to the Cadre repository. This placeholder
+preserves the recipient inbox directory in the workspace template.
