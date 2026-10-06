@@ -107,46 +107,17 @@ That's it. The Cadre Wizard does the rest.
 
 ## The flow
 
-[See the current team topology and project-flow diagram](./diagrams/topology.md).
+![Cadre setup and project flow: the operator configures the team with the Cadre Wizard, then a single outcome owner coordinates persistent workers, specialist input, evidence, and risk-tiered review](./diagrams/project-pipeline.svg)
 
-```
- Operator
-    │  "set up Cadre"
-    ▼
- OpenClaw main agent ──reads──▶ README.md
-    │  explains + asks permission
-    │  spawns
-    ▼
- CadreWizard (separate agent) ──interviews──▶ you (agents, models, names, budgets, interface)
-    │  writes on confirmation, verifies, then stays on call
-    │  hands back (persists for future updates)
-    ▼
- Cadre team (installed)
+[Open the detailed team topology](./diagrams/topology.md).
 
- Project work:
- Operator ──▶ configured OpenClaw entry point or direct PM contact
-                          │
-                          ▼
-                 Project Manager ───────────────▶ Operator handoff
-                   │       │    \                       ▲
-         as useful │       │     \ dispatch             │
-                   ▼       ▼      ▼                     │
-                  RA      PD   Persistent workers ──▶ owner checks result
-                                               \       │
-                                                └──▶ independent QA/review
-                                                     when risk or criteria call for it
+The Cadre Wizard interviews the operator, writes only confirmed choices, verifies the setup, and stays available for future updates. For project work, one PM/owner remains accountable for each user-visible outcome. Requirements, design, and support specialists join when useful; persistent worker seats implement bounded work and return evidence to the owner.
 
-         Requirements, design, and support are specialists—not mandatory approval stops.
-         New scope can return to requirements; project-specific details stay with the tenant.
-```
+Verification is risk-tiered and criterion-driven. The owner checks work as it is built; independent review is added when consequence or acceptance criteria warrant it. Keep one canonical outcome/task record. Kanban and Gantt can be generated views of that plan, while FlowBoard can mirror operational status until an intentional board migration.
 
-Each user-visible outcome has **one accountable PM/owner**. Requirements and design specialists help shape the work when useful; they are not automatic approval stations. The PM maintains the canonical outcome/task record and coordinates implementation through one or more **persistent worker seats** (each with its own identity and workspace, not a throwaway run). Cadre recommends two seats by default so independent work can proceed without duplicating ownership.
+A new product or material scope change becomes a new explicit outcome; revisit requirements when they need to change. Project-specific details stay with the tenant, not in Cadre's reusable team architecture.
 
-Verification is **risk-tiered and criterion-driven**: the owner checks work as it is built; an independent QA/reviewer is added when the consequence or acceptance target warrants independence. There is no fixed pass-count ceiling—each check should test a named criterion, resolve a finding, or add useful evidence, with exact artifact identity preserved. FlowBoard can mirror task status and ownership for operations; acceptance truth remains in the canonical project record until an intentional board migration.
-
-**Rework.** A new product or material scope change gets a new, explicit outcome and the relevant requirements work. Do not silently mix new scope into an already accepted result.
-
-**Support roles ride beside the line, never on it.** Security/IT, Consultant, Social Media Manager, Finance Manager and Agent Resources attach to whichever project needs them and go quiet when it doesn't.
+**Support roles ride beside the work as needed.** Security/IT, Consultant, Social Media Manager, Finance Manager, and Agent Resources are engaged when their expertise is useful; the Social Media Manager may also serve as an optional operator doorway.
 
 ---
 
