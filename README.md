@@ -14,7 +14,7 @@ Cadre gives you a persistent, chat-native multi-agent team: a project manager co
 
 Cadre is an **overlay, not a standalone app.** It installs *into* an OpenClaw deployment, so there has to be one first. If you're arriving with a **ChatGPT, Gemini, or Claude** subscription, an OpenAI API key, or a coding assistant like **Codex** or **Hermes**, that's a great starting point — but it is not OpenClaw yet:
 
-- **A model subscription or API key is a *model*** — the thing that generates the text. ChatGPT, Google **Gemini**, Anthropic **Claude**, DeepSeek, Groq, Mistral, or a local model all count here. **OpenClaw is the runtime** your agents live in: the process that gives them a workspace, memory, mailboxes, budgets, and a chat interface. Cadre builds a team *inside* that runtime.
+- **A model subscription or API key is a *model*** — the thing that generates the text. ChatGPT, Google **Gemini**, Anthropic **Claude**, DeepSeek, Groq, Mistral, or a local model all count here. **OpenClaw is the runtime** your agents live in: the process that gives them workspaces, memory, budgets, configured messaging, and chat interfaces. Cadre builds a team *inside* that runtime.
 - **Codex and Hermes are coding agents** — they work inside a repo. OpenClaw runs a *team* of agents with roles and a shared workspace. Different jobs, and both sit happily next door.
 - OpenClaw talks to whichever provider you choose. **What you already pay for usually just works** — an OpenAI, Gemini, or Anthropic key — and onboarding can bring your existing setup across.
 
@@ -80,7 +80,7 @@ Cadre is **not** a framework you install as a package. It is a **folder of Markd
 - A **role roster** — requirements analyst, project designer, project manager, plus standing functions (security/IT, social media, finance, QA, agent resources, consultant).
 - An **outcome-led project workflow** — one accountable PM coordinates the work; requirements, design, builders, and independent review contribute when useful or called for by the acceptance criteria.
 - **Project records and tracking views** — keep one canonical task/acceptance/evidence record. If a project needs both Kanban and Gantt views, derive them from the same plan rather than maintaining competing copies. FlowBoard, when integrated, is an operational tracking mirror unless the team deliberately migrates its canonical board.
-- **Mailboxes** — every agent has an `inbox/` and `outbox/`, so a team can be run from a single chat interface.
+- **Direct team communication** — agents contact the intended operator or teammate through the deployment's configured OpenClaw messaging route. A recipient inbox may hold durable handoffs; direct send and durable record are verified independently.
 - **Budgets** — per-role spend/effort envelopes so autonomy never means runaway cost.
 - **An autonomy ladder** — the operator starts doing most PM and QA work; agents take over as they prove out.
 
@@ -117,7 +117,7 @@ Verification is risk-tiered and criterion-driven. The owner checks work as it is
 
 A new product or material scope change becomes a new explicit outcome; revisit requirements when they need to change. Project-specific details stay with the tenant, not in Cadre's reusable team architecture.
 
-**Support roles ride beside the work as needed.** Security/IT, Consultant, Social Media Manager, Finance Manager, and Agent Resources are engaged when their expertise is useful; the Social Media Manager may also serve as an optional operator doorway.
+Security/IT, Consultant, Social Media Manager, Finance Manager, and Agent Resources are engaged when their expertise is useful; the Social Media Manager owns external communications.
 
 ---
 
@@ -131,7 +131,7 @@ A new product or material scope change becomes a new explicit outcome; revisit r
 | **Project Designer** | architecture, approach, specs | reasoning |
 | **Security / IT** | audit, exposure, hygiene (advises, never self-edits) | reasoning |
 | **QA / Verifier** | independent verification, evidence | reasoning |
-| **Social Media Manager** | external comms; can be the *doorway* agent | fast |
+| **Social Media Manager** | external communications and community | fast |
 | **Finance Manager** | budgets, spend tracking (optional) | fast |
 | **Agent Resources (AR)** | agent roster, onboarding, loadouts | fast |
 | **Consultant** | second opinion, red-team, advice | reasoning |
@@ -154,7 +154,8 @@ A **personal assistant** is deliberately *not* on this list. It is a separate ag
 - [`reference/scheduled-work.md`](./reference/scheduled-work.md) — what may run on a schedule: timers vs sentinels, idle must cost $0, and FM audits every job.
 - [`reference/memory.md`](./reference/memory.md) — tiered memory (STM/MTM/LTM), loose gates, size-triggered eviction.
 - [`reference/collaboration.md`](./reference/collaboration.md) — how agents work together: dispatch vs. message, outcome ownership, evidence handoffs, and guards against loops, collisions, and stalls.
-- [`reference/mailboxes.md`](./reference/mailboxes.md) — inbox/outbox format, the doorway pattern, delivery guarantees.
+- [reference/messaging.md](./reference/messaging.md) — direct delivery, durable recipient inboxes, and delivery verification.
+- [templates/agent-workspace/souls/README.md](./templates/agent-workspace/souls/README.md) — role-specific SOUL starting templates for every Cadre seat and the separate installer.
 - [`reference/budgets.md`](./reference/budgets.md) — budget model, defaults, enforcement.
 - [`reference/usage-management.md`](./reference/usage-management.md) — provider quota reporting, model failover/restoration, route probes, session migration, and downloadable policy/script templates.
 - [`reference/autonomy-ladder.md`](./reference/autonomy-ladder.md) — how the operator hands work over (who decides, per level).
@@ -164,7 +165,7 @@ A **personal assistant** is deliberately *not* on this list. It is a separate ag
 - [`templates/`](./templates) — the files copied into each agent workspace and each project.
 - [`templates/CADRE.md`](./templates/CADRE.md) — the **team directory** the wizard writes: who exists, roles, models, budgets, and who reports to whom. Read by every agent at session start.
 - [`templates/project/`](./templates/project) — the per-project files: `PROJECT.md` (goal, status, Gantt) and `DECISIONS.md` (the append-only decision log).
-- [`diagrams/topology.md`](./diagrams/topology.md) — the team topology as a diagram: who can reach whom, the optional doorway, and the rework loop.
+- [diagrams/topology.md](./diagrams/topology.md) — configured entry points, direct handoffs, one accountable owner, and the rework loop.
 
 ---
 

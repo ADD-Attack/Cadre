@@ -2,7 +2,7 @@
 
 The Cadre roster. Roles are **fixed**; names, models, and budgets are the operator's (set by the Cadre Wizard at install).
 
-Every agent — **including every worker the PM dispatches to** — is a **persistent OpenClaw agent**: its own workspace, persona files, memory, session store, and mailboxes. **A worker is a seat, not a throwaway run:** it keeps its identity and memory across projects, so its skill and context accumulate exactly the way the PM's or QA's do. (Spawned *subagents* — the disposable scratch mechanism any agent may use for bounded side work — are a separate thing; they are not the worker seat.)
+Every agent — **including every worker the PM dispatches to** — is a **persistent OpenClaw agent**: its own workspace, persona files, memory, session store, and configured messaging route. A deployment may also keep durable handoffs in the receiving agent's inbox. **A worker is a seat, not a throwaway run:** it keeps its identity and memory across projects, so its skill and context accumulate exactly the way the PM's or QA's do. (Spawned *subagents* — the disposable scratch mechanism any agent may use for bounded side work — are a separate thing; they are not the worker seat.)
 
 **Recommend two.** One worker is a single point of failure; two lets the PM run parallel work and keep the line moving while one is blocked, reviewing, or mid-task — and because every worker is persistent, the second accrues skill over time rather than only paying off in a crunch. The Cadre Wizard proposes **two worker seats** by default; an operator may take one.
 
@@ -31,7 +31,7 @@ as the work needs them.
 
 ## Why *these* roles
 
-This set is not arbitrary. It maps onto the reference architecture in the companion paper (*Persistent Agent Teams*, §8): **Supervisor / outcome owner** (PM), **Requirements and Design specialists** (RA/PD), **Builders** (persistent worker seats), **QA/Verifier** (independent review when warranted), **Social Media Manager** (optional doorway), and **Support** (Security/IT, Finance, AR, Consultant).
+This set is not arbitrary. It maps onto the reference architecture in the companion paper (*Persistent Agent Teams*, §8): **Supervisor / outcome owner** (PM), **Requirements and Design specialists** (RA/PD), **Builders** (persistent worker seats), **QA/Verifier** (independent review when warranted), **Social Media Manager** (external communications), and **Support** (Security/IT, Finance, AR, Consultant).
 
 Two seats carry a defining **voice**, stated because the voice *is* the job:
 

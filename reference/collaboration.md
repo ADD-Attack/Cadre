@@ -3,22 +3,17 @@
 How persistent agents work *together*: who may contact whom, how work moves between them, and the
 guards that keep a collaborating team from decaying into a loop, a collision, or a silent stall.
 
-Companion to [`mailboxes.md`](./mailboxes.md) (the two channels), [`guardrails.md`](./guardrails.md)
-(the failure modes and their caps), and [`autonomy.md`](./autonomy.md) (what an agent does alone).
+Companion to [messaging.md](./messaging.md), [guardrails.md](./guardrails.md), and [autonomy.md](./autonomy.md).
 
 ---
 
-## 1. There are two channels, and they are not interchangeable
+## 1. Send directly to the intended recipient
 
-| Channel | Direction | Mechanism | Lands in |
-|---|---|---|---|
-| **Peer** (agent ↔ agent) | either way | a direct message between agents | the **recipient's `inbox/`** |
-| **Operator** (agent → human) | one way | the agent's **`outbox/`**, relayed by a doorway | the operator's chat |
+Use the deployment's configured OpenClaw route to contact the operator or the specific teammate who
+needs the information. The recipient inbox may preserve a durable handoff when that convention is
+installed, but a file is not a delivery mechanism or a second canonical task record.
 
-Full detail in [`mailboxes.md`](./mailboxes.md). The one rule: **the outbox is operator-only;
-peer work goes agent-to-agent.** Collaboration happens on the peer channel.
-
----
+See [messaging.md](./messaging.md) for recipient routing, durable inboxes, and delivery verification.
 
 ## 2. The peer channel has **two mechanisms**, and they are gated differently
 
@@ -125,29 +120,25 @@ resolves a finding, and stop repeating unchanged checks that do not.
 
 ---
 
-## 5. Escalation topology — who can reach the operator
+## 5. Escalation topology — direct, authorized routes
 
-Collaboration needs a defined route *out* as much as between peers.
+The operator's configured OpenClaw channel reaches the main agent or the explicitly designated outcome
+owner. Agents send blockers, decisions, and handoffs directly to the intended recipient through the
+supported route. If durable workspaces are used, preserve the recipient-side record in that agent's
+inbox and keep the canonical state in the task/project record.
 
-The whole picture — who can reach whom, the optional doorway, and the rework loop — is drawn in [`../diagrams/topology.md`](../diagrams/topology.md).
+A missing route is a real blocker. Preserve the exact delivery failure and notify the accountable
+owner. Use another already-authorized route only when it preserves the same recipient and privacy
+boundary; only an authorized owner may change route allowlists. Keep emergency routes disabled unless
+the operator explicitly configures and tests them.
 
-- **The doorway.** In a single-interface deployment, one agent (often the Social Media Manager) is the
-  doorway that batches outboxes to the operator. The operator talks to one agent; the team still runs.
-- **The single-conduit risk.** If one agent is the only route to the operator, that agent is a
-  single point of failure. The mitigation is a **designated relay**: a second agent the operator can
-  route through when the primary is mid-run or unreachable.
-- **Break-glass is not a default.** A direct "high-severity, reach the operator *now*" path for
-  headless agents is tempting — and dangerous. **Do not treat one as live unless the operator has
-  explicitly enabled it.** Until then, escalate through the normal route.
-
----
+See the [team topology](../diagrams/topology.md).
 
 ## 6. Headless safety — a collaborator that cannot be asked
 
 An agent with no operator conversation surface must **deny `ask_user`** (or any blocking
 human-input tool), or it will hang forever waiting for an answer. This is a collaboration
-requirement: a headless agent escalates by *writing* a message (`kind: blocked` / `kind: question`),
-never by opening a blocking prompt. Every headless agent must set this; new ones must too.
+requirement: a headless agent escalates through a non-blocking direct message or canonical task record, never by opening a blocking prompt. Every headless agent must set this; new ones must too.
 
 ---
 

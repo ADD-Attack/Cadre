@@ -55,7 +55,7 @@ If the operator installs the **Finance Manager**, the Cadre Wizard runs the full
 3. **Per-role envelopes** — the spend limit for each role. **Default: the standard table above** (Project Manager 400k, QA 250k, …). "Bespoke" is optional tuning, never a blank the operator must fill — say so.
 4. **Global ceiling** — the total that must never be crossed. **Default: 1.5M tokens/day.**
 5. **Enforcement** — at a role's limit: keep going and report (`warn`), or stop the work (`cap`)? **Default: `warn`.**
-6. **Alert routing** — who hears about a breach? **Default: the Finance Manager → the doorway → the operator.**
+6. **Alert routing** — who hears about a breach? **Default: the Finance Manager reports directly to the operator through the configured OpenClaw route, with a durable record in the canonical task or alert intake when the deployment provides one.**
 7. **Overflow policy** — a role has spent its envelope; then what? **Default: escalate to the operator for a top-up** (never silently borrow from another role).
 
 The Finance Manager then **owns** the numbers, reports burn against them, and raises breaches. The Finance Manager does **not** silently raise a ceiling — only the operator can.

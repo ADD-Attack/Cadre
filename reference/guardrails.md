@@ -17,7 +17,7 @@ Every Cadre install should have all six. They are cheap; the failures they preve
 When the cap is reached:
 
 1. Stop routing.
-2. Write a `kind: blocked` message to the outbox with the chain that hit the cap.
+2. Notify the accountable owner directly through the configured route and record the blocked chain in the canonical task or recipient inbox when available.
 3. Escalate to the PM (or the operator).
 
 **Why 6.** Deep enough for PM → worker → QA → PM → fix → QA. Shallow enough that a loop is obvious. The PM may raise it per project; nothing may raise it automatically.
@@ -57,7 +57,7 @@ leased_until: 2026-09-14T05:31:00Z
 2. **Lease, never own forever.** A lease expires (default **30 min**). Expiry is the recovery path for a crashed agent; without it, one dead agent blocks a file permanently.
 3. **Renew** if the work is longer than the lease.
 4. **Release** when done — the claim file is deleted. A released claim lets the next writer in without waiting for expiry.
-5. **Contention is reported**, not silently resolved: if a claim is refused, that goes to the outbox as `kind: blocked`.
+5. **Contention is reported**, not silently resolved: if a claim is refused, notify the accountable owner directly and record the blocker in the task or recipient inbox.
 
 ### Enforcement, honestly
 
@@ -68,7 +68,7 @@ A claim written only in prose is advisory. Enforcement needs teeth:
 
 ### What is shared vs private
 
-- **Private** (one writer by definition): an agent's own `MEMORY.md`, its `inbox/`, its `outbox/`. No claim needed — only the owner writes these.
+- **Private** (one writer by definition): an agent's own memory and recipient inbox. No claim needed — only the owner writes these.
 - **Shared** (claim required): `SHARED.md`, project files, `PROJECT.md`, any spec more than one agent touches.
 
 ---
@@ -102,7 +102,7 @@ signal even if the config looks fine.
 **Rule.** **Assert on the existence of the artifacts a healthy run must produce.** Not "were there errors" — "did the work land."
 
 - A completed task must produce its output file. Missing output = failed task, regardless of status messages.
-- A mailbox cycle that delivers "0 messages" must first confirm there were 0 messages to send.
+- A reported handoff must be backed by the supported route's admission/delivery result when available; a durable inbox entry alone is not proof of delivery.
 - A memory cycle must leave a visible outcome artifact. If no tier changes, report a no-op with
   candidate/gate/write counts where available; do not label every no-op as a failed gate.
 

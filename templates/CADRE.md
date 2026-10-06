@@ -13,7 +13,9 @@
 **Installed:** <date>
 **Cadre version:** v0.1
 **Team name:** <team name>
-**Interface mode:** `<interface mode — direct, or single-doorway via one agent>`
+**Operator entry route:** <configured OpenClaw channel/session>
+**Peer messaging:** <supported agent/session route>
+**Durable handoffs:** <recipient inbox convention, if used>
 
 ---
 
@@ -41,12 +43,6 @@
 - **Overflow policy:** <stop | borrow | escalate>
 - **Enforcement mechanism:** `<none (accounting-only) — or a LiteLLM gateway with per-model caps and fallback at a set threshold>`
 - **Model routing:** <direct to providers | via the gateway>
-
-## Doorway (if enabled)
-- **Agent:** <name>
-- **Cadence:** <every N hours>
-- **Scope:** <which outboxes it reads>
-- **Urgency lane:** immediate for `priority: urgent` / `kind: blocked`
 
 ## Guardrails
 

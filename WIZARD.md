@@ -200,18 +200,13 @@ Ask **once**, plainly, before moving on — **with the default stated**:
 
 ---
 
-## Step 5 — Interface & the doorway
+## Step 5 — Communication routes
 
-Ask how the operator wants to *talk to the team*.
+Confirm the operator's configured OpenClaw channel and how the team should reach the operator. The default is direct delivery to the intended recipient: the operator contacts the main agent or Project Manager, and agents use the deployment's supported agent/session messaging route for peer handoffs. Keep peer messages addressed to their intended recipients; the Social Media Manager owns external communications.
 
-- **Direct** (default): the operator has a chat surface per agent, or talks to the main agent who relays.
-- **Single-doorway**: the operator wants **one** interface. They pick one agent — commonly the Social Media Manager — as the **doorway**. On a cadence (default: hourly) the doorway reads every agent's `outbox/`, batches queued messages to the operator, and routes replies back to the right `inbox/`.
+If durable handoff files are used, they belong in the recipient's inbox; they supplement direct delivery and do not prove that a message was delivered. Confirm which roles have direct routes and how a failed or unavailable route is reported. See [reference/messaging.md](./reference/messaging.md).
 
-If single-doorway: confirm the door agent, the polling cadence, and the **scope** (which agents' outboxes that door may read). Record dedupe and urgency rules per [`reference/mailboxes.md`](./reference/mailboxes.md).
-
-**Completion criterion:** interface mode chosen; if doorway, its agent + cadence + scope confirmed.
-
----
+**Completion criterion:** operator entry channel, peer-delivery mechanism, and any durable recipient-inbox convention are confirmed; no relay is assumed.
 
 ## Step 6 — Port existing projects
 
@@ -236,7 +231,7 @@ Only now, write. Four things: the config, the shared conventions, each agent's w
   SHARED.md           # the team ledger
   CADRE.md            # the team directory
   <agent-name>/       # one workspace per agent — a SIBLING of reference/
-    AGENTS.md  IDENTITY.md  SOUL.md  USER.md  MEMORY.md  BUDGET.md  inbox/  outbox/
+    AGENTS.md  IDENTITY.md  SOUL.md  USER.md  MEMORY.md  BUDGET.md  inbox/ (if configured)
 ```
 
 Each agent workspace sits **beside** `reference/`, so the relative links in the agent template (`../reference/...`) resolve after install. If you lay the workspaces out any other way, you **must** fill the absolute team-root path into every `AGENTS.md` — an agent that cannot reach its own conventions is a broken install.
@@ -249,9 +244,9 @@ Each agent workspace sits **beside** `reference/`, so the relative links in the 
    - Per-agent *settings* beyond creation (model, tools, heartbeat) live at **`agents.entries.<agent-id>.<field>`** — e.g. `openclaw config set agents.entries.<agent-id>.model <model>`. The bare **`agents.<agent-id>` path is rejected by the schema** (`Unrecognized keys`) — the map is `agents.entries`.
    - **Dry-run any batch before writing it:** `openclaw config set --batch-file <file> --dry-run`. It validates against the live schema and costs nothing; a rejected key is a five-second fix here and a broken install later.
 2. **Copy `reference/` and `diagrams/` into the team root.** *This is required, not optional.* The agent templates cite these files as the source of role charters, guardrails, methods, and the flow itself. An install that omits them ships agents who cannot read their own rules.
-3. Each agent's workspace — `AGENTS.md`, `IDENTITY.md`, `SOUL.md`, `USER.md`, `MEMORY.md`, `BUDGET.md`, `inbox/`, `outbox/` from [`templates/agent-workspace`](./templates/agent-workspace) — one per selected agent, each under the team root.
+3. Start each agent workspace from the files in [templates/agent-workspace](./templates/agent-workspace): AGENTS.md, IDENTITY.md, SOUL.md, USER.md, MEMORY.md, and BUDGET.md. Create an inbox only if durable recipient handoffs are part of the confirmed configuration. For SOUL.md, use the matching role template in [templates/agent-workspace/souls/](./templates/agent-workspace/souls/); use the generic template only for a custom role.
 4. The shared team ledger `SHARED.md` from [`templates/SHARED.md`](./templates/SHARED.md), at the team root.
-5. The **team directory** `CADRE.md` from [`templates/CADRE.md`](./templates/CADRE.md) — the record of *who exists*: roles, names, models, budgets, reports-to, interface mode, guardrail enforcement, and the naming convention. At the team root, beside `SHARED.md`.
+5. The **team directory** `CADRE.md` from [`templates/CADRE.md`](./templates/CADRE.md) — the record of *who exists*: roles, names, models, budgets, reports-to, operator entry route, peer messaging, durable handoffs, guardrail enforcement, and naming convention. At the team root, beside `SHARED.md`.
 
 Both `SHARED.md` and `CADRE.md` are **session-start reads**: every agent reads them before it does anything, so each agent knows the team's standing decisions *and* who its teammates are.
 
@@ -294,7 +289,7 @@ An installed file with a literal `<role>` or `<team index path>` is an **install
 
 ## Step 8 — Verify and hand off
 
-1. **Verify:** one canary task per created agent (a trivial round-trip) proving it responds and its mailbox works. Report pass/fail — do not claim success on an unattempted check.
+1. **Verify:** one canary task per created agent (a trivial round-trip) proving it responds through its configured messaging route. If durable inbox handoffs are used, verify that path separately. Report pass/fail — do not claim success on an unattempted check.
 2. **Verify the wires, not just the agents.** Confirm three things and report each:
    - **(a) No placeholder survives in a file the wizard owns.** Scope this to each agent's filled files (`AGENTS.md`, `IDENTITY.md`, `SOUL.md`, `USER.md`, `MEMORY.md`, `BUDGET.md`) and the team index `CADRE.md`. Two rules so the check does not lie:
      - **Angle brackets in `reference/` and inside fenced code blocks are correct and must NOT be "fixed."** `reference/budgets.md` shows a `BUDGET.md` example; `SHARED.md` shows a log-entry skeleton. Those are documentation, not unfilled placeholders.

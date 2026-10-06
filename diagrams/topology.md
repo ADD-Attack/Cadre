@@ -18,13 +18,12 @@ flowchart TD
       FM[Finance]
       AR[Agent Resources]
       CON[Consultant]
-      SMM[Social Media Manager<br/>optional doorway]
+      SMM[Social Media Manager<br/>external communications]
     end
 
     OP <--> ENTRY
     ENTRY --> PM
     OP <--> PM
-    SMM -. optional relay .-> PM
 
     PM -. consults / assigns as useful .-> RA
     PM -. consults / assigns as useful .-> PD
@@ -41,8 +40,7 @@ flowchart TD
 ```
 
 **How to read it:** the operator enters through the deployment's configured OpenClaw interface,
-which may route directly to the PM or through an optional doorway. Each project outcome has one
-accountable owner, normally the Project Manager. Requirements, design, implementation, and support
+which reaches the main agent or Project Manager through configured OpenClaw messaging. Peer handoffs are sent directly to their intended recipient; a durable recipient inbox may be used to preserve them. Each project outcome has one accountable owner, normally the Project Manager. Requirements, design, implementation, and support
 roles contribute as needed; the diagram is not a mandatory serial approval pipeline. Worker seats
 are persistent agents, distinct from disposable subagent runs.
 

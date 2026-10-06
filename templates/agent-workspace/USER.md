@@ -6,7 +6,8 @@
 
 - **Operator:** <name / handle>
 - **How they reach me:** <channel(s)>
-- **Interface mode:** `<direct, or single-doorway via one agent>`
+- **Operator contact route:** <configured OpenClaw channel/session>
+- **Peer handoff route:** <supported direct agent/session messaging; optional durable recipient inbox>
 
 ## Preferences
 
