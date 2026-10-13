@@ -1,0 +1,8 @@
+# Heavy model deps for the parser — install ONLY where the OmniParser
+# weights will actually run (GPU host recommended). The parser service
+# itself starts fine without these; /parse returns 501 until the detector
+# weights AND these deps are present. Pin versions in production.
+torch
+ultralytics
+transformers
+huggingface_hub

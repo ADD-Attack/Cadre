@@ -9,6 +9,7 @@ services:
     environment:
       - RELAY_GATEWAY_TOKEN=${RELAY_GATEWAY_TOKEN:-}
       - HANDS_URL=${HANDS_URL:-http://host.docker.internal:5000}
+      - HANDS_SECRET=<redacted>}
       - PARSER_URL=http://parser:5011
     extra_hosts:
       - "host.docker.internal:host-gateway"   # reach the Windows hands on the host
