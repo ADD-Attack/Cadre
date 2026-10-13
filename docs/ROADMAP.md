@@ -69,6 +69,37 @@ secret.
 **Done when:** one command on a Windows PC produces the report; when the
 hands are not running it says exactly that instead of failing obscurely.
 
+### WP0b — Takeover interlock (the user always wins)
+Safety feature, outranks every feature package below. Raised by the
+owner on 2026-10-13 after agent keystrokes landed in the wrong window
+while he was using the PC himself: when the person at the keyboard is
+active, the agent must stop driving, immediately and automatically.
+
+- The hands watch for physical input that did **not** come from the
+  agent: the mouse ending up somewhere the agent's own act calls did
+  not put it, or a local key / mouse-button press. On detection the
+  hands enter a YIELDED state.
+- While yielded, the act endpoints refuse with HTTP 409 and a body like
+  `{"error": "user active — control yielded", "ok": false}`, and the
+  gateway passes that refusal through unchanged, so a well-behaved
+  driver backs off instead of fighting the user for the cursor.
+- Control returns after a quiet period with no local input
+  (configurable, default ~10 seconds), with no human action required.
+- The agent's own input must never trip it: track the cursor positions
+  the agent itself commanded and only yield on deviation; design the
+  keyboard side so agent-sent keys don't self-trigger (a brief
+  suppression window around act calls is acceptable — document the
+  tradeoff).
+- The gateway's `/v1/info` reports the current state
+  (`"control": "agent"` or `"control": "yielded"`), and the hands show
+  the state visibly (window/console status line) so the person at the
+  PC can see who has control.
+
+**Done when:** with the stack running, moving the physical mouse makes
+the next act call return 409 and `/v1/info` show yielded; after the
+quiet period acts succeed again; 20 consecutive agent-issued moves
+never trip the interlock; and the behavior is documented in the README.
+
 ### WP1 — UIA endpoint in the hands
 Add UI Automation to the hands (pywinauto): an endpoint returning the
 control tree of the foreground window / desktop (name, control type,
