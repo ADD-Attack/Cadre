@@ -22,4 +22,4 @@ _Written 2026-10-13. This is the MuseRelay2 spec if it's ever built; the alterna
 - Trajectory recording: log screenshots + actions per session so failed runs can be replayed and debugged.
 
 ## The alternative to building MuseRelay2
-Adopt UFO² as the desktop engine, point its custom OpenAI-compatible endpoint at the muse-brain-gateway (model `brain/muse-brain`) so Christopher's Muse context stays the brain, add browser-use CLI for pure-web tasks, and keep Muse Relay v1 as the simple fallback. Pros/cons delivered in chat 2026-10-13.
+Adopt UFO² as the desktop engine, point its custom OpenAI-compatible endpoint at the muse-brain-gateway (model `brain/muse-brain`) so the operator's own agent context stays the brain, add browser-use CLI for pure-web tasks, and keep Muse Relay v1 as the simple fallback. Pros/cons delivered in chat 2026-10-13.

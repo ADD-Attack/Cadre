@@ -1,8 +1,8 @@
 # Muse Relay v2
 
-Let a personal AI agent (Muse) operate Christopher's Windows PC — screenshots,
+Let a personal AI agent operate a Windows PC — screenshots,
 mouse, keyboard — with a security posture designed for leaving it reachable
-while he's away from home.
+while the owner is away from home.
 
 v2 is a rebuild of the single-file Muse Relay around three parts:
 

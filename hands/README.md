@@ -4,7 +4,7 @@ The desktop driver. A container has no interactive Windows desktop session,
 so this part runs on the host as a normal process — the same constraint
 UFO² and OmniTool run into (UFO needs a live console session; OmniTool
 sidesteps it with a whole VM, which we rejected: the point is driving
-Christopher's real desktop).
+the owner's real desktop).
 
 Current state: the v1 Muse Relay app, carried forward unchanged —
 single window, per-session generated secret, constant-time compare,
