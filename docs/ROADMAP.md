@@ -183,6 +183,15 @@ criteria are what a future decision gets made on.
 - Push the branch when each work package lands. Do **not** merge to
   `main` yourself — the merge is the owner's call. Your final handoff
   (below) is what he reviews.
+- **If you do not have push access to this repo** (permission error on
+  push): do not stall, and never ask the owner to share a personal
+  token. Fork the repo to your own account, push the same
+  `opus-5-5-roadmap` branch to your fork, and open a pull request from
+  the fork's branch into this repo's `main`, with the handoff report as
+  the PR description. If you cannot open PRs either, push to the fork
+  and put the fork URL + branch name at the top of your handoff report
+  so the owner can pull it himself. State plainly in the handoff which
+  route you used (direct push, fork + PR, or fork only).
 
 ## Handoff report (end of run)
 
