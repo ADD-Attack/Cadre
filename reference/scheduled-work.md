@@ -59,6 +59,10 @@ returning `{fire, message, state}`.
   and re-checks is both a stray process and a hidden meter.
 - **No hourly-forever wakeup "just in case."** A recurring job owes a purpose and a cadence. If
   neither can be stated, it is a leak, not a watcher.
+- **No checkpoints on a stalled task.** A timer may not fire progress checkpoints on a **parked or
+  blocked** task — a checkpoint carrying no artifact and no new blocker is spend narrating
+  stillness. Timers that fire on tasks with no active run window are disabled in audit (below).
+  *Added 2026-10-13 (see [`overhaul-2026-10-13.md`](./overhaul-2026-10-13.md)).*
 - **No unattributed job.** Every scheduled job names an **owner**, so a cost question always has an
   answer.
 
@@ -94,7 +98,7 @@ figure is not. **The real value is comparative, not exact:** a $0 script versus 
 ## Finance Manager: the scheduled-work audit
 
 FM owns this file's cost side. On its cadence, FM lists the deployment's scheduled jobs and checks
-each against four questions — kept to **one batched pass**, because the audit is a routine, not a
+each against five questions — kept to **one batched pass**, because the audit is a routine, not a
 ceremony:
 
 1. **Owner?** Every job names the agent responsible. An orphaned job is a finding.
@@ -104,6 +108,9 @@ ceremony:
    it as a sentinel (`guardrails.md` §6).
 4. **Cost estimate, labeled.** A per-job estimate per the formula above, or an explicit "analytics
    only / not attributable" — never a made-up exact figure.
+5. **Live window?** The job's target task has an active run window. A timer firing checkpoints on a
+   parked or blocked task is a finding and is **disabled** — checkpointing stillness is the banned
+   form above, not a routine.
 
 **Run the audit as a sentinel, not an agent turn.** The cheap audit reads job state and session
 usage deterministically and wakes the model **only** when a finding exists (a job with no owner, an

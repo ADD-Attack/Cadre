@@ -4,7 +4,9 @@ The paper this system comes from (*Persistent Agent Teams*) names four guardrail
 
 Two more come from the *cost* side, where a persistent team's real risk isn't a crash — it is **quiet, recurring spend**. They are guards 5 and 6 below.
 
-Every Cadre install should have all six. They are cheap; the failures they prevent are not.
+Two more come from the *operating* side — what a persistent team does to its own throughput when review and gates are miscalibrated. They are guards 7 and 8 below, added 2026-10-13 after a live overhaul (see [`overhaul-2026-10-13.md`](./overhaul-2026-10-13.md)).
+
+Every Cadre install should have all eight. They are cheap; the failures they prevent are not.
 
 ---
 
@@ -140,6 +142,33 @@ There is **no fixed global QA/operator pass count**. Each pass should test a con
 
 ---
 
+## 7. Proportionate sign-off (review scales to the blast radius)
+
+**Problem.** A security gate calibrated for the worst action, applied to *every* action. Internal dev tooling waits days for attestation proofs whose only consumer is the team itself; the gate's cost is paid in stalled work while nothing outside the rig is at risk. The 2026-10-13 case: a browser-harness attestation gate consumed checkpoints cp53→cp66 while the game it served made no progress.
+
+**Rule.** Formal security sign-off is required **only** for:
+
+- real credentials / secrets,
+- external publishing,
+- spending money,
+- actions on the operator's real accounts.
+
+Everything internal — dev tooling, harnesses, QA evidence — gets **advisory** security review; the accountable owner decides. For internal evidence, attestation/provenance proofs are replaced by **dual verification**: producer output plus an independent re-run with hash/output comparison ([`verification.md`](./verification.md) §7). Reserve proof machinery for claims someone outside the team must trust.
+
+**Anti-pattern it kills:** security as a universal toll booth — and the routing-around it teaches.
+
+---
+
+## 8. Gate escalation (a stuck gate becomes a decision)
+
+**Problem.** A task blocked at a gate can checkpoint forever. Each checkpoint is cheap; the sum is enormous, and nobody ever decides. The 2026-10-13 case: a single gate accumulated 60+ checkpoints across days.
+
+**Rule.** A task blocked at the **same gate through 2 checkpoints** is escalated as a **decision** with named options — **accept the risk / descope / kill** — to the accountable decider. It does not get a third checkpoint at the same gate. Parking the task as deferred is a valid decision outcome; silent continuation is not.
+
+**Anti-pattern it kills:** "still blocked" as a permanent status.
+
+---
+
 ## How they fit together
 
 | Guardrail | Failure it prevents | Cost of skipping |
@@ -150,5 +179,7 @@ There is **no fixed global QA/operator pass count**. Each pass should test a con
 | No-op detector | work that looks done and isn't | false success |
 | Risk-tiered verification | consequential defects or low-information review loops | unchecked risk, or effort without new evidence |
 | Zero-token checks | idleness billed as work | recurring spend with no event to show for it |
+| Proportionate sign-off | internal work held hostage by worst-case review | stalled lanes, routed-around gates |
+| Gate escalation | a gate that never resolves | 60+ checkpoints, no decision |
 
-All six come from **persistence** — the first four from its *failure* modes, the last two from its *cost* modes. Which is why the paper's thesis is short: **a persistent team is a distributed system, and it inherits distributed-systems failure modes.** A team that stays up is also a team that keeps *billing*, so its cost discipline is a guardrail, not an optimisation.
+All eight come from **persistence** — the first four from its *failure* modes, the next two from its *cost* modes, the last two from its *operating* modes. Which is why the paper's thesis is short: **a persistent team is a distributed system, and it inherits distributed-systems failure modes.** A team that stays up is also a team that keeps *billing*, so its cost discipline is a guardrail, not an optimisation.

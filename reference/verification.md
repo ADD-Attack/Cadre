@@ -60,6 +60,26 @@ a third is refused, forcing ship-or-escalate (`guardrails.md` §5). Escalating a
 attempts side by side and the remaining gap named — is the correct, cheap move. A silent further pass is
 the failure.
 
+## 7. One ledger, written once — and claims are not verdicts
+
+*Added 2026-10-13 (see [`overhaul-2026-10-13.md`](./overhaul-2026-10-13.md)).*
+
+Each task has **one evidence ledger**, written **once** by the producer: the pass condition, the
+artifact paths, and their hashes. The ledger is not rewritten per checkpoint, and no reconciliation
+pass is run unless a concrete discrepancy appears.
+
+A producer's report — "bundle complete" — is a **claim, not a verdict**. Before a claim is reported
+complete upward, a different agent **spot-verifies** it: re-open or re-run a sample of the artifacts
+and compare hash/output against the ledger. This is the standard control for internal evidence —
+**dual verification** (producer output + independent re-run with hash/output comparison) — and it
+replaces attestation machinery for anything whose only consumer is the team itself
+(`guardrails.md` §7).
+
+The case that earned this section, 2026-10-13: a producer reported a complete four-screenshot
+evidence bundle; reconciliation found one file was a **byte-identical alias** of an earlier capture
+and one stage had never been reached. The artifacts were real; the *completeness claim* was not.
+Spot-verification is cheap. Reporting an unearned "complete" upward is not.
+
 ---
 
 ## The one-line habit
