@@ -221,6 +221,14 @@ class RelayApp:
             # a packaged build was observed rejecting the app's own
             # token when it relied on the environment alone.
             module.TOKEN = self.token
+            self.log_line(
+                "Gateway config check: env_match=%s module_match=%s module_len=%s"
+                % (
+                    os.environ.get("RELAY_GATEWAY_TOKEN") == self.token,
+                    module.TOKEN == self.token,
+                    len(module.TOKEN or ""),
+                )
+            )
             module.HANDS_URL = HANDS_URL
             module.HANDS_SECRET = self._hands_secret
             module.PARSER_URL = f"http://127.0.0.1:{PARSER_PORT}"
@@ -254,6 +262,7 @@ class RelayApp:
                 if not self._poll_logged:
                     self._poll_logged = True
                     self.log_line(f"Gateway self-check: HTTP {r.status_code}.")
+                    self.log_line(f"Gateway self-check body: {r.text[:70]!r}")
                 data = r.json()
                 hands = bool(data.get("hands_reachable"))
                 parser = bool(data.get("parser_reachable"))
