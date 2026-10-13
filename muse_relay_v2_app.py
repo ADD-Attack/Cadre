@@ -22,6 +22,7 @@ import os
 import queue
 import re
 import secrets
+import socket
 import sys
 import threading
 import time
@@ -207,6 +208,23 @@ class RelayApp:
 
     def _start_one(self, name, rel_path, port):
         label = "Parser" if name == "parser" else "Gateway"
+        # Refuse to duplicate a service that is already answering on the
+        # port. A bare bind is not a reliable check on Windows (socket
+        # reuse can let a second listener attach silently, after which
+        # callers reach the stale copy and auth fails mysteriously) —
+        # a connect probe is. Found the hard way on 2026-10-13: two
+        # leftover console services held 5010/5011 for hours while the
+        # packaged app bound alongside them and never got a request.
+        with socket.socket() as probe:
+            probe.settimeout(0.5)
+            if probe.connect_ex(("127.0.0.1", port)) == 0:
+                self.log_line(
+                    f"ERROR: port {port} is already answering — the {name} "
+                    "service is already running somewhere else. Close the "
+                    "other copy first; this copy will not start a duplicate."
+                )
+                self.set_status(name, f"{label} (:{port}): already running elsewhere")
+                return
         try:
             module = _load_service(f"muse_relay_v2_{name}", rel_path)
         except Exception as exc:
