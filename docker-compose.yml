@@ -1,0 +1,37 @@
+services:
+  gateway:
+    build: ./services/gateway
+    image: muse-relay-gateway
+    container_name: muse-relay-gateway
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5010:5010"   # localhost only; expose via Tailscale, never 0.0.0.0
+    environment:
+      - RELAY_GATEWAY_TOKEN=${RELAY_GATEWAY_TOKEN:-}
+      - HANDS_URL=${HANDS_URL:-http://host.docker.internal:5000}
+      - PARSER_URL=http://parser:5011
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # reach the Windows hands on the host
+    depends_on:
+      - parser
+
+  parser:
+    build: ./services/parser
+    image: muse-relay-parser
+    container_name: muse-relay-parser
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5011:5011"
+    volumes:
+      - parser-weights:/models   # OmniParser weights live here once integrated
+    # GPU (NVIDIA): uncomment on a host with the NVIDIA Container Toolkit.
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+volumes:
+  parser-weights:
