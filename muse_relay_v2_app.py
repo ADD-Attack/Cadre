@@ -88,6 +88,8 @@ class RelayApp:
     def __init__(self, root):
         self.root = root
         self.token = None
+        self._hands_secret = None
+        self._poll_logged = False
         self.servers = {}
         self.ui_queue = queue.Queue()
         self._build_ui()
@@ -190,6 +192,7 @@ class RelayApp:
             return
 
         self.token = secrets.token_hex(16)
+        self._hands_secret = hands_secret
         # The services read their config from the environment at import
         # time, so set it BEFORE importing them.
         os.environ["RELAY_GATEWAY_TOKEN"] = self.token
@@ -210,6 +213,17 @@ class RelayApp:
             self.log_line(f"ERROR: could not load the {name} service: {exc}")
             self.set_status(name, f"{label} (:{port}): failed to load")
             return
+        if name == "gateway":
+            # Configure the gateway directly as well as via the
+            # environment. The module reads env at import time; in the
+            # packaged (frozen) build this explicit assignment is the
+            # guarantee that the running config matches this window —
+            # a packaged build was observed rejecting the app's own
+            # token when it relied on the environment alone.
+            module.TOKEN = self.token
+            module.HANDS_URL = HANDS_URL
+            module.HANDS_SECRET = self._hands_secret
+            module.PARSER_URL = f"http://127.0.0.1:{PARSER_PORT}"
         try:
             server = waitress.create_server(module.app, host="0.0.0.0", port=port, threads=8)
         except OSError as exc:
@@ -237,6 +251,9 @@ class RelayApp:
                     headers={"X-Relay-Token": self.token or ""},
                     timeout=2,
                 )
+                if not self._poll_logged:
+                    self._poll_logged = True
+                    self.log_line(f"Gateway self-check: HTTP {r.status_code}.")
                 data = r.json()
                 hands = bool(data.get("hands_reachable"))
                 parser = bool(data.get("parser_reachable"))
