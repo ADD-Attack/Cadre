@@ -23,8 +23,8 @@ model probe when a transition is due, but it will not write routing configuratio
   Quota remaining does not prove authentication or route health.
 - **Spend:** money or tokens attributable to your deployment. This is not the same as provider
   headroom. OpenClaw model fallbacks are generally error-based, not a spend cap; check what your
-  billing source and runtime actually expose. For team envelopes and spend accounting, see
-  [`budgets.md`](./budgets.md).
+  billing source and runtime actually expose. The fleet runs on one shared provider quota pool;
+  the older per-role envelope system in [`budgets.md`](./budgets.md) is deprecated (2026-10-13).
 
 Decide which signal is authoritative for each action. Do not treat a quota percentage as spend, or a
 successful catalog lookup as proof that a model can serve a turn.
