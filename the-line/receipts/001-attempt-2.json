@@ -1,0 +1,56 @@
+{
+  "ticket": "001",
+  "url": "https://add-attack.github.io/Cadre/the-line/products/weather/",
+  "attempt": 2,
+  "status": "pass",
+  "checked_at": "2026-10-14T18:50:36.779Z",
+  "http_status": 200,
+  "bytes": 3777,
+  "checks": [
+    {
+      "check": "http_200",
+      "pass": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "marker:api.open-meteo.com/v1/forecast",
+      "pass": true,
+      "detail": "present in live body"
+    },
+    {
+      "check": "marker:latitude=39.0997",
+      "pass": true,
+      "detail": "present in live body"
+    },
+    {
+      "check": "marker:longitude=-94.5786",
+      "pass": true,
+      "detail": "present in live body"
+    },
+    {
+      "check": "marker:temperature_2m",
+      "pass": true,
+      "detail": "present in live body"
+    },
+    {
+      "check": "marker:apparent_temperature",
+      "pass": true,
+      "detail": "present in live body"
+    },
+    {
+      "check": "marker:precipitation_probability",
+      "pass": true,
+      "detail": "present in live body"
+    },
+    {
+      "check": "marker:temperature_unit=fahrenheit",
+      "pass": true,
+      "detail": "present in live body"
+    },
+    {
+      "check": "marker:name=\"viewport\"",
+      "pass": true,
+      "detail": "present in live body"
+    }
+  ]
+}

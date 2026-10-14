@@ -219,3 +219,11 @@ artifact URL at 2026-10-14T18:40:00Z — HTTP 200, all 9 checks passed
 variables, `temperature_unit=fahrenheit`, viewport meta). Receipt written
 to `receipts/001.json`. Per the charter, the sensor's PASS is the
 completion declaration; the operator pings the owner from the receipt.
+
+## Ship addendum — claim 10 closed (2026-10-14 13:50 CDT, operator)
+
+The owner enabled GitHub Pages on the Cadre repo. The rendered page is live at
+https://add-attack.github.io/Cadre/the-line/products/weather/ — sensor attempt 2
+ran against that URL: PASS, 9/9 checks (receipt `receipts/001-attempt-2.json`).
+Claim 10's condition is now met and its consequent verified; all 10 claims stand
+fully satisfied. Attempt 1's receipt (raw artifact URL) remains on record.
