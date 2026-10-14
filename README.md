@@ -79,9 +79,9 @@ Cadre is **not** a framework you install as a package. It is a **folder of Markd
 
 - A **role roster** — requirements analyst, project designer, project manager, plus standing functions (security/IT, social media, finance, QA, agent resources, consultant).
 - An **outcome-led project workflow** — one accountable PM coordinates the work; requirements, design, builders, and independent review contribute when useful or called for by the acceptance criteria.
-- **Project records and tracking views** — keep one canonical task/acceptance/evidence record. If a project needs both Kanban and Gantt views, derive them from the same plan rather than maintaining competing copies. FlowBoard, when integrated, is an operational tracking mirror unless the team deliberately migrates its canonical board.
+- **Project records and tracking views** — keep one canonical task/acceptance/evidence record. If a project needs both Kanban and Gantt views, derive them from the same plan rather than maintaining competing copies. FlowBoard is the team's canonical board: work runs off its milestone queue, not a mirror of some other record.
 - **Direct team communication** — agents contact the intended operator or teammate through the deployment's configured OpenClaw messaging route. A recipient inbox may hold durable handoffs; direct send and durable record are verified independently.
-- **Budgets** — per-role spend/effort envelopes so autonomy never means runaway cost.
+- **Budgets** — the fleet runs on one shared quota pool (see [`reference/budgets.md`](./reference/budgets.md)); the older per-role envelope system is deprecated.
 - **An autonomy ladder** — the operator starts doing most PM and QA work; agents take over as they prove out.
 
 Project requirements, decisions, plans, and evidence stay in readable project artifacts. An operational task tracker may add a convenient status surface, but it does not silently become product or acceptance authority.
@@ -113,7 +113,7 @@ That's it. The Cadre Wizard does the rest.
 
 The Cadre Wizard interviews the operator, writes only confirmed choices, verifies the setup, and stays available for future updates. For project work, one PM/owner remains accountable for each user-visible outcome. Requirements, design, and support specialists join when useful; persistent worker seats implement bounded work and return evidence to the owner.
 
-Verification is risk-tiered and criterion-driven. The owner checks work as it is built; independent review is added when consequence or acceptance criteria warrant it. Keep one canonical outcome/task record. Kanban and Gantt can be generated views of that plan, while FlowBoard can mirror operational status until an intentional board migration.
+Verification is risk-tiered and criterion-driven. The owner checks work as it is built; independent review is added when consequence or acceptance criteria warrant it. Keep one canonical outcome/task record. Kanban and Gantt can be generated views of that plan, while FlowBoard is the canonical board the work runs off.
 
 A new product or material scope change becomes a new explicit outcome; revisit requirements when they need to change. Project-specific details stay with the tenant, not in Cadre's reusable team architecture.
 
@@ -125,6 +125,7 @@ Security/IT, Consultant, Social Media Manager, Finance Manager, and Agent Resour
 
 | Agent | Owns | Default model class |
 |---|---|---|
+| **Main / Supervisor** | dispatch hub above the Project Manager; run coordination; the operator's entry point | reasoning |
 | **Project Manager** | plan, tasks, Gantt, dispatch, tracking | reasoning |
 | **Worker** | executing dispatched build tasks; self-verifies and reports back with evidence | builder |
 | **Requirements Analyst** | intake, clarification, scope | reasoning |
@@ -136,7 +137,7 @@ Security/IT, Consultant, Social Media Manager, Finance Manager, and Agent Resour
 | **Agent Resources (AR)** | agent roster, onboarding, loadouts | fast |
 | **Consultant** | second opinion, red-team, advice | reasoning |
 
-Full charters, budgets, and authority: [`reference/agents.md`](./reference/agents.md). The Cadre Wizard confirms which of these to create — you don't have to take all ten.
+Full charters, budgets, and authority: [`reference/agents.md`](./reference/agents.md). The Cadre Wizard confirms which of these to create — you don't have to take all ten. A live deployment may also keep standing agents beyond the ten roles above (in the current deployment: the CadreWizard as a standing agent, plus `erin` and `oscar`).
 
 A **personal assistant** is deliberately *not* on this list. It is a separate agent in its own environment, not a Cadre role (see *What this is* above).
 
@@ -157,7 +158,7 @@ A **personal assistant** is deliberately *not* on this list. It is a separate ag
 - [`reference/collaboration.md`](./reference/collaboration.md) — how agents work together: dispatch vs. message, outcome ownership, evidence handoffs, and guards against loops, collisions, and stalls.
 - [reference/messaging.md](./reference/messaging.md) — direct delivery, durable recipient inboxes, and delivery verification.
 - [templates/agent-workspace/souls/README.md](./templates/agent-workspace/souls/README.md) — role-specific SOUL starting templates for every Cadre seat and the separate installer.
-- [`reference/budgets.md`](./reference/budgets.md) — budget model, defaults, enforcement.
+- [`reference/budgets.md`](./reference/budgets.md) — the deprecated per-role envelope system, kept for history; the fleet now runs on one shared quota pool.
 - [`reference/usage-management.md`](./reference/usage-management.md) — provider quota reporting, model failover/restoration, route probes, session migration, and downloadable policy/script templates.
 - [`reference/autonomy-ladder.md`](./reference/autonomy-ladder.md) — how the operator hands work over (who decides, per level).
 - [`examples/michael-scott/AUTONOMY.md`](./examples/michael-scott/AUTONOMY.md) — a complete, self-contained, publication-safe `AUTONOMY.md` adaptation for self-hosters to copy and tailor, including the limits around config, skills, and credentials. [Raw/downloadable Markdown](https://raw.githubusercontent.com/ADD-Attack/Cadre/main/examples/michael-scott/AUTONOMY.md).
@@ -174,7 +175,7 @@ A **personal assistant** is deliberately *not* on this list. It is a separate ag
 
 1. **Confirm before writing.** The Cadre Wizard proposes; the operator disposes.
 2. **Evidence over status.** "Running" is not "done". The accountable owner records proof; independent review is used when risk or acceptance criteria warrant it.
-3. **Real limits live outside the prompt.** Budgets are enforced by policy and accounting, not by asking the model nicely.
+3. **Real limits live outside the prompt.** The fleet's limit is one shared provider quota pool, tracked as headroom — not per-role envelopes (that DeepSeek-era system is deprecated; see [`reference/budgets.md`](./reference/budgets.md)).
 4. **Security advises, never self-edits.** No agent may modify its own permissions, prompt, or safety config.
 5. **Cheap by default, escalate to reasoning.** Most work is routine; pay for thinking only where it matters.
 6. **Plain files.** If you can't `cat` it, don't trust it.

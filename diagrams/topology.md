@@ -40,7 +40,7 @@ flowchart TD
 ```
 
 **How to read it:** the operator enters through the deployment's configured OpenClaw interface,
-which reaches the main agent or Project Manager through configured OpenClaw messaging. Peer handoffs are sent directly to their intended recipient; a durable recipient inbox may be used to preserve them. Each project outcome has one accountable owner, normally the Project Manager. Requirements, design, implementation, and support
+which reaches the main agent (the supervisor / dispatch hub) or the Project Manager through configured OpenClaw messaging. Peer handoffs are sent directly to their intended recipient; a durable recipient inbox may be used to preserve them. Each project outcome has one accountable owner, normally the Project Manager. Requirements, design, implementation, and support
 roles contribute as needed; the diagram is not a mandatory serial approval pipeline. Worker seats
 are persistent agents, distinct from disposable subagent runs.
 
@@ -50,8 +50,8 @@ There is no fixed review-pass cap: each pass should test a named criterion, reso
 decision-relevant evidence, while preserving the tested artifact's identity.
 
 Keep one canonical project/task record. Kanban and Gantt are views of that plan, not competing
-sources of truth. Where FlowBoard is integrated, it is an operational tracking mirror unless the
-team explicitly migrates its canonical board. Within delegated authority, the PM may resolve a
+sources of truth. FlowBoard is the canonical board: work runs off its
+milestone queue. Within delegated authority, the PM may resolve a
 routine workflow/lifecycle/sequence warning through a supported, audited override, recording the
 actor, reason, prior/new state, and evidence. An override never bypasses platform authentication or
 RBAC, security, data integrity, schema/path validation, destructive-action limits, or decisions

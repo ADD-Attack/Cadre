@@ -73,7 +73,7 @@ The test: **could the operator answer your message by reading only its first two
 
 **No interview question may require the operator to invent a value.** A question with a blank where the answer goes is not a question — it is a demand for expertise the operator may not have. So every question ships two things:
 
-1. **A plain-language explanation** — what the thing *is*, in one line, before you ask about it. (An **envelope** is "the spend limit for one role"; an **enforcement mode** is "at the limit, keep going and warn, or stop the work." Never ask the operator to decode a term you have not defined.)
+1. **A plain-language explanation** — what the thing *is*, in one line, before you ask about it. (An **envelope** was "the spend limit for one role" in the deprecated per-role budget system — see Step 4; an **enforcement mode** is "at the limit, keep going and warn, or stop the work." Never ask the operator to decode a term you have not defined.)
 2. **A concrete default, stated in the question** — the answer you will use if they say nothing. Present it as *"default: X — accept, or change it?"*, never as an open blank.
 
 **A default must change nothing about what the operator can do** — it is the safe starting point they can accept in one word and tune later. The safe default is the conservative one: the smaller budget, the warning over the hard stop.
@@ -159,9 +159,11 @@ Cadre roles are **fixed**; the team name and the agent names are the operator's.
 
 ## Step 4 — Budgets
 
+> **Deprecated (2026-10-13):** the per-role envelope system this step used to install is a DeepSeek-token-era system and is no longer in force — the fleet runs on one shared quota pool (see below). Do not set up envelopes on a new install; this step is retained only so re-runs on legacy installs can recognize and retire them.
+
 If the operator selected **Finance Manager**, run the full budget interview — but read [`reference/budgets.md`](./reference/budgets.md) first: **every question there is pre-filled with a default.** Present the whole block as a default the operator may accept in one word, then offer to tune any single line. Do **not** read the question list aloud as blanks to fill.
 
-Otherwise, apply **Cadre's light defaults** (see [`reference/budgets.md`](./reference/budgets.md)): modest per-role token envelopes, warn-only thresholds, one global daily ceiling. State the defaults plainly and let the operator adjust or accept.
+Otherwise, state the current model plainly: **the per-role envelope system is deprecated (2026-10-13)** — the fleet runs on one shared provider quota pool, and headroom is what gets tracked (see the deprecation banner in [`reference/budgets.md`](./reference/budgets.md)). Do not install envelopes.
 
 **Completion criterion:** every selected agent has a budget; the global ceiling is set; the enforcement mode is recorded.
 
@@ -210,7 +212,7 @@ If durable handoff files are used, they belong in the recipient's inbox; they su
 
 ## Step 6 — Port existing projects
 
-For each detected project, offer to bring it into Cadre: create a `PROJECT.md` and a `DECISIONS.md` (from [`templates/project`](./templates/project)), seed the task board, and route it through the Requirements Analyst → Project Designer → Project Manager.
+For each detected project, offer to bring it into Cadre: create a `PROJECT.md` and a `DECISIONS.md` (from [`templates/project`](./templates/project)), seed the task board, and put it on the canonical board for the supervisor to dispatch — the Requirements Analyst, Project Designer, and Project Manager contribute as the work needs them (that chain is a design-work path, not mandatory intake for every project).
 
 **This is an offer, not a migration.** Existing work is never moved or restructured without explicit per-project confirmation.
 
@@ -265,23 +267,23 @@ Both `SHARED.md` and `CADRE.md` are **session-start reads**: every agent reads t
 **Fill every placeholder — no `<...>` may survive into an installed file.** This is a completion condition, not a nicety. Each agent's `AGENTS.md` must end up carrying, concretely:
 
 - its **role name and charter** (from [`reference/agents.md`](./reference/agents.md));
-- its **pipeline position** — who it receives from and who it hands to, per the flow table below;
-- its authority, autonomy level, and budget envelope;
+- its **flow position** — who it receives from and who it hands to, per the flow table below;
+- its authority and autonomy level;
 - the **absolute path to the team root** and to `CADRE.md` / `SHARED.md`.
 
 An installed file with a literal `<role>` or `<team index path>` is an **install failure**, not a cosmetic one — the agent will not know what it is or where its rules live.
 
-**The pipeline, so you can fill "receives from / hands to" per role:**
+**The flow, so you can fill "receives from / hands to" per role** (the Requirements Analyst → Project Designer → Project Manager chain is the design-work path; roles are engaged as the work needs them — it is not a mandatory serial intake):
 
 | Role | Receives from | Hands to |
 |---|---|---|
-| Requirements Analyst | the operator | Project Designer |
+| Requirements Analyst | the supervisor (from the board) | Project Designer |
 | Project Designer | Requirements Analyst | Project Manager |
 | Project Manager | Project Designer | QA / Verifier (via its worker seats) |
 | QA / Verifier | Project Manager | the Project Manager — pass, or return with the gap named |
 | Support (Security, Finance, Consultant, Agent Resources) | the Project Manager, on request | the Project Manager |
 
-**Guardrails are not optional.** Before writing, confirm the six guardrails from [`reference/guardrails.md`](./reference/guardrails.md) are set for this deployment — the four *persistence* guards (routing limit value, claim-lease enforcement mechanism, promotion gate authored not defaulted, no-op detector on) and the two *cost* guards (the **review cap** — at most two rounds per artifact; **zero-token checks** — routine watchers run headless, idle costs $0). Record each as *enforced* or *advisory* in the index — do not leave it unstated.
+**Guardrails are not optional.** Before writing, confirm the six guardrails from [`reference/guardrails.md`](./reference/guardrails.md) are set for this deployment — the four *persistence* guards (routing limit value, claim-lease enforcement mechanism, promotion gate authored not defaulted, no-op detector on) and the two *cost* guards (**risk-tiered verification** — no fixed review-round cap; each pass tests a concrete criterion; **zero-token checks** — routine watchers run headless, idle costs $0). Record each as *enforced* or *advisory* in the index — do not leave it unstated.
 
 **Completion criterion:** config validates, the team root holds `reference/`, `diagrams/`, `SHARED.md`, `CADRE.md` and one workspace per approved agent, **no `<...>` placeholder survives**, and the team index reflects exactly what the operator approved.
 
@@ -299,7 +301,7 @@ An installed file with a literal `<role>` or `<team index path>` is an **install
 
    These are the failures an install ships silently, so check them rather than assume them.
 2. **Record** the install in the team index with a date and version.
-3. **Hand off:** offer to start the first project through the **Requirements Analyst**.
+3. **Hand off:** offer to start the first project on the canonical board, dispatched by the supervisor.
 
 **Completion criterion:** canary results reported to the operator; the first project either started or explicitly deferred.
 

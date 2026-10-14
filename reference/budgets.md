@@ -1,5 +1,7 @@
 # Reference — Budgets
 
+> **Deprecated (2026-10-13):** the per-role budget "envelope" system described in this file is a DeepSeek-token-era system and is no longer how the fleet is bounded. It is superseded by one shared Codex quota pool (5-hour + weekly windows) for the whole fleet, with headroom tracked by Agent Resources. This file is kept for history; do not install or enforce envelopes from it.
+
 Autonomy is only safe if it is **bounded**. A budget is how Cadre bounds it: every agent gets an envelope, and the envelope is enforced by policy and accounting — not by asking the model to be careful.
 
 ---

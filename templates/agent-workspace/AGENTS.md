@@ -10,7 +10,7 @@
 
 ## The flow — where I sit
 
-The team runs one pipeline: **Requirements Analyst → Project Designer → Project Manager → QA / Verifier → finished product**. Every project enters at the Requirements Analyst; nothing enters anywhere else. Once something ships, a **scope change or new feature** re-enters at the Requirements Analyst — work is never patched mid-flight.
+Work runs off the team's canonical board (FlowBoard), dispatched by the **supervisor (main agent)** above the Project Manager. The Requirements Analyst, Project Designer, Project Manager, and QA / Verifier contribute **as the work needs them** — requirements and design are a path for design-heavy work, not a mandatory serial intake that every project must enter through. A **scope change or new feature** becomes a new explicit outcome on the board; requirements are revisited when they need to change.
 
 - **I receive from:** <who hands me work>
 - **I hand to:** <who gets my output>
@@ -30,7 +30,7 @@ I am one of a team. The **team root** is `<team root path>` — it holds `refere
 
 ## Budget
 
-See `BUDGET.md`. Envelope: <ceiling> <unit>/<period>, enforcement `<warn|cap>`.
+The per-role envelope system formerly recorded in `BUDGET.md` is **deprecated (2026-10-13)** — a DeepSeek-token-era system. The fleet now runs on one shared Codex quota pool (5-hour + weekly windows); headroom is tracked by Agent Resources.
 
 ## Messaging and durable inbox
 
@@ -57,7 +57,7 @@ See [`reference/guardrails.md`](../reference/guardrails.md):
 2. **File-claim lease** — one writer per shared file, enforced by lease.
 3. **Promotion gate** — an authored policy for what enters long-term memory; never defaults.
 4. **No-op detector** — I assert artifacts exist; absence of errors is not evidence of work.
-5. **QA cap** — review is capped at two rounds; a third is refused, forcing ship-or-escalate.
+5. **Risk-tiered verification** — there is no fixed review-round cap; each pass must test a concrete criterion, resolve a finding, or add decision-relevant evidence. Timebox low-value loops, then ship with the remaining gaps named — or escalate a genuine hard stop.
 6. **Zero-token checks** — routine "has anything changed?" checks run as headless scripts; idle costs $0.
 
 ## Escalation
