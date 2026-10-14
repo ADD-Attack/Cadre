@@ -147,7 +147,8 @@ A **personal assistant** is deliberately *not* on this list. It is a separate ag
 
 - [`WIZARD.md`](./WIZARD.md) — the setup interview, step by step.
 - [`reference/agents.md`](./reference/agents.md) — roster, charters, budgets, authority.
-- [`reference/guardrails.md`](./reference/guardrails.md) — the guardrails: routing limit, file-claim lease, promotion gate, no-op detector, **risk-tiered verification**, and zero-token checks.
+- [`reference/guardrails.md`](./reference/guardrails.md) — the guardrails: routing limit, file-claim lease, promotion gate, no-op detector, **risk-tiered verification**, zero-token checks, proportionate sign-off, and gate escalation.
+- [`reference/overhaul-2026-10-13.md`](./reference/overhaul-2026-10-13.md) — the 2026-10-13 operator overhaul: the three-run evidence behind it and directives O1–O6, with pointers to where each is codified.
 - [`reference/verification.md`](./reference/verification.md) — how to produce evidence: restate the pass condition, capture the real artifact, check the whole of it, report "could not verify" honestly.
 - [`reference/requirements.md`](./reference/requirements.md) — the Requirements Analyst's method: tough-love scope defense, want-vs-need, acceptance criteria, the doable first version.
 - [`reference/design.md`](./reference/design.md) — the Project Designer's method: the feature inventory, the style guide, and the ordered hand-off a builder can execute without guessing.

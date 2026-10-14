@@ -10,6 +10,19 @@ These are team functions, not a compulsory serial approval chain. Each user-visi
 accountable owner (normally the PM), who brings in requirements, design, builders, and support roles
 as the work needs them.
 
+**Seats activate per outcome.** A seat exists on the roster; it does not follow that it joins every
+run. A deliverable run names the **smallest cast that can produce it** — typically one builder, one
+asynchronous verifier, one coordinator — and seats the outcome does not name stay out of the lane:
+no relay through uninvolved roles, no checkpoints addressed to agents with nothing to check. A full
+roster producing process for itself is the failure this prevents. *(Added 2026-10-13; see
+[`overhaul-2026-10-13.md`](./overhaul-2026-10-13.md).)*
+
+**Run records are written as they happen.** The coordinator (PM or supervisor) writes the run record
+to the board **incrementally** — each artifact, decision, and blocker as it lands — never as one
+end-of-run relay turn. A supervisor run can fail mid-relay (it did, 2026-10-13); when the record
+lives only in that run, the failure takes the record with it. Write-as-you-go makes the supervisor
+replaceable mid-run, which is the point of having a record at all.
+
 ---
 
 ## The roster

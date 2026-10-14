@@ -151,7 +151,37 @@ collaboration, it is noise, and it crowds out the messages that matter.
 
 ---
 
-## 8. The design principle
+## 8. Deliverable runs — one owner, end to end
+
+*Added 2026-10-13 (see [`overhaul-2026-10-13.md`](./overhaul-2026-10-13.md)). The lifecycle above
+describes how an outcome is owned; this section describes how a single deliverable is **run**.*
+
+### 8.1 Single owner, end to end
+
+A deliverable run has **one named owner** who builds it, runs it, and captures the evidence
+themselves. No claim/relay chains across agents for a single deliverable: every relay is a turn, a
+delay, and a chance to narrate instead of produce. QA verifies the **finished** artifact
+**asynchronously** — a spot-check after the fact, never an in-line gate inside the run. A run's task
+must be statable as a finished, checkable thing; if it cannot be stated that way, it is not a run
+task yet.
+
+### 8.2 Artifact-or-blocker checkpoints
+
+A checkpoint counts only if it carries an **artifact** (a file, a screenshot, a hash of a produced
+thing) or a **specific blocker**. State narration — "still waiting", "no change", "in progress" —
+is not progress and earns no checkpoint. This is §4.4 (evidence over status) applied to the run
+itself: the run may not self-certify either.
+
+### 8.3 Escalate to the operator, not the human
+
+A decision already delegated to the operator is **not re-confirmed with the human, agent by agent**.
+Scope and process questions route to the operator; the human receives summaries, not confirmation
+requests. An agent that re-asks the human a settled question has not escalated — it has duplicated
+the decision and billed the human for it.
+
+---
+
+## 9. The design principle
 
 **Collaboration is a topology, not a vibe.** A team of agents that *can* talk to each other will,
 unless the topology bounds them: a cap on hops, a lease on files, an armed check-in on dispatches, a
