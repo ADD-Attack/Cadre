@@ -15,6 +15,31 @@ v2 is a rebuild of the single-file Muse Relay around three parts:
 Roadmap (what we're stealing from browser-use, UFO², and OmniParser, and in
 what order): [docs/ROADMAP.md](docs/ROADMAP.md).
 
+## Packaged app (Windows) — the normal way to run it
+
+One icon, one button. Build once:
+
+```
+build_app.bat   :: builds "Muse Relay v2.exe"
+```
+
+Then just double-click **Muse Relay v2.exe** and press **Start**. The one
+window runs all three parts in-process — hands on 127.0.0.1:5000, gateway on
+:5010, parser on :5011 — with a status line for each. **Stop** (or closing the
+window) stops everything. No other app is needed: the v1 relay is retired,
+and the hands run headless inside this app (no separate window, no tunnel —
+the gateway is the only surface an agent talks to).
+
+Secrets in the packaged app:
+
+- The **gateway token** is minted fresh every launch and shown in the window
+  with a Copy button. It is never saved anywhere.
+- The **hands secret** is owned by the app and persists per machine at
+  `%USERPROFILE%\.muse-relay-v2\hands-secret.txt` — generated on first run,
+  reused after that (delete the file to rotate it). The app feeds the same
+  value to the gateway and the hands, so the two can never disagree about
+  it the way the old two-app setup could.
+
 ## Quickstart (services)
 
 Docker is an option, never a requirement — both services are plain
@@ -49,22 +74,34 @@ deliberately: a driver must never mistake "no model" for "empty screen".
 
 ## Hands (Windows)
 
+The hands run **inside the packaged app** (above) — same Flask routes from
+`hands/muse_relay_hands.py`, served headless on 127.0.0.1:5000 by the app
+process, with the app-owned persistent secret described above.
+
+For a split deployment (services run separately, e.g. under Docker), the
+standalone hands app is still available:
+
 ```
 cd hands
 build_muse_relay.bat   :: builds "Muse Relay.exe" (v1 hands, carried forward)
 ```
 
-The v1 hands app is carried into `hands/` unchanged as the starting point:
-per-session generated secret, constant-time compare, lockout with phone
+Standalone, the hands app works as it always did: per-session generated
+secret shown in its window, constant-time compare, lockout with phone
 alerts (ntfy), Waitress, Tailscale Serve preferred over any public tunnel,
-no public URL at all when Tailscale is present.
+no public URL at all when Tailscale is present. In that mode you copy its
+session secret into the gateway's `HANDS_SECRET` yourself.
 
 ## Security model
 
 - Nothing listens publicly by default. Preferred transport is Tailscale
   Serve (tailnet-only); a public tunnel is a fallback, never the design.
-- The session secret is generated fresh on every launch (~190 bits) and
-  destroyed on close. There is no stored credential to leak.
+- The gateway token is generated fresh on every launch and destroyed on
+  close. The hands secret in the packaged app is the one stored credential:
+  app-owned, kept in the user's profile (`%USERPROFILE%\.muse-relay-v2\`),
+  and only ever used on the localhost gateway↔hands link — it never
+  crosses the network. (The standalone hands app still uses a per-session
+  secret instead.)
 - Failed auth attempts are logged; 10 in 10 minutes pauses auth for
   5 minutes and pushes a phone alert.
 - Design rule inherited from v1's audit: the URL is obscurity, not a

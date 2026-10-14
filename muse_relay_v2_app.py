@@ -1,26 +1,33 @@
 """Muse Relay v2 — packaged single-window app (Windows).
 
-Runs the gateway (:5010) and parser (:5011) services in-process and shows
-their status in one window, so the relay looks and behaves like a normal
-desktop app (avatar icon in the taskbar) instead of two console windows.
+One icon, one button: the window opens idle, and pressing Start brings
+up all three relay services in this one process —
 
-On launch it:
-  * reads the hands session secret from Downloads\\cursor_relay.py — the
-    secret is never stored in this file, logged, or displayed;
-  * mints a fresh gateway token for this launch (shown in the window with
-    a Copy button; never saved anywhere);
-  * starts the parser and gateway with waitress in background threads.
+  * hands   on 127.0.0.1:5000  (hands/muse_relay_hands.py, headless: no
+    separate window, no tunnel — localhost only, as designed)
+  * gateway on :5010           (the agent-facing API)
+  * parser  on :5011           (screen parsing)
 
-The hands themselves (port 5000) are separate — start them with the
-"Muse Relay" desktop icon. This app only reports whether they answer.
+The status lines show each service; the log shows what happened.
 
-Closing the window (or the Stop button) stops both services.
+Secrets:
+  * The gateway token is minted fresh for every launch and shown in the
+    window with a Copy button; it is never saved anywhere.
+  * The hands secret is owned by this app and persists per machine at
+    %USERPROFILE%\\.muse-relay-v2\\hands-secret.txt — generated on first
+    run, reused after that (delete the file to rotate). It is never
+    logged or displayed. The app hands the same value to the gateway
+    and to the in-process hands, which is the whole point of bundling
+    them: gateway and hands can no longer disagree about the secret,
+    and the old v1 relay app (with its per-launch secret buried in
+    Downloads\\cursor_relay.py) is not needed at all.
+
+Stop (or closing the window) stops all three services.
 """
 
 import importlib.util
 import os
 import queue
-import re
 import secrets
 import socket
 import sys
@@ -32,14 +39,25 @@ from tkinter import scrolledtext
 # These imports look unused; they exist so PyInstaller bundles the
 # dependencies the service modules need when they are loaded at runtime.
 import flask  # noqa: F401
+import pyautogui  # noqa: F401
 import requests
 import waitress  # noqa: F401
 from PIL import Image  # noqa: F401
 
+HANDS_PORT = 5000
 GATEWAY_PORT = 5010
 PARSER_PORT = 5011
 HANDS_URL = "http://127.0.0.1:5000"
 POLL_MS = 5000
+
+SERVICE_FILES = {
+    "hands": "hands/muse_relay_hands.py",
+    "parser": "services/parser/app.py",
+    "gateway": "services/gateway/app.py",
+}
+SERVICE_PORTS = {"hands": HANDS_PORT, "parser": PARSER_PORT, "gateway": GATEWAY_PORT}
+SERVICE_HOSTS = {"hands": "127.0.0.1", "parser": "0.0.0.0", "gateway": "0.0.0.0"}
+SERVICE_LABELS = {"hands": "Hands", "parser": "Parser", "gateway": "Gateway"}
 
 
 def _app_dir():
@@ -58,26 +76,54 @@ def _icon_path():
     return None
 
 
-def _read_hands_secret():
-    """Parse the hands session secret out of Downloads\\cursor_relay.py.
+def _hands_secret_path():
+    return os.path.join(os.path.expanduser("~"), ".muse-relay-v2", "hands-secret.txt")
 
-    Returns the secret string, or None when the file/value can't be found.
-    The value is only ever placed in the gateway's environment.
+
+def _load_or_create_hands_secret():
+    """Return (secret, origin) for the app-owned hands secret.
+
+    origin is "saved" (read back from disk), "created" (first run — a
+    new secret was generated and saved), or "ephemeral" (the save failed,
+    so this launch uses an unsaved secret). The value itself is never
+    logged or displayed; it only goes to the gateway and the hands.
     """
-    path = os.path.join(os.path.expanduser("~"), "Downloads", "cursor_relay.py")
+    path = _hands_secret_path()
     try:
-        with open(path, "r", encoding="utf-8", errors="replace") as fh:
-            text = fh.read()
+        with open(path, "r", encoding="utf-8") as fh:
+            saved = fh.read().strip()
+        if len(saved) >= 16:
+            return saved, "saved"
     except OSError:
-        return None
-    m = re.search(r"SHARED_SECRET\s*=\s*[\"']([^\"']+)[\"']", text)
-    return m.group(1) if m else None
+        pass
+    value = secrets.token_urlsafe(32)
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(value + "\n")
+        try:
+            os.chmod(path, 0o600)
+        except OSError:
+            pass  # best effort (on Windows this only toggles read-only)
+        return value, "created"
+    except OSError:
+        return value, "ephemeral"
+
+
+def _service_path(rel_path):
+    """Find a service module: bundled inside the exe first, then beside it."""
+    for base in (getattr(sys, "_MEIPASS", None), _app_dir()):
+        if base:
+            cand = os.path.join(base, rel_path)
+            if os.path.isfile(cand):
+                return cand
+    return None
 
 
 def _load_service(name, rel_path):
-    path = os.path.join(_app_dir(), rel_path)
-    if not os.path.isfile(path):
-        raise FileNotFoundError(path)
+    path = _service_path(rel_path)
+    if path is None:
+        raise FileNotFoundError(rel_path)
     spec = importlib.util.spec_from_file_location(name, path)
     module = importlib.util.module_from_spec(spec)
     sys.modules[name] = module
@@ -90,6 +136,8 @@ class RelayApp:
         self.root = root
         self.token = None
         self._hands_secret = None
+        self._hands_module = None
+        self._started = False
         self._poll_logged = False
         self.servers = {}
         self.ui_queue = queue.Queue()
@@ -101,8 +149,8 @@ class RelayApp:
             except tk.TclError:
                 pass
         root.protocol("WM_DELETE_WINDOW", self.stop)
-        root.after(100, self._bootstrap)
         root.after(300, self._drain_queue)
+        self.log_line("Press Start to run all three services in this window.")
 
     # ---------- UI ----------
     def _build_ui(self):
@@ -114,12 +162,12 @@ class RelayApp:
         frame = tk.Frame(root, padx=12, pady=10)
         frame.pack(fill="x")
 
-        self.parser_status = tk.Label(frame, text="Parser (:5011): starting…", anchor="w")
-        self.parser_status.pack(fill="x")
-        self.gateway_status = tk.Label(frame, text="Gateway (:5010): starting…", anchor="w")
-        self.gateway_status.pack(fill="x")
-        self.hands_status = tk.Label(frame, text="Hands (:5000): unknown yet", anchor="w")
+        self.hands_status = tk.Label(frame, text="Hands (:5000): not started", anchor="w")
         self.hands_status.pack(fill="x")
+        self.gateway_status = tk.Label(frame, text="Gateway (:5010): not started", anchor="w")
+        self.gateway_status.pack(fill="x")
+        self.parser_status = tk.Label(frame, text="Parser (:5011): not started", anchor="w")
+        self.parser_status.pack(fill="x")
 
         tok = tk.Frame(root, padx=12)
         tok.pack(fill="x", pady=(6, 0))
@@ -133,16 +181,28 @@ class RelayApp:
 
         tk.Label(
             root,
-            text="Hands are separate: start them with the Muse Relay desktop icon.",
+            text="One button runs the hands, gateway, and parser — no other app needed.",
             padx=12,
             anchor="w",
             fg="#555555",
         ).pack(fill="x", pady=(4, 0))
 
+        btns = tk.Frame(root, padx=12)
+        btns.pack(fill="x", pady=(8, 0))
+        self.start_button = tk.Button(
+            btns,
+            text="Start",
+            width=16,
+            font=("Segoe UI", 11, "bold"),
+            command=self._start_all,
+        )
+        self.start_button.pack(side="left")
+        tk.Button(btns, text="Stop", width=14, command=self.stop).pack(
+            side="left", padx=(8, 0)
+        )
+
         self.log = scrolledtext.ScrolledText(root, height=12, state="disabled", wrap="word")
         self.log.pack(fill="both", expand=True, padx=12, pady=10)
-
-        tk.Button(root, text="Stop", width=14, command=self.stop).pack(pady=(0, 10))
 
     def _copy_token(self):
         if self.token:
@@ -160,6 +220,17 @@ class RelayApp:
         self.ui_queue.put(("status", (which, text)))
 
     def _drain_queue(self):
+        # Forward anything the in-process hands logged (bad-secret
+        # rejections, lockouts) into this window's log.
+        hands = self._hands_module
+        if hands is not None:
+            try:
+                while True:
+                    self.ui_queue.put(
+                        ("log", f"[{self._stamp()}] hands: {hands.log_queue.get_nowait()}")
+                    )
+            except queue.Empty:
+                pass
         try:
             while True:
                 kind, payload = self.ui_queue.get_nowait()
@@ -181,16 +252,25 @@ class RelayApp:
         self.root.after(300, self._drain_queue)
 
     # ---------- services ----------
-    def _bootstrap(self):
-        hands_secret = _read_hands_secret()
-        if not hands_secret:
-            self.log_line(
-                "ERROR: could not read the hands secret from Downloads\\cursor_relay.py."
-            )
-            self.log_line("Services not started. Set up the hands first, then relaunch.")
-            self.set_status("parser", "Parser (:5011): not started")
-            self.set_status("gateway", "Gateway (:5010): not started")
+    def _start_all(self):
+        if self._started:
             return
+        self._started = True
+        self.start_button.config(state="disabled")
+
+        hands_secret, origin = _load_or_create_hands_secret()
+        secret_path = _hands_secret_path()
+        if origin == "saved":
+            self.log_line(f"Hands secret loaded from {secret_path} (value not shown).")
+        elif origin == "created":
+            self.log_line(
+                f"First run: created the hands secret at {secret_path} (value not shown)."
+            )
+        else:
+            self.log_line(
+                f"WARNING: could not save the hands secret to {secret_path}; "
+                "using a one-launch secret instead."
+            )
 
         self.token = secrets.token_hex(16)
         self._hands_secret = hands_secret
@@ -202,12 +282,15 @@ class RelayApp:
         os.environ["PARSER_URL"] = f"http://127.0.0.1:{PARSER_PORT}"
         self.token_var.set(self.token)
 
-        self._start_one("parser", "services/parser/app.py", PARSER_PORT)
-        self._start_one("gateway", "services/gateway/app.py", GATEWAY_PORT)
+        self._start_one("hands")
+        self._start_one("parser")
+        self._start_one("gateway")
         self.root.after(POLL_MS, self._poll)
 
-    def _start_one(self, name, rel_path, port):
-        label = "Parser" if name == "parser" else "Gateway"
+    def _start_one(self, name):
+        label = SERVICE_LABELS[name]
+        port = SERVICE_PORTS[name]
+        host = SERVICE_HOSTS[name]
         # Refuse to duplicate a service that is already answering on the
         # port. A bare bind is not a reliable check on Windows (socket
         # reuse can let a second listener attach silently, after which
@@ -218,19 +301,37 @@ class RelayApp:
         with socket.socket() as probe:
             probe.settimeout(0.5)
             if probe.connect_ex(("127.0.0.1", port)) == 0:
+                hint = (
+                    " (an old v1 Muse Relay window counts — close it)"
+                    if name == "hands"
+                    else ""
+                )
                 self.log_line(
                     f"ERROR: port {port} is already answering — the {name} "
-                    "service is already running somewhere else. Close the "
+                    f"service is already running somewhere else{hint}. Close the "
                     "other copy first; this copy will not start a duplicate."
                 )
                 self.set_status(name, f"{label} (:{port}): already running elsewhere")
                 return
         try:
-            module = _load_service(f"muse_relay_v2_{name}", rel_path)
+            module = _load_service(f"muse_relay_v2_{name}", SERVICE_FILES[name])
         except Exception as exc:
             self.log_line(f"ERROR: could not load the {name} service: {exc}")
             self.set_status(name, f"{label} (:{port}): failed to load")
             return
+        if name == "hands":
+            # Same idea as the gateway config below: assign directly on
+            # the module, don't rely on it having generated a matching
+            # secret itself. Its gate() reads this global per request.
+            module.SHARED_SECRET = self._hands_secret
+            self._hands_module = module
+            self.log_line(
+                "Hands config check: module_match=%s module_len=%s"
+                % (
+                    module.SHARED_SECRET == self._hands_secret,
+                    len(module.SHARED_SECRET or ""),
+                )
+            )
         if name == "gateway":
             # Configure the gateway directly as well as via the
             # environment. The module reads env at import time; in the
@@ -251,7 +352,7 @@ class RelayApp:
             module.HANDS_SECRET = self._hands_secret
             module.PARSER_URL = f"http://127.0.0.1:{PARSER_PORT}"
         try:
-            server = waitress.create_server(module.app, host="0.0.0.0", port=port, threads=8)
+            server = waitress.create_server(module.app, host=host, port=port, threads=8)
         except OSError as exc:
             self.log_line(
                 f"ERROR: port {port} is already in use — the {name} service is "
