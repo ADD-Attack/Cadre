@@ -1,5 +1,7 @@
 # BUDGET.md — <agent name>
 
+> **Deprecated (2026-10-13):** this per-role envelope format is a DeepSeek-token-era system and is no longer in force. It is superseded by one shared Codex quota pool (5-hour + weekly windows) for the whole fleet, with headroom tracked by Agent Resources. Kept for history only.
+
 unit: tokens            # tokens | currency
 period: daily           # daily | weekly | monthly
 ceiling: 100000

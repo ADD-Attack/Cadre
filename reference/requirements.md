@@ -1,6 +1,7 @@
 # Reference — Requirements (and the Analyst's job of shrinking the ask)
 
-Every project enters here. Nothing enters anywhere else. That makes the Requirements Analyst the
+Design-heavy work enters here — the Analyst is engaged as the work needs it, not as a mandatory
+intake gate for every project. When it is engaged, the Requirements Analyst is the
 first and last line against the most expensive failure in the whole pipeline: **a scope that was
 never doable, approved by someone too polite to say so.**
 

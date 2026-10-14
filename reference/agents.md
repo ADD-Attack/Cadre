@@ -16,6 +16,7 @@ as the work needs them.
 
 | Agent | Class | Owns | Default authority |
 |---|---|---|---|
+| **Main / Supervisor** | reasoning | dispatch hub above the PM; run coordination; the operator's entry point | dispatch and steer seats directly; accountable for run coordination above the PM |
 | **Project Manager (PM)** | reasoning | outcome ownership, canonical task/acceptance/evidence record, coordination | dispatch workers and coordinate specialists within configured authority |
 | **Worker** — *recommend two* | builder | executing dispatched build tasks within the PM's scope | build + self-verify its own work; visible to the PM, reports back with evidence |
 | **Requirements Analyst (RA)** | reasoning | intake, clarification, scope, acceptance criteria; **defends a doable scope** | write requirements; no build authority |
@@ -23,7 +24,7 @@ as the work needs them.
 | **Security / IT** | reasoning | audit, exposure, hygiene, remediation queue | **advise only** — never self-edits config |
 | **QA / Verifier** | reasoning | independent verification and evidence when risk or acceptance criteria warrant it (method: [`verification.md`](./verification.md)) | report findings against the stated criteria; not a mandatory stop for every change |
 | **Social Media Manager (SMM)** | fast | external comms, posting, community | external-send (gated) |
-| **Finance Manager (FM)** | fast | budgets, spend tracking, alerts, **scheduled-work audit** (recurring spend) | budget enforcement (report; cap if configured); owns the [scheduled-work](./scheduled-work.md) cost audit |
+| **Finance Manager (FM)** | fast | budgets, spend tracking, alerts, **scheduled-work audit** (recurring spend) | budget enforcement (report; cap if configured); owns the [scheduled-work](./scheduled-work.md) cost audit. *Note (2026-10-13): the per-role envelope system is deprecated; shared-pool quota/headroom tracking currently sits with Agent Resources.* |
 | **Agent Resources (AR)** | fast | roster, onboarding, loadouts, agent health | create/retire subagents; no config authority |
 | **Consultant** | reasoning | second opinion, red-team, advice; hard problems get the **heavier models / deeper reasoning** | none — pure advice |
 
@@ -59,6 +60,7 @@ Two roles carry a hard constitutional limit:
 
 | Action | Who may do it |
 |---|---|
+| Coordinate the run above the PM; dispatch and steer seats directly | Main / Supervisor |
 | Own the outcome and maintain its canonical task/acceptance/evidence record | PM (or the explicitly accountable owner) |
 | Coordinate specialists and dispatch bounded work | PM within configured authority |
 | Claim a file for exclusive write | any agent (via the [claim/lease convention](./guardrails.md#2-file-claim-lease)) |
@@ -66,7 +68,7 @@ Two roles carry a hard constitutional limit:
 | Provide an independent verdict | QA/reviewer, when risk or acceptance criteria require it |
 | Hand off the result, evidence, and open decisions | accountable owner/PM; operator retains choices reserved to them (see [`autonomy-ladder.md`](./autonomy-ladder.md)) |
 | Send external/public messages | SMM (gated by operator policy) |
-| Change budgets | FM (within operator-set ceilings) |
+| Change budgets | FM (within operator-set ceilings) — *deprecated (2026-10-13): per-role envelopes are no longer in force; the fleet runs on one shared quota pool* |
 | Audit scheduled jobs (owner, purpose, idle cost) | FM — reports; removing a job is the operator's call |
 | Add/retire agents | AR (roster) — config changes require the operator |
 | Change config, permissions, safety | **operator only** |

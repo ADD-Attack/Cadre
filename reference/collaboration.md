@@ -74,8 +74,8 @@ Operator ──▶ Accountable owner / PM
 ```
 
 Requirements, design, implementation, and review are functions—not required approval gates in every
-project. Keep operational board status synchronized with the canonical task and acceptance record;
-FlowBoard, when integrated, is a mirror until an explicit board migration.
+project. FlowBoard is the canonical board: its milestone queue is the work queue, kept synchronized
+with the canonical task and acceptance record.
 
 ---
 

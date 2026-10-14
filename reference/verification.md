@@ -55,10 +55,11 @@ persistent agent — a dedicated seat, never the builder.
 
 ## 6. Bound the loop
 
-Verification is a loop, and an unbounded loop is a bill. Review is capped at **two rounds per artifact**;
-a third is refused, forcing ship-or-escalate (`guardrails.md` §5). Escalating at the cap — with both
-attempts side by side and the remaining gap named — is the correct, cheap move. A silent further pass is
-the failure.
+Verification is a loop, and an unbounded loop is a bill. Verification is **risk-tiered, with no fixed
+round cap** (`guardrails.md` §5): each pass must test a concrete criterion, resolve a finding, or add
+decision-relevant evidence. When a loop stops producing value, timebox it: ship with the remaining gap
+named, or escalate a genuine hard stop — with the attempts side by side and the gap named. A silent
+further pass is the failure.
 
 ---
 

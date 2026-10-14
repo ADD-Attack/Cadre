@@ -54,5 +54,5 @@ data, and report only actual transitions or blocks—not every unchanged poll. D
 policy silently change provider credentials, authentication order, or agent exclusions.
 
 See [`../../reference/usage-management.md`](../../reference/usage-management.md) for the complete
-workflow and [`../../reference/budgets.md`](../../reference/budgets.md) for spend envelopes and
-accounting.
+workflow. (The spend-envelope system formerly in [`../../reference/budgets.md`](../../reference/budgets.md)
+is deprecated (2026-10-13); the fleet runs on one shared quota pool.)

@@ -21,7 +21,7 @@
 
 ## Roster
 
-| Agent | Role | Model | Budget | Autonomy | Reports to |
+| Agent | Role | Model | Budget (deprecated) | Autonomy | Reports to |
 |---|---|---|---|---|---|
 | <name> | Project Manager | <model> | <ceiling>/<period> | L1 | operator |
 | <name> | Worker | <model> | <ceiling>/<period> | L1 | PM |
@@ -37,6 +37,8 @@
 <minimal | covers-ra | covers-qa | solo>
 
 ## Budgets
+
+> **Deprecated (2026-10-13):** per-role budget envelopes are a DeepSeek-token-era system and are no longer in force. The fleet runs on one shared Codex quota pool (5-hour + weekly windows), with headroom tracked by Agent Resources. The fields below are kept for history.
 
 - **Global ceiling:** <amount> <unit>/<period>
 - **Enforcement:** <warn | cap>
@@ -54,7 +56,7 @@ Record enforcement honestly — *advisory* is better than *unstated*.
 | File-claim lease | `.claims/` | enforced \| advisory |
 | Promotion gate | <thresholds> | authored \| defaulted |
 | No-op detector | on | enforced \| advisory |
-| QA cap (max 2 review rounds) | 2 | enforced \| advisory |
+| Risk-tiered verification (no fixed review-round cap) | on | enforced \| advisory |
 | Zero-token checks | on | enforced \| advisory |
 
 ## Scheduled work
