@@ -1,11 +1,13 @@
 # Ticket 001 — Hour-by-hour weather page
 
-- state: build-done
+- state: done
 - opened: 2026-10-14 by the owner (seeded by the operator from the owner's project-ideas list)
 - station_history: 2026-10-14 18:24 UTC — Spec station: spec written, state queued → spec-done
 - station_history: 2026-10-14 18:26 UTC — Build station: product built, state spec-done → build-done
-- live_url: (none yet)
-- receipt: (none yet)
+- station_history: 2026-10-14 18:39 UTC — Verify station: all 10 acceptance claims checked against the artifact, the committed repo blob, the live API, a headless-Chromium render, and the live Pages URL — all PASS, state build-done → verify-passed
+- station_history: 2026-10-14 18:40 UTC — Ship station: byte-identity confirmed, sensor PASS (9/9 checks, HTTP 200), state verify-passed → done
+- live_url: https://raw.githubusercontent.com/ADD-Attack/Cadre/main/the-line/products/weather/index.html (the committed artifact, publicly served; the rendered Pages URL https://add-attack.github.io/Cadre/the-line/products/weather/ awaits the owner enabling GitHub Pages on the Cadre repo — see Verify's claim-10 observation)
+- receipt: receipts/001.json
 
 ## Order
 
@@ -120,4 +122,100 @@ JavaScript in a single `<script>` block. No other files created.
 
 ## Verification
 
-(To be written by the Verify station, one verdict per acceptance claim.)
+Verified 2026-10-14 ~18:30–18:39 UTC by the Verify station (fresh session;
+the builder's notes were used only to locate evidence). All 10 claims
+checked against the artifact itself, the committed repo blob, the live
+Open-Meteo API, a Node harness running the page's own script against a real
+captured API response, and a headless-Chromium 152 render at a 390 px
+viewport.
+
+1. **PASS** — `products/weather/index.html` exists as the only file in its
+   directory. After `git fetch` in the Cadre clone, `origin/main` contains
+   `the-line/products/weather/index.html` (commit `5a7bc01`), and the
+   committed blob is byte-identical to the inspected file (3,789 bytes,
+   clean diff). Static scan: the only http(s) URL in the file is the
+   weather API URL; no external scripts, stylesheets, images, iframes, or
+   forms; the only `<link>` is a `data:,` favicon. Plain HTML — no build
+   step.
+2. **PASS** — The page's own script, run in a Node harness against a real
+   captured Open-Meteo response, generated exactly 24 rows, and every row
+   matched the API's hourly entries from the current America/Chicago hour
+   (`2026-10-14T13:00`, index 13) through index 36 (`2026-10-15T12:00`) in
+   order — chronological, current hour first. A real Chromium render
+   independently produced the same 24 rows.
+3. **PASS** — In both the harness and the Chromium render, every one of
+   the 24 rows has exactly 4 cells matching the required values: hour
+   label (`1 PM`), temperature °F (`64°F`), precipitation probability %
+   (`29%`), feels-like °F (`65°F`) — first row; last row `12 PM, 63°F,
+   15%, 64°F`. The real API window contained zero nulls, so every row
+   showed an actual percentage (the code's "—" null fallback never
+   triggered on observed data).
+4. **PASS** — The shipped file's `<tbody id="rows">` is empty; the only
+   static `<tr>` is the header row. No pre-written weather values exist
+   anywhere in the file (°F appears only in column headers and JS string
+   literals); rows appear only when the script renders the fetch response,
+   with values identical to the API data.
+5. **PASS** — The script calls `fetch()` on
+   `https://api.open-meteo.com/v1/forecast?...` client-side (URL captured
+   in the harness). A keyless `curl` of that exact URL returned HTTP 200
+   with full data — no key, token, or credential needed. Grep of the file
+   finds no api-key/token/authorization/secret strings, and the markup
+   contains no sign-in UI or form; the table renders from the single
+   fetch alone.
+6. **PASS** — The request URL literally contains
+   `latitude=39.0997&longitude=-94.5786` and
+   `hourly=temperature_2m,apparent_temperature,precipitation_probability`.
+   A live keyless call with exactly those parameters returned all three
+   hourly arrays (48 values each).
+7. **PASS** — The request URL contains `temperature_unit=fahrenheit`; the
+   live response's `hourly_units` report °F for both temperature fields;
+   displayed temperatures carry the °F suffix and the headers read
+   "Temp °F" / "Feels °F".
+8. **PASS** — `<meta name="viewport" content="width=device-width,
+   initial-scale=1">` is present. Rendered in headless Chromium at an
+   emulated 390×844 viewport with real API data: `innerWidth` 390,
+   document scrollWidth 390, body scrollWidth 390 — no horizontal
+   overflow; all 24 rows × 4 cells laid out inside the viewport, table
+   visible.
+9. **PASS** — File size measured at 3,789 bytes (< 50 KB), identical for
+   the committed blob. The only http(s) URL in the file is the single API
+   call; the favicon is a `data:,` URI (no request); the harness recorded
+   exactly 1 fetch invocation when the page logic ran.
+10. **PASS (conditional, as written)** — Checked live:
+    https://add-attack.github.io/Cadre/the-line/products/weather/ returns
+    HTTP 404 with GitHub's "Site not found" Pages page, and the repo root
+    https://add-attack.github.io/Cadre/ also returns 404 — GitHub Pages is
+    not enabled on the Cadre repo. The claim's antecedent ("If GitHub
+    Pages is enabled…") is therefore not met and its consequent is not
+    owed; the claim asserts nothing that is contradicted. Recorded
+    observation for Ship: Pages is currently disabled on the housing
+    repo; the committed file sits at the path that maps to the stated URL
+    if Pages is ever enabled from the repo root.
+
+**Result: all 10 claims PASS → state `verify-passed`, ready for Ship.**
+
+## Shipping
+
+Shipped 2026-10-14 18:40 UTC by the Ship station (fresh session).
+
+**Byte-identity confirmation (ship the verified bytes):** After `git fetch`
+in the Cadre clone, the product blob on `origin/main` at
+`the-line/products/weather/index.html` (commit `5a7bc01`) has SHA-256
+`5faa75bddc432382bf1a52aa0b702ad227924572fc0ba35b29bdb5f4eb91e1c6` and is
+3,789 bytes. The verified local file has the identical SHA-256 and size.
+The committed artifact is byte-identical to the file Verify passed — no
+bytes changed after verification.
+
+**Publish:** No new commit was needed — the product was already on
+`origin/main`. The live artifact is the publicly served raw file:
+https://raw.githubusercontent.com/ADD-Attack/Cadre/main/the-line/products/weather/index.html
+The rendered Pages URL (https://add-attack.github.io/Cadre/the-line/products/weather/)
+does not exist yet because GitHub Pages is not enabled on the Cadre repo
+(Verify, claim 10); enabling Pages is an owner-side repo-settings action.
+
+**Sensor verdict: PASS.** `conveyor/sensor.mjs` run against the live
+artifact URL at 2026-10-14T18:40:00Z — HTTP 200, all 9 checks passed
+(http_200 + the 8 markers: API URL, latitude, longitude, the three hourly
+variables, `temperature_unit=fahrenheit`, viewport meta). Receipt written
+to `receipts/001.json`. Per the charter, the sensor's PASS is the
+completion declaration; the operator pings the owner from the receipt.
