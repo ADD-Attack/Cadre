@@ -1,8 +1,9 @@
 # Ticket 001 — Hour-by-hour weather page
 
-- state: spec-done
+- state: build-done
 - opened: 2026-10-14 by the owner (seeded by the operator from the owner's project-ideas list)
 - station_history: 2026-10-14 18:24 UTC — Spec station: spec written, state queued → spec-done
+- station_history: 2026-10-14 18:26 UTC — Build station: product built, state spec-done → build-done
 - live_url: (none yet)
 - receipt: (none yet)
 
@@ -91,7 +92,31 @@ Exact strings the sensor should find in the shipped HTML:
 
 ## Build notes
 
-(To be written by the Build station.)
+**Built:** `the-line/products/weather/index.html` — one self-contained HTML
+file (3,789 bytes) with inline CSS in a single `<style>` block and inline
+JavaScript in a single `<script>` block. No other files created.
+
+**How each acceptance claim is satisfied:**
+
+1. Single file at `products/weather/index.html`; the only external reference in it is the weather API URL in the script — no linked stylesheets, scripts, images, or local files.
+2. The script finds the index of the current America/Chicago hour in the API's `hourly.time` array and renders rows for that index through index+23 (24 rows, chronological by construction of the API array).
+3. Each generated row emits four cells: hour label from the timestamp, temperature with °F suffix, precipitation probability with % suffix, apparent temperature with °F suffix; column headers also read "Temp °F", "Rain %", "Feels °F".
+4. The shipped `<tbody id="rows">` is empty; all rows are built by the script from the fetch response and injected at load.
+5. Data comes from a client-side `fetch()` to the `api.open-meteo.com/v1/forecast` URL written literally in the script; there is no key, token, header, or credential anywhere in the file, and no sign-in UI.
+6. The request URL literally contains `latitude=39.0997&longitude=-94.5786` and `hourly=temperature_2m,apparent_temperature,precipitation_probability`.
+7. The request URL literally contains `temperature_unit=fahrenheit`; displayed temperatures carry the °F suffix and °F column headers.
+8. The head contains `<meta name="viewport" content="width=device-width, initial-scale=1">`; the table CSS is `width: 100%` inside a max-width container with compact cell padding.
+9. The file is 3,789 bytes (under 50 KB); the script's `fetch()` is the only network call in the code.
+10. No build action taken for this claim — per the spec, Pages enablement is unverified and claims 1–9 stand on the committed artifact; the file sits at the path that maps to the stated URL.
+
+**Decisions the spec didn't cover (named, not hidden):**
+
+- Added `forecast_days=2` to the request so a full 24 rows exist even when the page is loaded late in the local day (the spec required 24 rows from the current hour but didn't say how to guarantee them).
+- "Current hour" is matched by formatting the browser's current time in America/Chicago via `Intl.DateTimeFormat` and string-matching it against the API's local timestamps.
+- If the API returns a null `precipitation_probability` for an hour, the cell shows "—" instead of a percentage (spec silent on nulls).
+- Temperatures are rounded to whole degrees; hour labels use 12-hour format ("1 PM"); the current hour's row is bolded.
+- Added `<link rel="icon" href="data:,">` so the browser makes no default favicon request (protects claim 9's single-request property).
+- A fetch failure shows a plain "Could not load weather" message in place of the table (spec silent on error display).
 
 ## Verification
 

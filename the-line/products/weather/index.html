@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kansas City — Next 24 Hours</title>
+<link rel="icon" href="data:,">
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.35;
+    padding: 12px;
+  }
+  main { max-width: 560px; margin: 0 auto; }
+  h1 { font-size: 1.25rem; margin: 4px 0 2px; }
+  p.sub { margin: 0 0 12px; opacity: 0.75; font-size: 0.9rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+  th, td { padding: 7px 6px; text-align: right; white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  thead th { border-bottom: 2px solid currentColor; font-weight: 600; }
+  tbody tr { border-bottom: 1px solid rgba(127, 127, 127, 0.35); }
+  tbody tr.now { font-weight: 700; }
+  td.rain { color: #2563eb; }
+  #status { padding: 16px 0; opacity: 0.75; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Kansas City — Next 24 Hours</h1>
+  <p class="sub">Hourly temperature, rain chance, and feels-like. Source: Open-Meteo.</p>
+  <div id="status">Loading…</div>
+  <table id="wx" hidden>
+    <thead>
+      <tr>
+        <th>Hour</th>
+        <th>Temp °F</th>
+        <th>Rain %</th>
+        <th>Feels °F</th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+</main>
+<script>
+(function () {
+  var url = "https://api.open-meteo.com/v1/forecast?latitude=39.0997&longitude=-94.5786"
+    + "&hourly=temperature_2m,apparent_temperature,precipitation_probability"
+    + "&temperature_unit=fahrenheit&timezone=America%2FChicago&forecast_days=2";
+
+  var statusEl = document.getElementById("status");
+  var tableEl = document.getElementById("wx");
+  var rowsEl = document.getElementById("rows");
+
+  function currentHourKey() {
+    // Current hour in America/Chicago as "YYYY-MM-DDTHH:00", matching the
+    // API's local-time hourly timestamps.
+    var parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Chicago",
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", hourCycle: "h23"
+    }).formatToParts(new Date());
+    var p = {};
+    parts.forEach(function (part) { p[part.type] = part.value; });
+    return p.year + "-" + p.month + "-" + p.day + "T" + p.hour + ":00";
+  }
+
+  function hourLabel(iso) {
+    var h = parseInt(iso.slice(11, 13), 10);
+    var suffix = h < 12 ? "AM" : "PM";
+    var h12 = h % 12;
+    if (h12 === 0) h12 = 12;
+    return h12 + " " + suffix;
+  }
+
+  fetch(url)
+    .then(function (res) {
+      if (!res.ok) throw new Error("API returned " + res.status);
+      return res.json();
+    })
+    .then(function (data) {
+      var times = data.hourly.time;
+      var temps = data.hourly.temperature_2m;
+      var feels = data.hourly.apparent_temperature;
+      var rain = data.hourly.precipitation_probability;
+
+      var start = times.indexOf(currentHourKey());
+      if (start < 0) start = 0;
+
+      var html = "";
+      for (var i = start; i < start + 24 && i < times.length; i++) {
+        var p = rain[i];
+        html += "<tr" + (i === start ? " class=\"now\"" : "") + ">"
+          + "<td>" + hourLabel(times[i]) + "</td>"
+          + "<td>" + Math.round(temps[i]) + "°F</td>"
+          + "<td class=\"rain\">" + (p === null || p === undefined ? "—" : Math.round(p) + "%") + "</td>"
+          + "<td>" + Math.round(feels[i]) + "°F</td>"
+          + "</tr>";
+      }
+      rowsEl.innerHTML = html;
+      statusEl.hidden = true;
+      tableEl.hidden = false;
+    })
+    .catch(function (err) {
+      statusEl.textContent = "Could not load weather: " + err.message;
+    });
+})();
+</script>
+</body>
+</html>
