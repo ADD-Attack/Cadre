@@ -4,8 +4,10 @@ Persistence means the team can wake itself: reminders, recurring sweeps, watcher
 main way a quiet team becomes a quiet **bill**. This file is the policy for *what may run on a
 schedule, in what form, and who is accountable for it.*
 
-**Owner: the Finance Manager** (`agents.md`) owns the cost side of this file, because scheduled work
-is where recurring spend is created. **What FM can and cannot claim about a job's cost is stated
+**Owner: Agent Resources** (`agents.md`) owns the cost side of this file — it tracks the fleet's
+shared quota pool, against which scheduled work spends — because scheduled work
+is where recurring spend is created. (This file's cost side was formerly owned by the Finance Manager,
+under the per-role envelope system deprecated 2026-10-13.) **What the owner can and cannot claim about a job's cost is stated
 precisely below** — the short version is *bounded estimate, labeled as such*, never a pretended exact
 figure.
 
@@ -95,9 +97,9 @@ attributable — isolated run, price the session" are both acceptable answers. A
 figure is not. **The real value is comparative, not exact:** a $0 script versus a model turn on a
 1-minute cadence is the finding — that is the misfire that quietly bills you.
 
-## Finance Manager: the scheduled-work audit
+## The scheduled-work audit
 
-FM owns this file's cost side. On its cadence, FM lists the deployment's scheduled jobs and checks
+Agent Resources owns this file's cost side (see the note at the top). On its cadence, it lists the deployment's scheduled jobs and checks
 each against five questions — kept to **one batched pass**, because the audit is a routine, not a
 ceremony:
 
@@ -117,7 +119,7 @@ usage deterministically and wakes the model **only** when a finding exists (a jo
 idle-costing once-clean job, a new unbounded cadence). An audit that itself costs money every tick
 has missed the point of the file it is enforcing.
 
-Findings go in FM's report and the remediation queue. FM **reports and recommends** — it does not
+Findings go in Agent Resources' report and the remediation queue. It **reports and recommends** — it does not
 delete another agent's job unilaterally (that is an operator decision, like every other config
 change).
 
