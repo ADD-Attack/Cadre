@@ -5,8 +5,8 @@ If this board and the ticket files disagree, the tickets win.
 
 | Station | Ticket | Since |
 |---|---|---|
-| Spec | — idle — | |
-| Build | — idle — | |
+| Spec | — done (001) — | |
+| Build | 001 — Hour-by-hour weather page | 2026-10-14 13:25 CDT |
 | Verify | — idle — | |
 | Ship | — idle — | |
 
@@ -14,7 +14,7 @@ If this board and the ticket files disagree, the tickets win.
 
 | # | Ticket | State |
 |---|---|---|
-| 001 | Hour-by-hour weather page | queued |
+| 001 | Hour-by-hour weather page | spec-done → in Build |
 
 ## Shipped
 
