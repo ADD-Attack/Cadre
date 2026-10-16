@@ -136,7 +136,7 @@ func _build_world() -> void:
 	environment.glow_hdr_threshold = 0.9
 	environment.fog_enabled = true
 	environment.fog_light_color = Color("#0a1420")
-	environment.fog_density = 0.018
+	environment.fog_density = 0.012
 	environment.fog_sky_affect = 0.25
 	environment.ssao_enabled = true
 	world.environment = environment
@@ -159,9 +159,9 @@ func _build_world() -> void:
 	add_child(rim)
 
 	camera = Camera3D.new()
-	camera.position = Vector3(15.5, 20.5, 22.5)
+	camera.position = Vector3(0.0, 17.2, 24.6)
 	camera.current = true
-	camera.fov = 46
+	camera.fov = 33.7
 	add_child(camera)
 	camera.look_at(Vector3.ZERO, Vector3.UP)
 
@@ -237,7 +237,7 @@ func _build_arena() -> void:
 func _add_frame_trim(width: float, depth: float, base_pos: Vector3) -> void:
 	var trim_size := Vector3(width, 0.035, depth)
 	var rail_size := Vector3(width + 0.04, 0.03, depth + 0.04)
-	_add_mesh(arena_root, _box(trim_size), base_pos + Vector3(0, 1.06, 0), _glow_material(Color("#0E7C99"), 0.8))
+	_add_mesh(arena_root, _box(trim_size), base_pos + Vector3(0, 1.09, 0), _glow_material(Color("#0E7C99"), 1.15))
 	for rail_y in [0.99, 1.14]:
 		_add_mesh(arena_root, _box(rail_size), base_pos + Vector3(0, rail_y, 0), _material(Color("#0d1620"), 0.7, 0.45))
 
@@ -297,9 +297,15 @@ func _build_industrial_details(span: float) -> void:
 		var practical := OmniLight3D.new()
 		practical.position = practical_pos + Vector3(0, -0.4, 0.7)
 		practical.light_color = Color("#ff9a3c")
-		practical.light_energy = 0.7
+		practical.light_energy = 1.15
 		practical.omni_range = 9.0
 		arena_root.add_child(practical)
+	var left_room_wash := OmniLight3D.new()
+	left_room_wash.position = Vector3(-13.0, 10.5, 0.0)
+	left_room_wash.light_color = Color("#33506B")
+	left_room_wash.light_energy = 0.5
+	left_room_wash.omni_range = 26.0
+	arena_root.add_child(left_room_wash)
 	# Alternating hazard-stripe panel on the back wall, kept intentionally dim.
 	for i in range(28):
 		var stripe := _box(Vector3(0.42, 0.9, 0.035))
@@ -649,22 +655,27 @@ func _render_snake() -> void:
 		var at := _cell_to_world(cell)
 		var is_head := i == 0
 		if is_head:
-			var head_mesh := CapsuleMesh.new()
-			head_mesh.radius = 0.48
-			head_mesh.height = 1.08
+			var head_mesh := SphereMesh.new()
+			head_mesh.radius = 0.42
+			head_mesh.height = 0.84
 			var head_material := _material(Color("#66798b"), 0.45, 0.35)
 			head_material.emission_enabled = true
 			head_material.emission = Color("#1E5C2E")
 			head_material.emission_energy_multiplier = 0.3
-			var head := _add_mesh(snake_root, head_mesh, at + Vector3(0, 0.48, 0), head_material)
+			var head := _add_mesh(snake_root, head_mesh, at + Vector3(0, 0.54, 0), head_material)
 			var head_axis := Vector3(direction.x, 0, direction.y).normalized()
 			if head_axis.length_squared() > 0.5:
 				head.basis = Basis(Quaternion(Vector3.UP, head_axis))
+			head.scale = Vector3(1.0, 1.25, 1.0)
 			var forward := head_axis
 			var side := Vector3(-direction.y, 0, direction.x).normalized()
+			var jaw_mesh := BoxMesh.new()
+			jaw_mesh.size = Vector3(0.56, 0.15, 0.34)
+			var jaw := _add_mesh(snake_root, jaw_mesh, at + Vector3(0, 0.25, 0) + forward * 0.31, _material(Color("#263544"), 0.75, 0.36))
+			jaw.rotation.y = atan2(direction.x, direction.y)
 			for sign in [-1.0, 1.0]:
-				var eye_pos: Vector3 = at + Vector3(0, 0.72, 0) + forward * 0.28 + side * 0.2 * sign
-				_sphere(snake_root, eye_pos, 0.13, _glow_material(Color("#46ff5e"), 3.0))
+				var eye_pos: Vector3 = at + Vector3(0, 0.79, 0) + forward * 0.31 + side * 0.2 * sign
+				_sphere(snake_root, eye_pos, 0.12, _glow_material(Color("#7CFF6B"), 3.0))
 				_sphere(snake_root, eye_pos + forward * 0.075, 0.055, _material(Color("#0c1714"), 0.5, 0.25))
 		else:
 			var prev_cell: Vector2i = snake[maxi(0, i - 1)]
@@ -673,11 +684,11 @@ func _render_snake() -> void:
 			if tangent.length_squared() < 0.5:
 				tangent = Vector3(direction.x, 0, direction.y).normalized()
 			var cylinder := CylinderMesh.new()
-			cylinder.top_radius = 0.37
-			cylinder.bottom_radius = 0.37
+			cylinder.top_radius = 0.34
+			cylinder.bottom_radius = 0.34
 			cylinder.height = 0.93
 			cylinder.radial_segments = 16
-			var body_material := _material(Color("#46586A"), 0.55, 0.35)
+			var body_material := _material(Color("#3D4F61"), 0.85, 0.32)
 			body_material.emission_enabled = true
 			body_material.emission = Color("#1E5C2E")
 			body_material.emission_energy_multiplier = 0.3
@@ -686,7 +697,7 @@ func _render_snake() -> void:
 			var ring := TorusMesh.new()
 			ring.inner_radius = 0.06
 			ring.outer_radius = 0.5
-			var ring_node := _add_mesh(snake_root, ring, at + Vector3(0, 0.4, 0) + tangent * (TILE * 0.24), _glow_material(Color("#46FF5E"), 3.5))
+			var ring_node := _add_mesh(snake_root, ring, at + Vector3(0, 0.4, 0) - tangent * (TILE * 0.24), _glow_material(Color("#46FF5E"), 3.0))
 			ring_node.basis = Basis(Quaternion(Vector3.BACK, tangent))
 			var spine := _sphere(snake_root, at + Vector3(0, 0.765, 0), 0.115, _glow_material(Color("#c8ff6b"), 1.0))
 			spine.scale = Vector3(1.25, 0.55, 1.0)
