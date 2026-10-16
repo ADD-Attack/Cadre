@@ -159,7 +159,7 @@ func _build_world() -> void:
 	add_child(rim)
 
 	camera = Camera3D.new()
-	camera.position = Vector3(0.0, 17.2, 24.6)
+	camera.position = Vector3(0.0, 18.5, 26.6)
 	camera.current = true
 	camera.fov = 33.7
 	add_child(camera)
@@ -179,6 +179,7 @@ func _build_world() -> void:
 
 
 func _build_arena() -> void:
+	var floor_texture := load("res://assets/tex-floor.png") as Texture2D
 	var surface_noise := FastNoiseLite.new()
 	surface_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
 	surface_noise.frequency = 0.035
@@ -187,11 +188,15 @@ func _build_arena() -> void:
 	roughness_noise.height = 128
 	roughness_noise.seamless = true
 	roughness_noise.noise = surface_noise
-	var exterior_material := _material(Color("#0a0f16"), 0.35, 0.65)
+	var exterior_material := _material(Color("#8a97a5"), 0.35, 0.55)
+	exterior_material.albedo_texture = floor_texture
+	exterior_material.uv1_scale = Vector3(5.0, 5.0, 1.0)
 	exterior_material.roughness_texture = roughness_noise
 	var exterior_floor := _box(Vector3(70.0, 0.12, 70.0))
 	_add_mesh(arena_root, exterior_floor, Vector3(0, -0.82, 0), exterior_material)
-	var floor_material := _material(Color("#141e29"), 0.85, 0.38)
+	var floor_material := _material(Color("#5e6e7e"), 0.85, 0.38)
+	floor_material.albedo_texture = floor_texture
+	floor_material.uv1_scale = Vector3(4.0, 4.0, 1.0)
 	floor_material.roughness_texture = roughness_noise
 	var floor_mesh := BoxMesh.new()
 	floor_mesh.size = Vector3(GRID_SIZE * TILE, 0.25, GRID_SIZE * TILE)
@@ -244,7 +249,10 @@ func _add_frame_trim(width: float, depth: float, base_pos: Vector3) -> void:
 
 func _build_industrial_details(span: float) -> void:
 	# A low-contrast industrial shell sits beyond the playable footprint.
-	var room_material := _material(Color("#16222F"), 0.25, 0.6)
+	var wall_texture := load("res://assets/tex-wall.png") as Texture2D
+	var room_material := _material(Color("#7e8fa0"), 0.3, 0.6)
+	room_material.albedo_texture = wall_texture
+	room_material.uv1_scale = Vector3(3.0, 1.0, 1.0)
 	var room_height := 14.0
 	var wall_center_y := 6.18
 	var back_wall := _box(Vector3(45.0, room_height, 0.55))
@@ -297,7 +305,7 @@ func _build_industrial_details(span: float) -> void:
 		var practical := OmniLight3D.new()
 		practical.position = practical_pos + Vector3(0, -0.4, 0.7)
 		practical.light_color = Color("#ff9a3c")
-		practical.light_energy = 1.15
+		practical.light_energy = 1.4
 		practical.omni_range = 9.0
 		arena_root.add_child(practical)
 	var left_room_wash := OmniLight3D.new()
@@ -684,20 +692,17 @@ func _render_snake() -> void:
 			if tangent.length_squared() < 0.5:
 				tangent = Vector3(direction.x, 0, direction.y).normalized()
 			var cylinder := CylinderMesh.new()
-			cylinder.top_radius = 0.34
-			cylinder.bottom_radius = 0.34
+			cylinder.top_radius = 0.39
+			cylinder.bottom_radius = 0.39
 			cylinder.height = 0.93
 			cylinder.radial_segments = 16
-			var body_material := _material(Color("#3D4F61"), 0.85, 0.32)
-			body_material.emission_enabled = true
-			body_material.emission = Color("#1E5C2E")
-			body_material.emission_energy_multiplier = 0.3
+			var body_material := _material(Color("#54687e"), 0.85, 0.28)
 			var body := _add_mesh(snake_root, cylinder, at + Vector3(0, 0.4, 0), body_material)
 			body.basis = Basis(Quaternion(Vector3.UP, tangent))
 			var ring := TorusMesh.new()
-			ring.inner_radius = 0.06
-			ring.outer_radius = 0.5
-			var ring_node := _add_mesh(snake_root, ring, at + Vector3(0, 0.4, 0) - tangent * (TILE * 0.24), _glow_material(Color("#46FF5E"), 3.0))
+			ring.inner_radius = 0.275
+			ring.outer_radius = 0.325
+			var ring_node := _add_mesh(snake_root, ring, at + Vector3(0, 0.4, 0) - tangent * (TILE * 0.24), _glow_material(Color("#46FF5E"), 2.1))
 			ring_node.basis = Basis(Quaternion(Vector3.BACK, tangent))
 			var spine := _sphere(snake_root, at + Vector3(0, 0.765, 0), 0.115, _glow_material(Color("#c8ff6b"), 1.0))
 			spine.scale = Vector3(1.25, 0.55, 1.0)
