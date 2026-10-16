@@ -134,7 +134,7 @@ func _build_world() -> void:
 	environment.glow_blend_mode = Environment.GLOW_BLEND_MODE_SCREEN
 	environment.glow_intensity = 0.5
 	environment.glow_strength = 1.0
-	environment.glow_hdr_threshold = 0.8
+	environment.glow_hdr_threshold = 0.9
 	world.environment = environment
 	add_child(world)
 
@@ -193,11 +193,11 @@ func _build_arena() -> void:
 		var wall := BoxMesh.new()
 		wall.size = Vector3(span + 0.48, 1.25, 0.42)
 		_add_mesh(arena_root, wall, Vector3(0, 0.5, edge * (span * 0.5 + 0.03)), _material(Color("#0d1620"), 0.7, 0.45))
-		_add_mesh(arena_root, _box(Vector3(span + 0.52, 0.055, 0.48)), Vector3(0, 1.15, edge * (span * 0.5 + 0.03)), _glow_material(Color("#19B8D6"), 1.8))
+		_add_mesh(arena_root, _box(Vector3(span + 0.52, 0.055, 0.48)), Vector3(0, 1.15, edge * (span * 0.5 + 0.03)), _glow_material(Color("#0E7C99"), 0.95))
 		var side_wall := BoxMesh.new()
 		side_wall.size = Vector3(0.42, 1.25, span + 0.48)
 		_add_mesh(arena_root, side_wall, Vector3(edge * (span * 0.5 + 0.03), 0.5, 0), _material(Color("#0d1620"), 0.7, 0.45))
-		_add_mesh(arena_root, _box(Vector3(0.48, 0.055, span + 0.52)), Vector3(edge * (span * 0.5 + 0.03), 1.15, 0), _glow_material(Color("#19B8D6"), 1.8))
+		_add_mesh(arena_root, _box(Vector3(0.48, 0.055, span + 0.52)), Vector3(edge * (span * 0.5 + 0.03), 1.15, 0), _glow_material(Color("#0E7C99"), 0.95))
 	# Eight fixed crates leave a generous opening around the spawn lane.
 	obstacles = [Vector2i(-5, -4), Vector2i(-5, -3), Vector2i(5, -4), Vector2i(5, -3), Vector2i(-5, 4), Vector2i(-5, 5), Vector2i(5, 4), Vector2i(5, 5)]
 	for cell in obstacles:
@@ -213,7 +213,7 @@ func _build_arena() -> void:
 
 func _build_industrial_details(span: float) -> void:
 	# A low-contrast industrial shell sits beyond the playable footprint.
-	var room_material := _material(Color("#0B121B"), 0.4, 0.6)
+	var room_material := _material(Color("#16222F"), 0.25, 0.6)
 	var back_wall := _box(Vector3(45.0, 12.0, 0.55))
 	_add_mesh(arena_root, back_wall, Vector3(0, 4.6, -17.0), room_material)
 	for side in [-1.0, 1.0]:
@@ -232,7 +232,7 @@ func _build_industrial_details(span: float) -> void:
 	var wall_wash := OmniLight3D.new()
 	wall_wash.position = Vector3(0, 5.2, -15.2)
 	wall_wash.light_color = Color("#2FB9D8")
-	wall_wash.light_energy = 0.35
+	wall_wash.light_energy = 0.9
 	wall_wash.omni_range = 20.0
 	arena_root.add_child(wall_wash)
 	# Alternating hazard-stripe panel on the back wall, kept intentionally dim.
@@ -385,14 +385,19 @@ class SnakeMinimap extends Control:
 			draw_line(bounds.position + Vector2(0, offset), bounds.position + Vector2(bounds.size.x, offset), Color(0.12, 0.29, 0.35, 0.45), 0.6)
 		draw_rect(bounds, Color("#315061"), false, 1.0)
 		var apple_pos := bounds.position + (Vector2(food.x + 8.5, food.y + 8.5)) * cell_size
-		draw_circle(apple_pos, 2.8, Color("#ffb300"))
+		draw_circle(apple_pos, 3.4, Color("#ffb300"))
+		if cells.size() > 1:
+			var line_points := PackedVector2Array()
+			for map_cell in cells:
+				line_points.append(bounds.position + Vector2(map_cell.x + 8.5, map_cell.y + 8.5) * cell_size)
+			draw_polyline(line_points, Color("#2fae4e"), 2.2)
 		for i in range(cells.size() - 1, -1, -1):
 			var cell := cells[i]
 			var pos := bounds.position + Vector2(cell.x + 8.5, cell.y + 8.5) * cell_size
 			if i == 0:
-				draw_circle(pos, 2.0, Color("#F0FFD8"))
+				draw_circle(pos, 3.2, Color("#F0FFD8"))
 			else:
-				draw_circle(pos, 1.5, Color("#46FF5E"))
+				draw_circle(pos, 2.6, Color("#46FF5E"))
 
 
 func _panel(pos: Vector2, size: Vector2) -> ColorRect:
@@ -494,19 +499,19 @@ func _spawn_apple() -> void:
 	var pedestal_ring_node := _add_mesh(apple_root, pedestal_ring, at + Vector3(0, 0.17, 0), _glow_material(CYAN, 2.2))
 	pedestal_ring_node.rotation.x = PI / 2.0
 	var fruit := SphereMesh.new()
-	fruit.radius = 0.384
-	fruit.height = 0.768
-	apple_fruit = _add_mesh(apple_root, fruit, at + Vector3(0, 0.48, 0), _glow_material(Color("#FFB300"), 2.6))
+	fruit.radius = 0.46
+	fruit.height = 0.92
+	apple_fruit = _add_mesh(apple_root, fruit, at + Vector3(0, 0.56, 0), _glow_material(Color("#E07B00"), 1.2))
 	apple_fruit.name = "AppleFruit"
 	var stem := CylinderMesh.new()
 	stem.top_radius = 0.035
 	stem.bottom_radius = 0.055
 	stem.height = 0.2
-	_add_mesh(apple_root, stem, at + Vector3(0, 0.82, 0), _material(Color("#55d56a"), 0.35, 0.15))
+	_add_mesh(apple_root, stem, at + Vector3(0, 0.95, 0), _material(Color("#55d56a"), 0.35, 0.15))
 	var leaf := SphereMesh.new()
 	leaf.radius = 0.11
 	leaf.height = 0.06
-	_add_mesh(apple_root, leaf, at + Vector3(0.1, 0.87, 0), _material(Color("#71ff88"), 0.3, 0.1))
+	_add_mesh(apple_root, leaf, at + Vector3(0.1, 1.0, 0), _material(Color("#71ff88"), 0.3, 0.1))
 	var glow := OmniLight3D.new()
 	glow.position = at + Vector3(0, 0.62, 0)
 	glow.light_color = Color("#FFB300")
