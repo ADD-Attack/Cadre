@@ -8,6 +8,8 @@ const PLAYER_Y := -3.25
 const PLAYER_SPEED := 7.4
 const SHOT_SPEED := 12.5
 const ENEMY_SPEED := 1.05
+const PLAYER_HIT_GRACE := 1.35
+const DIVE_INTERVAL := 2.7
 
 var _camera: Camera3D
 var _player: Node3D
@@ -24,6 +26,11 @@ var _hud: Label3D
 var _banner: Label3D
 var _banner_time := 0.0
 var _game_over := false
+var _player_grace := 0.0
+var _player_blink := 0.0
+var _dive_clock := 1.8
+var _game_clock := 0.0
+var _exhaust: MeshInstance3D
 
 func _ready() -> void:
 	# This scene is intentionally runnable by itself, without project settings.
@@ -31,7 +38,7 @@ func _ready() -> void:
 	get_window().mode = Window.MODE_FULLSCREEN
 	_build_world()
 	_spawn_formation()
-	_show_banner("READY?  •  MOVE  ← →  •  FIRE  SPACE", 2.6)
+	_show_banner("STARFIGHTER  /  MOVE  ← →  /  FIRE  SPACE", 2.6)
 
 func _build_world() -> void:
 	var env := WorldEnvironment.new()
@@ -55,6 +62,7 @@ func _build_world() -> void:
 	light.light_energy = 1.1
 	add_child(light)
 	_add_box("Arena", Vector3(0, 0, -1.5), Vector3(15.25, 8.6, 0.08), Color("08142b"), 0.15)
+	_build_arena_lines()
 	_add_box("Lower rail", Vector3(0, -3.85, -0.7), Vector3(15.1, 0.025, 0.03), Color("23d9ff"), 1.4)
 	_add_box("Upper rail", Vector3(0, 3.85, -0.7), Vector3(15.1, 0.025, 0.03), Color("572fbd"), 0.8)
 	for i in range(82):
@@ -70,12 +78,15 @@ func _build_world() -> void:
 		_stars.append(star)
 	_player = _make_ship()
 	_player.position = Vector3(0, PLAYER_Y, 0.2)
+	_exhaust = _make_exhaust()
+	_player.add_child(_exhaust)
 	add_child(_player)
 	_hud = _make_label("SCORE 000000     ♥ ♥ ♥     WAVE 01", Vector3(-7.15, 4.0, 1.5), 30, Color("c7f7ff"), HORIZONTAL_ALIGNMENT_LEFT)
 	_banner = _make_label("", Vector3(0, 0.1, 2.0), 48, Color("ffffff"), HORIZONTAL_ALIGNMENT_CENTER)
 
 func _process(delta: float) -> void:
 	var dt := minf(delta, 0.05)
+	_game_clock += dt
 	for star in _stars:
 		star.position.y -= dt * 0.12
 		if star.position.y < -3.8:
@@ -83,6 +94,18 @@ func _process(delta: float) -> void:
 	if _banner_time > 0.0:
 		_banner_time -= dt
 		_banner.modulate.a = clampf(_banner_time * 1.5, 0.0, 1.0)
+	elif _banner_time < 0.0:
+		_banner.modulate.a = 1.0
+	if _player_grace > 0.0:
+		_player_grace = maxf(_player_grace - dt, 0.0)
+		if not _game_over:
+			_player_blink += dt * 18.0
+			_player.visible = fmod(_player_blink, 2.0) < 1.0
+			if _player_grace == 0.0:
+				_player.visible = true
+	if _exhaust != null:
+		_exhaust.scale.y = 0.82 + 0.24 * sin(_game_clock * 22.0)
+	_update_effects(dt)
 	if _game_over:
 		if Input.is_key_pressed(KEY_SPACE):
 			_restart()
@@ -90,8 +113,11 @@ func _process(delta: float) -> void:
 	_read_controls(dt)
 	_update_shots(dt)
 	_update_enemies(dt)
-	_update_effects(dt)
 	_formation_clock += dt
+	_dive_clock -= dt
+	if _dive_clock <= 0.0 and not _enemies.is_empty():
+		_start_enemy_dive()
+		_dive_clock = maxf(DIVE_INTERVAL - minf(_wave * 0.12, 0.9), 1.35)
 	if _enemies.is_empty() and _formation_clock > 1.1:
 		_wave += 1
 		_formation_clock = 0.0
@@ -149,36 +175,68 @@ func _spawn_formation() -> void:
 			var enemy := _make_enemy(kind)
 			enemy.position = Vector3((col - (cols - 1) * 0.5) * 1.65, 2.55 - row * 0.82, 0.1)
 			add_child(enemy)
-			_enemies.append({"node": enemy, "kind": kind, "phase": randf() * TAU, "base_x": enemy.position.x, "base_y": enemy.position.y})
+			_enemies.append({"node": enemy, "kind": kind, "phase": randf() * TAU, "base_x": enemy.position.x, "base_y": enemy.position.y, "diving": false, "dive_time": 0.0, "dive_duration": 2.2, "dive_start_x": enemy.position.x, "dive_start_y": enemy.position.y, "dive_target_x": enemy.position.x})
 
 func _update_enemies(dt: float) -> void:
-	var now := Time.get_ticks_msec() / 1000.0
+	var now := _game_clock
 	for i in range(_enemies.size() - 1, -1, -1):
 		var data: Dictionary = _enemies[i]
 		var enemy: Node3D = data.node
 		data.phase += dt
-		enemy.position.x = data.base_x + sin(data.phase * 0.9 + now * 0.3) * 0.34
-		enemy.position.y = data.base_y + sin(data.phase * 0.7 + now * 0.4) * 0.13
-		enemy.rotation.z = sin(data.phase * 2.0) * 0.08
+		if data.diving:
+			data.dive_time += dt
+			var progress: float = minf(data.dive_time / data.dive_duration, 1.0)
+			var target_x: float = clampf(data.dive_target_x + sin(data.dive_time * 3.0) * 0.46, -6.7, 6.7)
+			enemy.position.x = lerpf(data.dive_start_x, target_x, progress)
+			enemy.position.y = data.dive_start_y - data.dive_time * (3.1 + _wave * 0.08)
+			enemy.rotation.z = sin(data.dive_time * 4.0) * 0.18
+		else:
+			enemy.position.x = data.base_x + sin(data.phase * 0.9 + now * 0.3) * 0.34
+			enemy.position.y = data.base_y + sin(data.phase * 0.7 + now * 0.4) * 0.13
+			enemy.rotation.z = sin(data.phase * 2.0) * 0.08
 		_enemies[i] = data
-		if enemy.position.y < PLAYER_Y + 0.7:
+		if enemy.position.distance_to(_player.position) < 0.72:
 			_emit_burst(enemy.position, Color("ff496c"))
 			enemy.queue_free()
 			_enemies.remove_at(i)
-			_lose_life()
-		elif enemy.position.distance_to(_player.position) < 0.62:
-			_emit_burst(enemy.position, Color("ff496c"))
-			enemy.queue_free()
-			_enemies.remove_at(i)
-			_lose_life()
+			if _player_grace <= 0.0:
+				_lose_life()
+		elif enemy.position.y < -4.35:
+			if data.diving:
+				_emit_burst(enemy.position, Color("ff496c"))
+				enemy.queue_free()
+				_enemies.remove_at(i)
+				if _player_grace <= 0.0:
+					_lose_life()
+
+func _start_enemy_dive() -> void:
+	var candidates: Array[int] = []
+	for i in range(_enemies.size()):
+		if not _enemies[i].diving:
+			candidates.append(i)
+	if candidates.is_empty():
+		return
+	var index: int = candidates[randi_range(0, candidates.size() - 1)]
+	var data: Dictionary = _enemies[index]
+	data.diving = true
+	data.dive_time = 0.0
+	data.dive_duration = 2.2
+	data.dive_start_x = (_enemies[index].node as Node3D).position.x
+	data.dive_start_y = (_enemies[index].node as Node3D).position.y
+	data.dive_target_x = _player.position.x
+	_enemies[index] = data
 
 func _lose_life() -> void:
-	_lives -= 1
+	if _player_grace > 0.0 or _game_over:
+		return
+	_lives = maxi(_lives - 1, 0)
+	_player_grace = PLAYER_HIT_GRACE
+	_player_blink = 0.0
 	_emit_burst(_player.position, Color("4cf3ff"))
 	if _lives <= 0:
 		_game_over = true
 		_player.visible = false
-		_show_banner("GAME OVER\nSPACE TO RESTART", 999.0)
+		_show_banner("GAME OVER\nSPACE TO RESTART", -1.0)
 
 func _update_effects(dt: float) -> void:
 	for i in range(_effects.size() - 1, -1, -1):
@@ -223,6 +281,19 @@ func _emit_spark(pos: Vector3, color: Color, count: int) -> void:
 		puff.add_child(dot)
 		add_child(puff)
 		_effects.append({"node": puff, "time": 0.0, "life": 0.12})
+
+func _build_arena_lines() -> void:
+	for x in range(-6, 7):
+		_add_box("Grid vertical", Vector3(x * 1.08, 0, -1.405), Vector3(0.008, 7.55, 0.008), Color("102345"), 0.0)
+	for y in range(-3, 4):
+		_add_box("Grid horizontal", Vector3(0, y * 1.05, -1.405), Vector3(14.2, 0.008, 0.008), Color("102345"), 0.0)
+	for x in [-1.0, 1.0]:
+		_add_box("Pilot console", Vector3(x * 5.6, -3.55, -1.38), Vector3(1.35, 0.045, 0.025), Color("23577a"), 0.5)
+
+func _make_exhaust() -> MeshInstance3D:
+	var flame := _polygon_mesh("Ion exhaust", [Vector3(-0.15, -0.30, 0), Vector3(0, -0.88, 0), Vector3(0.15, -0.30, 0)], Color("ff9b4a"), 2.2)
+	flame.position = Vector3(0, -0.22, -0.03)
+	return flame
 
 func _make_ship() -> Node3D:
 	var ship := Node3D.new()
@@ -330,7 +401,10 @@ func _restart() -> void:
 	_lives = 3
 	_wave = 1
 	_game_over = false
+	_player_grace = 0.0
+	_dive_clock = 1.8
+	_fire_clock = 0.0
 	_player.visible = true
 	_player.position = Vector3(0, PLAYER_Y, 0.2)
 	_spawn_formation()
-	_show_banner("READY?", 1.5)
+	_show_banner("STARFIGHTER  /  MOVE  ← →  /  FIRE  SPACE", 2.0)

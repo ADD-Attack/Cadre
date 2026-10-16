@@ -4,3 +4,4 @@
 
 [node name="GalagaLuna" type="Node3D"]
 script = ExtResource("1_galaga")
+metadata/build = "Run 2 — neon polish and arcade fixes"
