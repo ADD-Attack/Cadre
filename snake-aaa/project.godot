@@ -6,8 +6,15 @@ config_version=5
 [application]
 
 config/name="TRIPLE AAA SNAKE"
+run/main_scene="res://main.tscn"
 
 [display]
 
 window/size/viewport_width=1280
 window/size/viewport_height=720
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+environment/defaults/default_clear_color=Color(0.008, 0.018, 0.035, 1)
