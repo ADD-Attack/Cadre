@@ -1,0 +1,15 @@
+$ git -C /home/openclaw/.openclaw/cadre/scruffy status --short
+?? AGENTS.md
+?? BUDGET.md
+?? DREAMS.md
+?? IDENTITY.md
+?? MEMORY.md
+?? SOUL.md
+?? USER.md
+?? avatars/
+?? evidence/
+?? inbox/
+?? memory/
+
+$ git -C /home/openclaw/.openclaw/cadre/scruffy log --oneline -5
+fatal: your current branch 'master' does not have any commits yet

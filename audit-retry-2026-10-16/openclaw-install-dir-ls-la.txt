@@ -1,0 +1,26 @@
+total 896
+drwxr-xr-x   9 openclaw openclaw   4096 Oct 15 13:20 .
+drwxr-xr-x   7 openclaw openclaw   4096 Oct 15 13:20 ..
+-rw-r--r--   1 openclaw openclaw   3757 Oct 15 13:20 CHANGELOG.md
+-rw-r--r--   1 openclaw openclaw   1170 Oct 15 13:19 LICENSE
+-rw-r--r--   1 openclaw openclaw 113171 Oct 15 13:20 README.md
+-rw-r--r--   1 openclaw openclaw   2855 Oct 15 13:20 THIRD_PARTY_NOTICES.md
+-rw-r--r--   1 openclaw openclaw   5985 Oct 15 13:20 cli-root-options.mjs
+drwxr-xr-x   6 openclaw openclaw   4096 Oct 15 13:20 custodian-skills
+drwxr-xr-x  38 openclaw openclaw 462848 Oct 15 13:20 dist
+drwxr-xr-x  24 openclaw openclaw   4096 Oct 15 13:20 docs
+-rw-r--r--   1 openclaw openclaw   1242 Oct 15 13:20 gateway-run-argv.mjs
+-rw-r--r--   1 openclaw openclaw   3910 Oct 15 13:20 gateway-shutdown-budget.mjs
+-rw-r--r--   1 openclaw openclaw   6430 Oct 15 13:20 node-compile-cache.mjs
+-rw-r--r--   1 openclaw openclaw  20242 Oct 15 13:20 node-host-launcher.mjs
+-rw-r--r--   1 openclaw openclaw  24698 Oct 15 13:20 node-runtime-recovery.mjs
+-rw-r--r--   1 openclaw openclaw   4829 Oct 15 13:20 node-runtime-update.mjs
+-rw-r--r--   1 openclaw openclaw   7063 Oct 15 13:20 node-sqlite.mjs
+-rw-r--r--   1 openclaw openclaw   7599 Oct 15 13:20 node-version.mjs
+drwxr-xr-x 297 openclaw openclaw  12288 Oct 15 13:20 node_modules
+-rwxr-xr-x   1 openclaw openclaw  24881 Oct 15 13:20 openclaw.mjs
+-rw-r--r--   1 openclaw openclaw 145276 Oct 15 13:20 package.json
+drwxr-xr-x   2 openclaw openclaw   4096 Oct 15 13:20 patches
+-rw-r--r--   1 openclaw openclaw   4542 Oct 15 13:20 pnpm-workspace.yaml
+drwxr-xr-x   3 openclaw openclaw   4096 Oct 15 13:20 scripts
+drwxr-xr-x  51 openclaw openclaw   4096 Oct 15 13:20 skills

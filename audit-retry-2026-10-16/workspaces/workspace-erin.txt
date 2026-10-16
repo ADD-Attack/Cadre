@@ -1,0 +1,50 @@
+$ git -C /home/openclaw/.openclaw/workspace-erin status --short
+ M AGENTS.md
+ M DREAMS.md
+ M INDEX.md
+ M MEMORY.md
+ M USER.md
+ M hardware-buy-list.md
+ M memory/2026-09-15.md
+ M project-ideas.md
+ M reminders.md
+ M todos.md
+?? .backups/
+?? .wishlist.bak-20261002-141305.md
+?? HANDOFF-LISTS.md
+?? HANDOFF.md
+?? MUSE-BRIEFING.md
+?? cadre-steal-list.md
+?? handoff-cron-raw.json
+?? jen-birthday.md
+?? memory/2026-09-16.md
+?? memory/2026-09-19.md
+?? memory/2026-09-20.md
+?? memory/2026-09-22.md
+?? memory/2026-09-24.md
+?? memory/2026-09-25.md
+?? memory/2026-09-26.md
+?? memory/2026-09-27.md
+?? memory/2026-09-29.md
+?? memory/2026-09-30.md
+?? memory/2026-10-01.md
+?? memory/2026-10-02.md
+?? memory/2026-10-04.md
+?? memory/2026-10-05.md
+?? memory/2026-10-07.md
+?? memory/2026-10-08.md
+?? memory/2026-10-09.md
+?? memory/2026-10-12.md
+?? neuro-audit-checks.json
+?? neuro-audit-corrections-log.md
+?? neuro-audit-verification-baseline.txt
+?? notes/
+?? wishlist.md
+?? work-notes.md
+
+$ git -C /home/openclaw/.openclaw/workspace-erin log --oneline -5
+e128644 charter(soul/identity): align live-roster wording with AGENTS.md - Michael = main admin; builders Fry (cadre-worker-1) + Bender (cadre-worker-2); no current Jim/worker agent
+44c923f charter(agents-md): live-roster wording - Fry/cadre-worker-1 + Bender/cadre-worker-2 build; Michael = main admin; 'Michael and the Cadre crew'; ask_user Jim mention marked retired
+82ff9e3 chore(agents-md): prune template dead weight (347 -> 219 lines) - 9/17 pass; backup in .backups/20260917-121154/
+27ca090 memory: neuro essay red-team audit closed (corrections verified, erratum issued, follow-ups parked)
+ec2978f backlog: entry 11 relabel landed (379e3de)

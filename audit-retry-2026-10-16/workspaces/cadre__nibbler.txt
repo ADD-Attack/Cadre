@@ -1,0 +1,24 @@
+$ git -C /home/openclaw/.openclaw/cadre/nibbler status --short
+?? .claims/
+?? .team/
+?? AGENTS.md
+?? BUDGET.md
+?? DREAMS.md
+?? IDENTITY.md
+?? KANBAN.md
+?? MEMORY.md
+?? SOUL.md
+?? USER.md
+?? __pycache__/
+?? artifacts/
+?? avatars/
+?? backups/
+?? inbox/
+?? memory/
+?? outbox/
+?? relay_tunnel_proxy.log
+?? relay_tunnel_proxy.py
+?? worktrees/
+
+$ git -C /home/openclaw/.openclaw/cadre/nibbler log --oneline -5
+fatal: your current branch 'master' does not have any commits yet

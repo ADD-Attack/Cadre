@@ -1,0 +1,26 @@
+$ git -C /home/openclaw/.openclaw/workspace-oscar status --short
+ M AGENTS.md
+ M DREAMS.md
+?? .team/
+?? KANBAN.md
+?? avatars/
+?? memory/.dreams/session-corpus/2026-09-12.txt
+?? memory/.dreams/session-corpus/2026-09-13.txt
+?? memory/2026-09-12-1437.md
+?? memory/2026-09-13.md
+?? memory/dreaming/deep/2026-09-13.md
+?? memory/dreaming/deep/2026-09-14.md
+?? memory/dreaming/light/2026-09-13.md
+?? memory/dreaming/light/2026-09-14.md
+?? memory/dreaming/rem/2026-09-13.md
+?? memory/dreaming/rem/2026-09-14.md
+?? notes/hermes-bot-hierarchy-2026-09-12.md
+?? tools/
+?? update_repo.py
+
+$ git -C /home/openclaw/.openclaw/workspace-oscar log --oneline -5
+ffdba63 R9 name consult opinion report draft
+2d659bb notes: back up 17 research briefs + memory (Sep 10-11)
+92b27d0 charter: add $4/night budget + verify-provider-before-claiming-independence rule
+26ceba1 docs(2026-09-10): Oscar audit recs — phone-width out of scope; roster/QA-trigger/model-drift truth
+cd3cd58 init: Oscar Martinez — researcher/consultant lane (gemini-3.1-pro-preview)

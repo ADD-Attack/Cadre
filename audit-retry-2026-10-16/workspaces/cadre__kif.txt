@@ -1,0 +1,20 @@
+$ git -C /home/openclaw/.openclaw/cadre/kif status --short
+?? .openclaw-cli-images/
+?? .team/
+?? AGENTS.md
+?? BUDGET.md
+?? DREAMS.md
+?? IDENTITY.md
+?? KANBAN.md
+?? MEMORY.md
+?? MODEL-THINKING.md
+?? SOUL.md
+?? USER.md
+?? artifacts/
+?? avatars/
+?? inbox/
+?? memory/
+?? troubleshooting.md
+
+$ git -C /home/openclaw/.openclaw/cadre/kif log --oneline -5
+fatal: your current branch 'master' does not have any commits yet

@@ -1,0 +1,16 @@
+$ git -C /home/openclaw/.openclaw/cadre/farnsworth status --short
+?? .claims/
+?? AGENTS.md
+?? BUDGET.md
+?? DREAMS.md
+?? IDENTITY.md
+?? MEMORY.md
+?? SOUL.md
+?? USER.md
+?? artifacts/
+?? avatars/
+?? inbox/
+?? memory/
+
+$ git -C /home/openclaw/.openclaw/cadre/farnsworth log --oneline -5
+fatal: your current branch 'master' does not have any commits yet

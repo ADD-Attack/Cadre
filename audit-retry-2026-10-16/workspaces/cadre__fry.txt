@@ -1,0 +1,23 @@
+$ git -C /home/openclaw/.openclaw/cadre/fry status --short
+?? .claims/
+?? .d1-v4-momentum-economy-worker-completion.json
+?? .openclaw-cli-images/
+?? AGENTS.md
+?? BUDGET.md
+?? DREAMS.md
+?? IDENTITY.md
+?? MEMORY.md
+?? RUN-LOG-PACMAN.md
+?? SOUL.md
+?? USER.md
+?? artifacts/
+?? avatars/
+?? evidence/
+?? inbox/
+?? memory-archive/
+?? memory/
+?? pacman-html5/
+?? publish/
+
+$ git -C /home/openclaw/.openclaw/cadre/fry log --oneline -5
+fatal: your current branch 'master' does not have any commits yet

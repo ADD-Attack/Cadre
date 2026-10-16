@@ -1,0 +1,14 @@
+$ git -C /home/openclaw/.openclaw/cadre-wizard status --short
+ M AGENTS.md
+ M Cadre/reference/agents.md
+ M Cadre/templates/agent-workspace/BUDGET.md
+?? DREAMS.md
+?? avatars/
+?? memory/
+
+$ git -C /home/openclaw/.openclaw/cadre-wizard log --oneline -5
+e47afa6 sync: brevity contract + plain-language + defaults
+c2eb339 sync: plain-language + every-question-has-a-default from canonical
+0998c95 sync: builder class + vision requirement from canonical
+1e7e3b4 sync: builder class + Worker rows from canonical
+be9da5c sync Cadre/reference/collaboration.md from canonical

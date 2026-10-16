@@ -1,0 +1,15 @@
+$ git -C /home/openclaw/.openclaw/cadre/mom status --short
+?? AGENTS.md
+?? BUDGET.md
+?? DREAMS.md
+?? IDENTITY.md
+?? MEMORY.md
+?? SOUL.md
+?? USER.md
+?? avatars/
+?? inbox/
+?? logs/
+?? memory/
+
+$ git -C /home/openclaw/.openclaw/cadre/mom log --oneline -5
+fatal: your current branch 'master' does not have any commits yet

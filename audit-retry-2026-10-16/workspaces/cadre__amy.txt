@@ -1,0 +1,14 @@
+$ git -C /home/openclaw/.openclaw/cadre/amy status --short
+?? AGENTS.md
+?? BUDGET.md
+?? DREAMS.md
+?? IDENTITY.md
+?? MEMORY.md
+?? SOUL.md
+?? USER.md
+?? avatars/
+?? inbox/
+?? memory/
+
+$ git -C /home/openclaw/.openclaw/cadre/amy log --oneline -5
+fatal: your current branch 'master' does not have any commits yet
