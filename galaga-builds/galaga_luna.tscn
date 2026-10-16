@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://galaga-builds/galaga_luna.gd" id="1_luna"]
+[ext_resource type="Script" path="res://galaga_luna.gd" id="1_galaga"]
 
 [node name="GalagaLuna" type="Node3D"]
-script = ExtResource("1_luna")
+script = ExtResource("1_galaga")
