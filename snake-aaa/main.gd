@@ -127,14 +127,18 @@ func _build_world() -> void:
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	environment.ambient_light_sky_contribution = 0.6
 	environment.ambient_light_energy = 0.5
-	environment.fog_enabled = false
 	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
 	environment.tonemap_exposure = 1.0
 	environment.glow_enabled = true
 	environment.glow_blend_mode = Environment.GLOW_BLEND_MODE_SCREEN
-	environment.glow_intensity = 0.5
+	environment.glow_intensity = 0.45
 	environment.glow_strength = 1.0
 	environment.glow_hdr_threshold = 0.9
+	environment.fog_enabled = true
+	environment.fog_light_color = Color("#0a1420")
+	environment.fog_density = 0.018
+	environment.fog_sky_affect = 0.25
+	environment.ssao_enabled = true
 	world.environment = environment
 	add_child(world)
 
@@ -143,6 +147,8 @@ func _build_world() -> void:
 	sun.light_color = Color("#bfe3ff")
 	sun.light_energy = 0.7
 	sun.shadow_enabled = true
+	sun.shadow_blur = 2.0
+	sun.directional_shadow_blend_splits = true
 	add_child(sun)
 
 	var rim := DirectionalLight3D.new()
@@ -173,9 +179,23 @@ func _build_world() -> void:
 
 
 func _build_arena() -> void:
+	var surface_noise := FastNoiseLite.new()
+	surface_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	surface_noise.frequency = 0.035
+	var roughness_noise := NoiseTexture2D.new()
+	roughness_noise.width = 128
+	roughness_noise.height = 128
+	roughness_noise.seamless = true
+	roughness_noise.noise = surface_noise
+	var exterior_material := _material(Color("#0a0f16"), 0.35, 0.65)
+	exterior_material.roughness_texture = roughness_noise
+	var exterior_floor := _box(Vector3(70.0, 0.12, 70.0))
+	_add_mesh(arena_root, exterior_floor, Vector3(0, -0.82, 0), exterior_material)
+	var floor_material := _material(Color("#141e29"), 0.85, 0.38)
+	floor_material.roughness_texture = roughness_noise
 	var floor_mesh := BoxMesh.new()
 	floor_mesh.size = Vector3(GRID_SIZE * TILE, 0.25, GRID_SIZE * TILE)
-	_add_mesh(arena_root, floor_mesh, Vector3(0, -0.2, 0), _material(Color("#141e29"), 0.85, 0.38))
+	_add_mesh(arena_root, floor_mesh, Vector3(0, -0.2, 0), floor_material)
 	var under_mesh := BoxMesh.new()
 	under_mesh.size = Vector3(GRID_SIZE * TILE + 1.0, 0.45, GRID_SIZE * TILE + 1.0)
 	_add_mesh(arena_root, under_mesh, Vector3(0, -0.58, 0), _material(Color("#09111a"), 0.72, 0.55))
@@ -183,42 +203,64 @@ func _build_arena() -> void:
 	for i in range(GRID_SIZE + 1):
 		var offset := (float(i) - CENTER) * TILE - TILE * 0.5
 		var line_mesh := BoxMesh.new()
-		line_mesh.size = Vector3(0.018, 0.014, GRID_SIZE * TILE)
-		_add_mesh(arena_root, line_mesh, Vector3(offset, -0.064, 0), _glow_material(Color("#0e5566"), 0.6))
+		line_mesh.size = Vector3(0.05, 0.014, GRID_SIZE * TILE)
+		_add_mesh(arena_root, line_mesh, Vector3(offset, -0.064, 0), _glow_material(Color("#0e5566"), 0.45))
 		var cross_mesh := BoxMesh.new()
-		cross_mesh.size = Vector3(GRID_SIZE * TILE, 0.014, 0.018)
-		_add_mesh(arena_root, cross_mesh, Vector3(0, -0.064, offset), _glow_material(Color("#0e5566"), 0.6))
+		cross_mesh.size = Vector3(GRID_SIZE * TILE, 0.014, 0.05)
+		_add_mesh(arena_root, cross_mesh, Vector3(0, -0.064, offset), _glow_material(Color("#0e5566"), 0.45))
 	var span := GRID_SIZE * TILE
 	for edge in [-1, 1]:
 		var wall := BoxMesh.new()
 		wall.size = Vector3(span + 0.48, 1.25, 0.42)
 		_add_mesh(arena_root, wall, Vector3(0, 0.5, edge * (span * 0.5 + 0.03)), _material(Color("#0d1620"), 0.7, 0.45))
-		_add_mesh(arena_root, _box(Vector3(span + 0.52, 0.055, 0.48)), Vector3(0, 1.15, edge * (span * 0.5 + 0.03)), _glow_material(Color("#0E7C99"), 0.95))
+		_add_frame_trim(span + 0.52, 0.48, Vector3(0, 0, edge * (span * 0.5 + 0.03)))
 		var side_wall := BoxMesh.new()
 		side_wall.size = Vector3(0.42, 1.25, span + 0.48)
 		_add_mesh(arena_root, side_wall, Vector3(edge * (span * 0.5 + 0.03), 0.5, 0), _material(Color("#0d1620"), 0.7, 0.45))
-		_add_mesh(arena_root, _box(Vector3(0.48, 0.055, span + 0.52)), Vector3(edge * (span * 0.5 + 0.03), 1.15, 0), _glow_material(Color("#0E7C99"), 0.95))
+		_add_frame_trim(0.48, span + 0.52, Vector3(edge * (span * 0.5 + 0.03), 0, 0))
 	# Eight fixed crates leave a generous opening around the spawn lane.
 	obstacles = [Vector2i(-5, -4), Vector2i(-5, -3), Vector2i(5, -4), Vector2i(5, -3), Vector2i(-5, 4), Vector2i(-5, 5), Vector2i(5, 4), Vector2i(5, 5)]
-	for cell in obstacles:
+	var crate_colors := [Color("#262e37"), Color("#2c333b"), Color("#232a33")]
+	for crate_index in range(obstacles.size()):
+		var cell: Vector2i = obstacles[crate_index]
 		var crate := BoxMesh.new()
 		crate.size = Vector3(TILE * 0.82, 0.82, TILE * 0.82)
 		var pos := _cell_to_world(cell)
-		_add_mesh(arena_root, crate, pos + Vector3(0, 0.43, 0), _material(Color("#232F3D"), 0.8, 0.3))
-		_add_mesh(arena_root, _box(Vector3(TILE * 0.84, 0.045, TILE * 0.84)), pos + Vector3(0, 0.86, 0), _glow_material(Color("#266580"), 0.7))
+		_add_mesh(arena_root, crate, pos + Vector3(0, 0.43, 0), _material(crate_colors[crate_index % crate_colors.size()], 0.8, 0.3))
+		_add_mesh(arena_root, _box(Vector3(TILE * 0.84, 0.045, TILE * 0.84)), pos + Vector3(0, 0.86, 0), _glow_material(Color("#266580"), 0.55))
 		_add_mesh(arena_root, _box(Vector3(TILE * 0.7, 0.04, 0.08)), pos + Vector3(0, 0.88, 0), _material(Color("#536c79"), 0.7, 0.25))
 
 	_build_industrial_details(span)
+	_build_dressing_clusters()
+
+
+func _add_frame_trim(width: float, depth: float, base_pos: Vector3) -> void:
+	var trim_size := Vector3(width, 0.035, depth)
+	var rail_size := Vector3(width + 0.04, 0.03, depth + 0.04)
+	_add_mesh(arena_root, _box(trim_size), base_pos + Vector3(0, 1.06, 0), _glow_material(Color("#0E7C99"), 0.8))
+	for rail_y in [0.99, 1.14]:
+		_add_mesh(arena_root, _box(rail_size), base_pos + Vector3(0, rail_y, 0), _material(Color("#0d1620"), 0.7, 0.45))
 
 
 func _build_industrial_details(span: float) -> void:
 	# A low-contrast industrial shell sits beyond the playable footprint.
 	var room_material := _material(Color("#16222F"), 0.25, 0.6)
-	var back_wall := _box(Vector3(45.0, 12.0, 0.55))
-	_add_mesh(arena_root, back_wall, Vector3(0, 4.6, -17.0), room_material)
+	var room_height := 14.0
+	var wall_center_y := 6.18
+	var back_wall := _box(Vector3(45.0, room_height, 0.55))
+	_add_mesh(arena_root, back_wall, Vector3(0, wall_center_y, -17.0), room_material)
 	for side in [-1.0, 1.0]:
-		var side_panel := _box(Vector3(0.55, 12.0, 45.0))
-		_add_mesh(arena_root, side_panel, Vector3(side * 17.0, 4.6, 0), room_material)
+		var side_panel := _box(Vector3(0.55, room_height, 45.0))
+		_add_mesh(arena_root, side_panel, Vector3(side * 17.0, wall_center_y, 0), room_material)
+	# The back wall is built from oversized industrial plates with visible inset seams.
+	var seam_material := _material(Color("#0a0f16"), 0.3, 0.75)
+	for x in range(-20, 21, 4):
+		_add_mesh(arena_root, _box(Vector3(0.055, room_height - 0.3, 0.045)), Vector3(float(x), wall_center_y, -16.69), seam_material)
+	for y in range(0, 14, 3):
+		_add_mesh(arena_root, _box(Vector3(44.5, 0.055, 0.045)), Vector3(0, float(y) + 0.35, -16.69), seam_material)
+	# Five proud vertical pilasters articulate the large back-wall plane.
+	for x in [-19.0, -9.5, 0.0, 9.5, 19.0]:
+		_add_mesh(arena_root, _box(Vector3(0.48, room_height + 0.2, 0.3)), Vector3(x, wall_center_y, -16.58), _material(Color("#141e29"), 0.6, 0.48))
 	# Three horizontal pipe runs and restrained cyan practical lights.
 	for y in [2.0, 4.6, 7.2]:
 		var back_pipe := CylinderMesh.new()
@@ -227,6 +269,19 @@ func _build_industrial_details(span: float) -> void:
 		back_pipe.height = 32.0
 		var pipe_node := _add_mesh(arena_root, back_pipe, Vector3(0, y, -16.55), _material(Color("#141E29"), 0.4, 0.6))
 		pipe_node.rotation.z = PI / 2.0
+	# Two larger service risers and a high transverse run add a second pipe scale.
+	for x in [-21.0, 21.0]:
+		var riser := CylinderMesh.new()
+		riser.top_radius = 0.22
+		riser.bottom_radius = 0.22
+		riser.height = 12.8
+		_add_mesh(arena_root, riser, Vector3(x, 6.0, -16.54), _material(Color("#18222e"), 0.55, 0.48))
+	var high_run := CylinderMesh.new()
+	high_run.top_radius = 0.22
+	high_run.bottom_radius = 0.22
+	high_run.height = 38.0
+	var high_run_node := _add_mesh(arena_root, high_run, Vector3(0, 10.4, -16.54), _material(Color("#18222e"), 0.55, 0.48))
+	high_run_node.rotation.z = PI / 2.0
 	for y in [1.0, 8.4]:
 		_add_mesh(arena_root, _box(Vector3(27.0, 0.045, 0.035)), Vector3(0, y, -16.68), _glow_material(Color("#2FB9D8"), 1.6))
 	var wall_wash := OmniLight3D.new()
@@ -235,6 +290,16 @@ func _build_industrial_details(span: float) -> void:
 	wall_wash.light_energy = 0.9
 	wall_wash.omni_range = 20.0
 	arena_root.add_child(wall_wash)
+	# Three amber practicals cast individual light pools across the room.
+	for x in [-13.0, 0.0, 13.0]:
+		var practical_pos := Vector3(x, 6.0, -16.55)
+		_add_mesh(arena_root, _box(Vector3(1.25, 0.42, 0.16)), practical_pos, _glow_material(Color("#ff9a3c"), 1.8))
+		var practical := OmniLight3D.new()
+		practical.position = practical_pos + Vector3(0, -0.4, 0.7)
+		practical.light_color = Color("#ff9a3c")
+		practical.light_energy = 0.7
+		practical.omni_range = 9.0
+		arena_root.add_child(practical)
 	# Alternating hazard-stripe panel on the back wall, kept intentionally dim.
 	for i in range(28):
 		var stripe := _box(Vector3(0.42, 0.9, 0.035))
@@ -278,6 +343,31 @@ func _build_industrial_details(span: float) -> void:
 			point.light_energy = 0.8
 			point.omni_range = 2.5
 			arena_root.add_child(point)
+
+
+func _build_dressing_clusters() -> void:
+	var cluster_centers := [Vector2(-14.0, 14.0), Vector2(14.0, 14.0), Vector2(-14.0, -14.0), Vector2(14.0, -14.0)]
+	var crate_tints := [Color("#262e37"), Color("#2c333b"), Color("#232a33")]
+	var floor_y := -0.82
+	for cluster_index in range(cluster_centers.size()):
+		var center: Vector2 = cluster_centers[cluster_index]
+		for crate_index in range(3):
+			var width := 1.0 + float((cluster_index + crate_index) % 3) * 0.25
+			var depth := 0.9 + float((cluster_index * 2 + crate_index) % 3) * 0.25
+			var height := 0.8 + float((cluster_index + crate_index * 2) % 4) * 0.2
+			var offset := Vector3(float(crate_index - 1) * 0.72, 0.0, 0.0)
+			var crate := _box(Vector3(width, height, depth))
+			_add_mesh(arena_root, crate, Vector3(center.x, floor_y + height * 0.5, center.y) + offset, _material(crate_tints[(cluster_index + crate_index) % crate_tints.size()], 0.55, 0.62))
+		# Two low crates support one elevated case for a clear stacked silhouette.
+		var top_size := Vector3(1.05, 0.9, 1.05)
+		_add_mesh(arena_root, _box(top_size), Vector3(center.x, floor_y + 1.0 + top_size.y * 0.5, center.y - 0.12), _material(crate_tints[cluster_index % crate_tints.size()], 0.55, 0.62))
+		if cluster_index < 3:
+			var barrel := CylinderMesh.new()
+			barrel.top_radius = 0.42
+			barrel.bottom_radius = 0.42
+			barrel.height = 1.1
+			var barrel_color := Color("#4a2e22") if cluster_index == 1 else Color("#1e2833")
+			_add_mesh(arena_root, barrel, Vector3(center.x + 1.15, -0.27, center.y + 0.2), _material(barrel_color, 0.62, 0.5))
 
 
 func _sphere(parent: Node3D, pos: Vector3, radius: float, material: Material) -> MeshInstance3D:
