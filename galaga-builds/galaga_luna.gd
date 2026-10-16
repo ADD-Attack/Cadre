@@ -149,7 +149,7 @@ func _spawn_formation() -> void:
 			var enemy := _make_enemy(kind)
 			enemy.position = Vector3((col - (cols - 1) * 0.5) * 1.65, 2.55 - row * 0.82, 0.1)
 			add_child(enemy)
-			_enemies.append({"node": enemy, "kind": kind, "phase": randf() * TAU, "base_x": enemy.position.x})
+			_enemies.append({"node": enemy, "kind": kind, "phase": randf() * TAU, "base_x": enemy.position.x, "base_y": enemy.position.y})
 
 func _update_enemies(dt: float) -> void:
 	var now := Time.get_ticks_msec() / 1000.0
@@ -158,7 +158,7 @@ func _update_enemies(dt: float) -> void:
 		var enemy: Node3D = data.node
 		data.phase += dt
 		enemy.position.x = data.base_x + sin(data.phase * 0.9 + now * 0.3) * 0.34
-		enemy.position.y -= ENEMY_SPEED * dt * (1.0 + float(_wave - 1) * 0.12)
+		enemy.position.y = data.base_y + sin(data.phase * 0.7 + now * 0.4) * 0.13
 		enemy.rotation.z = sin(data.phase * 2.0) * 0.08
 		_enemies[i] = data
 		if enemy.position.y < PLAYER_Y + 0.7:
