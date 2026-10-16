@@ -41,6 +41,7 @@ var time_level_label: Label
 var score_high_label: Label
 var apples_label: Label
 var combo_label: Label
+var combo_badge: Panel
 var combo_bar_fill: ColorRect
 var progress_fill: ColorRect
 var apple_fruit: MeshInstance3D
@@ -233,8 +234,22 @@ func _build_arena() -> void:
 		_add_mesh(arena_root, _box(Vector3(TILE * 0.84, 0.045, TILE * 0.84)), pos + Vector3(0, 0.86, 0), _glow_material(Color("#266580"), 0.55))
 		_add_mesh(arena_root, _box(Vector3(TILE * 0.7, 0.04, 0.08)), pos + Vector3(0, 0.88, 0), _material(Color("#536c79"), 0.7, 0.25))
 
+	_add_hazard_stripes(span)
 	_build_industrial_details(span)
 	_build_dressing_clusters()
+
+
+func _add_hazard_stripes(span: float) -> void:
+	var stripe_colors := [_material(Color("#b98a1f"), 0.35, 0.6), _material(Color("#11161d"), 0.4, 0.6)]
+	var half := span * 0.5 + 0.03
+	var i := 0
+	var x := -span * 0.5 + 0.35
+	while x < span * 0.5:
+		for edge in [-1, 1]:
+			_add_mesh(arena_root, _box(Vector3(0.62, 0.03, 0.5)), Vector3(x, 1.175, edge * half), stripe_colors[i % 2])
+			_add_mesh(arena_root, _box(Vector3(0.5, 0.03, 0.62)), Vector3(edge * half, 1.175, x), stripe_colors[i % 2])
+		x += 0.72
+		i += 1
 
 
 func _add_frame_trim(width: float, depth: float, base_pos: Vector3) -> void:
@@ -312,6 +327,14 @@ func _build_industrial_details(span: float) -> void:
 	left_room_wash.light_energy = 0.35
 	left_room_wash.omni_range = 26.0
 	arena_root.add_child(left_room_wash)
+	for px in [-8.0, 8.0]:
+		_add_mesh(arena_root, _box(Vector3(1.3, 0.32, 0.18)), Vector3(px, 4.2, -16.6), _glow_material(Color("#ff9a3c"), 1.15))
+		var practical := OmniLight3D.new()
+		practical.position = Vector3(px, 4.2, -15.4)
+		practical.light_color = Color("#ff9a3c")
+		practical.light_energy = 1.0
+		practical.omni_range = 13.0
+		arena_root.add_child(practical)
 	# Alternating hazard-stripe panel on the back wall, kept intentionally dim.
 	for i in range(28):
 		var stripe := _box(Vector3(0.42, 0.9, 0.035))
@@ -358,7 +381,7 @@ func _build_industrial_details(span: float) -> void:
 
 
 func _build_dressing_clusters() -> void:
-	var cluster_centers := [Vector2(-14.0, 14.0), Vector2(14.0, 14.0), Vector2(-14.0, -14.0), Vector2(14.0, -14.0)]
+	var cluster_centers := [Vector2(-11.5, 11.5), Vector2(11.5, 11.5), Vector2(-11.5, -11.5), Vector2(11.5, -11.5)]
 	var crate_tints := [Color("#262e37"), Color("#2c333b"), Color("#232a33")]
 	var floor_y := -0.82
 	for cluster_index in range(cluster_centers.size()):
@@ -407,8 +430,30 @@ func _build_ui() -> void:
 	hud_layer.add_child(time_level_label)
 	score_high_label = _label("SCORE 000000    •    HIGH 000000", 20, Color("#fff0bb"), Vector2(372, 20), Vector2(520, 36), HORIZONTAL_ALIGNMENT_CENTER)
 	hud_layer.add_child(score_high_label)
+	combo_badge = Panel.new()
+	combo_badge.position = Vector2(499, 50)
+	combo_badge.size = Vector2(266, 30)
+	var badge_style := StyleBoxFlat.new()
+	badge_style.bg_color = Color(0.05, 0.17, 0.11, 0.95)
+	badge_style.border_color = Color("#2fae62")
+	badge_style.set_border_width_all(1)
+	badge_style.set_corner_radius_all(15)
+	combo_badge.add_theme_stylebox_override("panel", badge_style)
+	hud_layer.add_child(combo_badge)
 	combo_label = _label("COMBO x2  •  4.0s", 17, Color("#7dffb6"), Vector2(372, 53), Vector2(520, 25), HORIZONTAL_ALIGNMENT_CENTER)
 	hud_layer.add_child(combo_label)
+	var pill := Panel.new()
+	pill.position = Vector2(470, 100)
+	pill.size = Vector2(340, 30)
+	var pill_style := StyleBoxFlat.new()
+	pill_style.bg_color = Color(0.03, 0.08, 0.12, 0.92)
+	pill_style.border_color = Color("#c9a227")
+	pill_style.set_border_width_all(1)
+	pill_style.set_corner_radius_all(15)
+	pill.add_theme_stylebox_override("panel", pill_style)
+	hud_layer.add_child(pill)
+	var pill_label := _label("OBJECTIVE — COLLECT 15 APPLES", 14, Color("#ffe59a"), Vector2(470, 104), Vector2(340, 22), HORIZONTAL_ALIGNMENT_CENTER)
+	hud_layer.add_child(pill_label)
 	hud_label = score_high_label # Preserve the Wave 1 public HUD reference.
 	var apple_text := _label("APPLES 00/15   •   0%", 17, Color("#ffe59a"), Vector2(936, 14), Vector2(310, 28), HORIZONTAL_ALIGNMENT_CENTER)
 	hud_layer.add_child(apple_text)
@@ -502,11 +547,16 @@ class SnakeMinimap extends Control:
 				draw_circle(pos, 2.6, Color("#46FF5E"))
 
 
-func _panel(pos: Vector2, size: Vector2) -> ColorRect:
-	var panel := ColorRect.new()
+func _panel(pos: Vector2, size: Vector2) -> Panel:
+	var panel := Panel.new()
 	panel.position = pos
 	panel.size = size
-	panel.color = Color(0.06, 0.11, 0.15, 0.94)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.05, 0.10, 0.14, 0.95)
+	style.border_color = Color("#1d5b74")
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(6)
+	panel.add_theme_stylebox_override("panel", style)
 	return panel
 
 func _start_game() -> void:
@@ -662,8 +712,8 @@ func _render_snake() -> void:
 		var is_head := i == 0
 		if is_head:
 			var head_mesh := SphereMesh.new()
-			head_mesh.radius = 0.42
-			head_mesh.height = 0.84
+			head_mesh.radius = 0.48
+			head_mesh.height = 0.96
 			var head_material := _material(Color("#5a6e82"), 0.6, 0.34)
 			var head := _add_mesh(snake_root, head_mesh, at + Vector3(0, 0.54, 0), head_material)
 			var head_axis := Vector3(direction.x, 0, direction.y).normalized()
@@ -677,9 +727,10 @@ func _render_snake() -> void:
 			var jaw := _add_mesh(snake_root, jaw_mesh, at + Vector3(0, 0.25, 0) + forward * 0.31, _material(Color("#263544"), 0.75, 0.36))
 			jaw.rotation.y = atan2(direction.x, direction.y)
 			for sign in [-1.0, 1.0]:
-				var eye_pos: Vector3 = at + Vector3(0, 0.79, 0) + forward * 0.31 + side * 0.2 * sign
-				_sphere(snake_root, eye_pos, 0.12, _glow_material(Color("#7CFF6B"), 3.0))
-				_sphere(snake_root, eye_pos + forward * 0.075, 0.055, _material(Color("#0c1714"), 0.5, 0.25))
+				var eye_pos: Vector3 = at + Vector3(0, 0.82, 0) + forward * 0.33 + side * 0.21 * sign
+				var eye := _sphere(snake_root, eye_pos, 0.115, _glow_material(Color("#00e065"), 1.35))
+				eye.scale = Vector3(1.5, 0.42, 0.8)
+				eye.rotation.y = atan2(direction.x, direction.y)
 		else:
 			var prev_cell: Vector2i = snake[maxi(0, i - 1)]
 			var next_cell: Vector2i = snake[mini(snake.size() - 1, i + 1)]
@@ -687,8 +738,8 @@ func _render_snake() -> void:
 			if tangent.length_squared() < 0.5:
 				tangent = Vector3(direction.x, 0, direction.y).normalized()
 			var cylinder := CylinderMesh.new()
-			cylinder.top_radius = 0.39
-			cylinder.bottom_radius = 0.39
+			cylinder.top_radius = 0.44
+			cylinder.bottom_radius = 0.44
 			cylinder.height = 0.93
 			cylinder.radial_segments = 16
 			var body_material := _material(Color("#74879c"), 0.55, 0.38)
@@ -698,9 +749,9 @@ func _render_snake() -> void:
 			var body := _add_mesh(snake_root, cylinder, at + Vector3(0, 0.4, 0), body_material)
 			body.basis = Basis(Quaternion(Vector3.UP, tangent))
 			var ring := CylinderMesh.new()
-			ring.top_radius = 0.415
-			ring.bottom_radius = 0.415
-			ring.height = 0.16
+			ring.top_radius = 0.465
+			ring.bottom_radius = 0.465
+			ring.height = 0.18
 			ring.radial_segments = 16
 			var ring_node := _add_mesh(snake_root, ring, at + Vector3(0, 0.4, 0) - tangent * (TILE * 0.30), _glow_material(Color("#00C864"), 1.0))
 			ring_node.basis = Basis(Quaternion(Vector3.UP, tangent))
@@ -742,6 +793,7 @@ func _update_hud() -> void:
 	progress_fill.size.x = 288.0 * float(apples) / float(APPLES_TO_LEVEL)
 	var remaining := maxf(0.0, 4.0 - (elapsed - last_apple_time))
 	combo_label.visible = state == "playing" and combo >= 2 and remaining > 0.0
+	combo_badge.visible = combo_label.visible
 	combo_bar_fill.visible = combo_label.visible
 	combo_label.text = "COMBO  x%d     •     %.1fs" % [combo, remaining]
 	combo_bar_fill.size.x = 264.0 * remaining / 4.0
