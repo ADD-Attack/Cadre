@@ -9,7 +9,7 @@ const HIGH_SCORE_PATH := "user://highscore.cfg"
 const CYAN := Color("#13d9ff")
 const GREEN := Color("#7dff76")
 const GOLD := Color("#ffc83d")
-const BG := Color("#071321")
+const BG := Color("#05090f")
 
 var rng := RandomNumberGenerator.new()
 var snake: Array[Vector2i] = []
@@ -46,6 +46,7 @@ var combo_bar_fill: ColorRect
 var progress_fill: ColorRect
 var apple_fruit: MeshInstance3D
 var warning_lights: Array[MeshInstance3D] = []
+var minimap: SnakeMinimap
 var objective_label: Label
 var pause_label: Label
 var hud_layer: CanvasLayer
@@ -81,6 +82,8 @@ func _process(delta: float) -> void:
 	for i in range(warning_lights.size()):
 		warning_lights[i].scale = Vector3.ONE * (0.8 + 0.35 * (0.5 + 0.5 * sin(elapsed * 2.4 + float(i))))
 	_update_hud()
+	if minimap != null:
+		minimap.update_state(snake, apple)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -116,19 +119,22 @@ func _build_world() -> void:
 	environment.background_mode = Environment.BG_COLOR
 	environment.background_color = BG
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color("#a1c4dc")
-	environment.ambient_light_energy = 1.15
-	environment.fog_enabled = true
-	environment.fog_light_color = Color("#789bad")
-	environment.fog_density = 0.0035
+	environment.ambient_light_color = Color("#2a3c50")
+	environment.ambient_light_energy = 0.35
+	environment.fog_enabled = false
 	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	environment.tonemap_exposure = 1.0
+	environment.glow_enabled = true
+	environment.glow_intensity = 0.6
+	environment.glow_strength = 1.1
+	environment.glow_hdr_threshold = 0.55
 	world.environment = environment
 	add_child(world)
 
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-52, -28, 0)
-	sun.light_color = Color("#c5e9ff")
-	sun.light_energy = 1.8
+	sun.light_color = Color("#bfe3ff")
+	sun.light_energy = 0.7
 	sun.shadow_enabled = true
 	add_child(sun)
 
@@ -155,37 +161,37 @@ func _build_world() -> void:
 func _build_arena() -> void:
 	var floor_mesh := BoxMesh.new()
 	floor_mesh.size = Vector3(GRID_SIZE * TILE, 0.25, GRID_SIZE * TILE)
-	_add_mesh(arena_root, floor_mesh, Vector3(0, -0.2, 0), _material(Color("#30495d"), 0.65, 0.4))
+	_add_mesh(arena_root, floor_mesh, Vector3(0, -0.2, 0), _material(Color("#141e29"), 0.85, 0.38))
 	var under_mesh := BoxMesh.new()
 	under_mesh.size = Vector3(GRID_SIZE * TILE + 1.0, 0.45, GRID_SIZE * TILE + 1.0)
-	_add_mesh(arena_root, under_mesh, Vector3(0, -0.58, 0), _material(Color("#142638"), 0.55, 0.6))
+	_add_mesh(arena_root, under_mesh, Vector3(0, -0.58, 0), _material(Color("#09111a"), 0.72, 0.55))
 	# Fine metal grid lines and luminous perimeter inlays.
 	for i in range(GRID_SIZE + 1):
 		var offset := (float(i) - CENTER) * TILE - TILE * 0.5
 		var line_mesh := BoxMesh.new()
 		line_mesh.size = Vector3(0.018, 0.014, GRID_SIZE * TILE)
-		_add_mesh(arena_root, line_mesh, Vector3(offset, -0.064, 0), _glow_material(Color("#54819a"), 0.48))
+		_add_mesh(arena_root, line_mesh, Vector3(offset, -0.064, 0), _glow_material(Color("#0e5566"), 0.6))
 		var cross_mesh := BoxMesh.new()
 		cross_mesh.size = Vector3(GRID_SIZE * TILE, 0.014, 0.018)
-		_add_mesh(arena_root, cross_mesh, Vector3(0, -0.064, offset), _glow_material(Color("#54819a"), 0.48))
+		_add_mesh(arena_root, cross_mesh, Vector3(0, -0.064, offset), _glow_material(Color("#0e5566"), 0.6))
 	var span := GRID_SIZE * TILE
 	for edge in [-1, 1]:
 		var wall := BoxMesh.new()
 		wall.size = Vector3(span + 0.48, 1.25, 0.42)
-		_add_mesh(arena_root, wall, Vector3(0, 0.5, edge * (span * 0.5 + 0.03)), _material(Color("#29485f"), 0.42, 0.38))
-		_add_mesh(arena_root, _box(Vector3(span + 0.52, 0.055, 0.48)), Vector3(0, 1.15, edge * (span * 0.5 + 0.03)), _glow_material(CYAN, 4.0))
+		_add_mesh(arena_root, wall, Vector3(0, 0.5, edge * (span * 0.5 + 0.03)), _material(Color("#0d1620"), 0.7, 0.45))
+		_add_mesh(arena_root, _box(Vector3(span + 0.52, 0.055, 0.48)), Vector3(0, 1.15, edge * (span * 0.5 + 0.03)), _glow_material(CYAN, 3.2))
 		var side_wall := BoxMesh.new()
 		side_wall.size = Vector3(0.42, 1.25, span + 0.48)
-		_add_mesh(arena_root, side_wall, Vector3(edge * (span * 0.5 + 0.03), 0.5, 0), _material(Color("#29485f"), 0.42, 0.38))
-		_add_mesh(arena_root, _box(Vector3(0.48, 0.055, span + 0.52)), Vector3(edge * (span * 0.5 + 0.03), 1.15, 0), _glow_material(CYAN, 4.0))
+		_add_mesh(arena_root, side_wall, Vector3(edge * (span * 0.5 + 0.03), 0.5, 0), _material(Color("#0d1620"), 0.7, 0.45))
+		_add_mesh(arena_root, _box(Vector3(0.48, 0.055, span + 0.52)), Vector3(edge * (span * 0.5 + 0.03), 1.15, 0), _glow_material(CYAN, 3.2))
 	# Eight fixed crates leave a generous opening around the spawn lane.
 	obstacles = [Vector2i(-5, -4), Vector2i(-5, -3), Vector2i(5, -4), Vector2i(5, -3), Vector2i(-5, 4), Vector2i(-5, 5), Vector2i(5, 4), Vector2i(5, 5)]
 	for cell in obstacles:
 		var crate := BoxMesh.new()
 		crate.size = Vector3(TILE * 0.82, 0.82, TILE * 0.82)
 		var pos := _cell_to_world(cell)
-		_add_mesh(arena_root, crate, pos + Vector3(0, 0.43, 0), _material(Color("#526778"), 0.72, 0.3))
-		_add_mesh(arena_root, _box(Vector3(TILE * 0.84, 0.045, TILE * 0.84)), pos + Vector3(0, 0.86, 0), _glow_material(Color("#36a0bd"), 1.8))
+		_add_mesh(arena_root, crate, pos + Vector3(0, 0.43, 0), _material(Color("#1a2634"), 0.8, 0.3))
+		_add_mesh(arena_root, _box(Vector3(TILE * 0.84, 0.045, TILE * 0.84)), pos + Vector3(0, 0.86, 0), _glow_material(Color("#266580"), 0.7))
 		_add_mesh(arena_root, _box(Vector3(TILE * 0.7, 0.04, 0.08)), pos + Vector3(0, 0.88, 0), _material(Color("#536c79"), 0.7, 0.25))
 
 	_build_industrial_details(span)
@@ -195,17 +201,17 @@ func _build_industrial_details(span: float) -> void:
 	# Alternating hazard bands across the inside face of the four arena walls.
 	for edge in [-1.0, 1.0]:
 		for i in range(19):
-			var stripe_color := Color("#ffd34e") if i % 2 == 0 else Color("#18232d")
+			var stripe_color := Color("#d8a012") if i % 2 == 0 else Color("#0a0a0a")
 			var x := -10.2 + float(i) * 1.14
-			_add_mesh(arena_root, _box(Vector3(0.55, 0.09, 0.035)), Vector3(x, 0.96, edge * 10.12), _material(stripe_color, 0.3, 0.45))
-			_add_mesh(arena_root, _box(Vector3(0.035, 0.09, 0.55)), Vector3(edge * 10.12, 0.96, x), _material(stripe_color, 0.3, 0.45))
+			_add_mesh(arena_root, _box(Vector3(0.55, 0.09, 0.035)), Vector3(x, 0.02, edge * 10.01), _material(stripe_color, 0.3, 0.45))
+			_add_mesh(arena_root, _box(Vector3(0.035, 0.09, 0.55)), Vector3(edge * 10.01, 0.02, x), _material(stripe_color, 0.3, 0.45))
 	# Pipe runs and industrial drums sit beyond the playable wall.
 	for side in [-1.0, 1.0]:
 		var pipe_mesh := CylinderMesh.new()
 		pipe_mesh.top_radius = 0.105
 		pipe_mesh.bottom_radius = 0.105
 		pipe_mesh.height = span - 2.0
-		var pipe := _add_mesh(arena_root, pipe_mesh, Vector3(side * 11.2, 0.18, 0), _material(Color("#546c7c"), 0.75, 0.32))
+		var pipe := _add_mesh(arena_root, pipe_mesh, Vector3(side * 11.2, 0.18, 0), _material(Color("#131c26"), 0.86, 0.34))
 		pipe.rotation.x = PI / 2.0
 		for z in [-6.0, 0.0, 6.0]:
 			var barrel_mesh := CylinderMesh.new()
@@ -213,22 +219,22 @@ func _build_industrial_details(span: float) -> void:
 			barrel_mesh.bottom_radius = 0.43
 			barrel_mesh.height = 1.05
 			var barrel_x: float = side * 11.65
-			_add_mesh(arena_root, barrel_mesh, Vector3(barrel_x, 0.52, z), _material(Color("#526879"), 0.72, 0.35))
+			_add_mesh(arena_root, barrel_mesh, Vector3(barrel_x, 0.52, z), _material(Color("#131c26"), 0.86, 0.34))
 			var band := TorusMesh.new()
 			band.inner_radius = 0.36
 			band.outer_radius = 0.42
-			var band_node := _add_mesh(arena_root, band, Vector3(barrel_x, 0.52, z), _material(Color("#899ba5"), 0.8, 0.28))
+			var band_node := _add_mesh(arena_root, band, Vector3(barrel_x, 0.52, z), _material(Color("#202a34"), 0.88, 0.3))
 			band_node.rotation.x = PI / 2.0
 	# Red beacons identify the four wall corners.
 	for x in [-10.35, 10.35]:
 		for z in [-10.35, 10.35]:
-			var beacon := _sphere(arena_root, Vector3(x, 1.42, z), 0.13, _glow_material(Color("#ff334a"), 2.8))
+			var beacon := _sphere(arena_root, Vector3(x, 1.42, z), 0.13, _glow_material(Color("#ff2a1e"), 3.0))
 			warning_lights.append(beacon)
 			var point := OmniLight3D.new()
 			point.position = Vector3(x, 1.4, z)
-			point.light_color = Color("#ff304a")
-			point.light_energy = 1.3
-			point.omni_range = 2.8
+			point.light_color = Color("#ff2a1e")
+			point.light_energy = 0.8
+			point.omni_range = 2.5
 			arena_root.add_child(point)
 
 
@@ -306,6 +312,42 @@ func _build_ui() -> void:
 	pause_label = _label("PAUSED", 46, Color("#eaf8ff"), Vector2(0, 306), Vector2(1280, 64), HORIZONTAL_ALIGNMENT_CENTER)
 	pause_label.visible = false
 	hud_layer.add_child(pause_label)
+	minimap = SnakeMinimap.new()
+	minimap.name = "MAP"
+	minimap.position = Vector2(1090, 514)
+	minimap.size = Vector2(166, 132)
+	minimap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud_layer.add_child(minimap)
+
+
+class SnakeMinimap extends Control:
+	var cells: Array[Vector2i] = []
+	var food := Vector2i.ZERO
+
+	func update_state(source: Array[Vector2i], apple_cell: Vector2i) -> void:
+		cells = source.duplicate()
+		food = apple_cell
+		queue_redraw()
+
+	func _draw() -> void:
+		draw_rect(Rect2(Vector2.ZERO, size), Color("#08111a"))
+		draw_rect(Rect2(Vector2.ONE, size - Vector2(2, 2)), Color("#0d1822"))
+		draw_string(get_theme_default_font(), Vector2(9, 17), "MAP", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color("#72b7c8"))
+		var bounds := Rect2(9, 24, size.x - 18, size.y - 32)
+		var cell_size := bounds.size / 17.0
+		draw_rect(bounds, Color("#101c27"))
+		for i in range(18):
+			var offset := float(i) * cell_size.x
+			draw_line(bounds.position + Vector2(offset, 0), bounds.position + Vector2(offset, bounds.size.y), Color(0.12, 0.29, 0.35, 0.45), 0.6)
+			offset = float(i) * cell_size.y
+			draw_line(bounds.position + Vector2(0, offset), bounds.position + Vector2(bounds.size.x, offset), Color(0.12, 0.29, 0.35, 0.45), 0.6)
+		draw_rect(bounds, Color("#315061"), false, 1.0)
+		var apple_pos := bounds.position + (Vector2(food.x + 8.5, food.y + 8.5)) * cell_size
+		draw_circle(apple_pos, 2.8, Color("#ffb300"))
+		for i in range(cells.size() - 1, -1, -1):
+			var cell := cells[i]
+			var pos := bounds.position + Vector2(cell.x + 8.5, cell.y + 8.5) * cell_size
+			draw_circle(pos, 2.7 if i == 0 else 1.9, Color("#46ff5e") if i == 0 else Color("#92d85b"))
 
 
 func _panel(pos: Vector2, size: Vector2) -> ColorRect:
@@ -398,17 +440,18 @@ func _spawn_apple() -> void:
 	var pedestal := CylinderMesh.new()
 	pedestal.top_radius = 0.31
 	pedestal.bottom_radius = 0.4
+	pedestal.radial_segments = 6
 	pedestal.height = 0.16
-	_add_mesh(apple_root, pedestal, at + Vector3(0, 0.08, 0), _material(Color("#596776"), 0.82, 0.27))
+	_add_mesh(apple_root, pedestal, at + Vector3(0, 0.08, 0), _material(Color("#10161d"), 0.82, 0.3))
 	var pedestal_ring := TorusMesh.new()
 	pedestal_ring.inner_radius = 0.29
 	pedestal_ring.outer_radius = 0.36
-	var pedestal_ring_node := _add_mesh(apple_root, pedestal_ring, at + Vector3(0, 0.17, 0), _glow_material(GOLD, 3.8))
+	var pedestal_ring_node := _add_mesh(apple_root, pedestal_ring, at + Vector3(0, 0.17, 0), _glow_material(CYAN, 2.2))
 	pedestal_ring_node.rotation.x = PI / 2.0
 	var fruit := SphereMesh.new()
 	fruit.radius = 0.32
 	fruit.height = 0.64
-	apple_fruit = _add_mesh(apple_root, fruit, at + Vector3(0, 0.48, 0), _glow_material(GOLD, 4.5))
+	apple_fruit = _add_mesh(apple_root, fruit, at + Vector3(0, 0.48, 0), _glow_material(Color("#ffb300"), 2.6))
 	apple_fruit.name = "AppleFruit"
 	var stem := CylinderMesh.new()
 	stem.top_radius = 0.035
@@ -421,9 +464,9 @@ func _spawn_apple() -> void:
 	_add_mesh(apple_root, leaf, at + Vector3(0.1, 0.87, 0), _material(Color("#71ff88"), 0.3, 0.1))
 	var glow := OmniLight3D.new()
 	glow.position = at + Vector3(0, 0.62, 0)
-	glow.light_color = GOLD
-	glow.light_energy = 2.4
-	glow.omni_range = 3.6
+	glow.light_color = Color("#ffb300")
+	glow.light_energy = 2.0
+	glow.omni_range = 3.5
 	apple_root.add_child(glow)
 
 
@@ -469,7 +512,7 @@ func _render_snake() -> void:
 			var head_mesh := CapsuleMesh.new()
 			head_mesh.radius = 0.43
 			head_mesh.height = 1.0
-			var head := _add_mesh(snake_root, head_mesh, at + Vector3(0, 0.43, 0), _material(Color("#7bbf79"), 0.88, 0.22))
+			var head := _add_mesh(snake_root, head_mesh, at + Vector3(0, 0.43, 0), _material(Color("#1c2833"), 0.9, 0.3))
 			var head_axis := Vector3(direction.x, 0, direction.y).normalized()
 			if head_axis.length_squared() > 0.5:
 				head.basis = Basis(Quaternion(Vector3.UP, head_axis))
@@ -477,8 +520,8 @@ func _render_snake() -> void:
 			var side := Vector3(-direction.y, 0, direction.x).normalized()
 			for sign in [-1.0, 1.0]:
 				var eye_pos: Vector3 = at + Vector3(0, 0.72, 0) + forward * 0.28 + side * 0.2 * sign
-				_sphere(snake_root, eye_pos, 0.125, _material(Color("#f3fff0"), 0.25, 0.18))
-				_sphere(snake_root, eye_pos + forward * 0.075, 0.064, _glow_material(Color("#0c2420"), 0.35))
+				_sphere(snake_root, eye_pos, 0.13, _glow_material(Color("#46ff5e"), 2.5))
+				_sphere(snake_root, eye_pos + forward * 0.075, 0.055, _material(Color("#0c1714"), 0.5, 0.25))
 		else:
 			var prev_cell: Vector2i = snake[maxi(0, i - 1)]
 			var next_cell: Vector2i = snake[mini(snake.size() - 1, i + 1)]
@@ -490,12 +533,12 @@ func _render_snake() -> void:
 			cylinder.bottom_radius = 0.37
 			cylinder.height = 0.93
 			cylinder.radial_segments = 16
-			var body := _add_mesh(snake_root, cylinder, at + Vector3(0, 0.4, 0), _material(Color("#43575b"), 0.94, 0.24))
+			var body := _add_mesh(snake_root, cylinder, at + Vector3(0, 0.4, 0), _material(Color("#1c2833"), 0.9, 0.3))
 			body.basis = Basis(Quaternion(Vector3.UP, tangent))
 			var ring := TorusMesh.new()
 			ring.inner_radius = 0.32
 			ring.outer_radius = 0.405
-			var ring_node := _add_mesh(snake_root, ring, at + Vector3(0, 0.4, 0) + tangent * (TILE * 0.24), _glow_material(GREEN, 3.2))
+			var ring_node := _add_mesh(snake_root, ring, at + Vector3(0, 0.4, 0) + tangent * (TILE * 0.24), _glow_material(Color("#46ff5e"), 3.0))
 			ring_node.basis = Basis(Quaternion(Vector3.BACK, tangent))
 			var spine := _sphere(snake_root, at + Vector3(0, 0.765, 0), 0.115, _glow_material(Color("#c8ff6b"), 1.0))
 			spine.scale = Vector3(1.25, 0.55, 1.0)
