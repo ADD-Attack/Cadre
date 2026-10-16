@@ -125,10 +125,10 @@ func _build_world() -> void:
 	environment.background_mode = Environment.BG_SKY
 	environment.sky = sky
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	environment.ambient_light_sky_contribution = 0.6
-	environment.ambient_light_energy = 0.5
+	environment.ambient_light_sky_contribution = 0.45
+	environment.ambient_light_energy = 0.32
 	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
-	environment.tonemap_exposure = 1.0
+	environment.tonemap_exposure = 0.92
 	environment.glow_enabled = true
 	environment.glow_blend_mode = Environment.GLOW_BLEND_MODE_SCREEN
 	environment.glow_intensity = 0.45
@@ -188,16 +188,14 @@ func _build_arena() -> void:
 	roughness_noise.height = 128
 	roughness_noise.seamless = true
 	roughness_noise.noise = surface_noise
-	var exterior_material := _material(Color("#8a97a5"), 0.35, 0.55)
+	var exterior_material := _material(Color("#2a3644"), 0.15, 0.75)
 	exterior_material.albedo_texture = floor_texture
-	exterior_material.uv1_scale = Vector3(5.0, 5.0, 1.0)
-	exterior_material.roughness_texture = roughness_noise
+	exterior_material.uv1_scale = Vector3(9.0, 9.0, 1.0)
 	var exterior_floor := _box(Vector3(70.0, 0.12, 70.0))
 	_add_mesh(arena_root, exterior_floor, Vector3(0, -0.82, 0), exterior_material)
-	var floor_material := _material(Color("#5e6e7e"), 0.85, 0.38)
+	var floor_material := _material(Color("#42536a"), 0.25, 0.52)
 	floor_material.albedo_texture = floor_texture
-	floor_material.uv1_scale = Vector3(4.0, 4.0, 1.0)
-	floor_material.roughness_texture = roughness_noise
+	floor_material.uv1_scale = Vector3(7.0, 7.0, 1.0)
 	var floor_mesh := BoxMesh.new()
 	floor_mesh.size = Vector3(GRID_SIZE * TILE, 0.25, GRID_SIZE * TILE)
 	_add_mesh(arena_root, floor_mesh, Vector3(0, -0.2, 0), floor_material)
@@ -209,10 +207,10 @@ func _build_arena() -> void:
 		var offset := (float(i) - CENTER) * TILE - TILE * 0.5
 		var line_mesh := BoxMesh.new()
 		line_mesh.size = Vector3(0.05, 0.014, GRID_SIZE * TILE)
-		_add_mesh(arena_root, line_mesh, Vector3(offset, -0.064, 0), _glow_material(Color("#0e5566"), 0.45))
+		_add_mesh(arena_root, line_mesh, Vector3(offset, -0.064, 0), _glow_material(Color("#0e5566"), 0.32))
 		var cross_mesh := BoxMesh.new()
 		cross_mesh.size = Vector3(GRID_SIZE * TILE, 0.014, 0.05)
-		_add_mesh(arena_root, cross_mesh, Vector3(0, -0.064, offset), _glow_material(Color("#0e5566"), 0.45))
+		_add_mesh(arena_root, cross_mesh, Vector3(0, -0.064, offset), _glow_material(Color("#0e5566"), 0.32))
 	var span := GRID_SIZE * TILE
 	for edge in [-1, 1]:
 		var wall := BoxMesh.new()
@@ -252,7 +250,7 @@ func _build_industrial_details(span: float) -> void:
 	var wall_texture := load("res://assets/tex-wall.png") as Texture2D
 	var room_material := _material(Color("#7e8fa0"), 0.3, 0.6)
 	room_material.albedo_texture = wall_texture
-	room_material.uv1_scale = Vector3(3.0, 1.0, 1.0)
+	room_material.uv1_scale = Vector3(6.0, 2.0, 1.0)
 	var room_height := 14.0
 	var wall_center_y := 6.18
 	var back_wall := _box(Vector3(45.0, room_height, 0.55))
@@ -295,7 +293,7 @@ func _build_industrial_details(span: float) -> void:
 	var wall_wash := OmniLight3D.new()
 	wall_wash.position = Vector3(0, 5.2, -15.2)
 	wall_wash.light_color = Color("#2FB9D8")
-	wall_wash.light_energy = 0.9
+	wall_wash.light_energy = 0.65
 	wall_wash.omni_range = 20.0
 	arena_root.add_child(wall_wash)
 	# Three amber practicals cast individual light pools across the room.
@@ -311,7 +309,7 @@ func _build_industrial_details(span: float) -> void:
 	var left_room_wash := OmniLight3D.new()
 	left_room_wash.position = Vector3(-13.0, 10.5, 0.0)
 	left_room_wash.light_color = Color("#33506B")
-	left_room_wash.light_energy = 0.5
+	left_room_wash.light_energy = 0.35
 	left_room_wash.omni_range = 26.0
 	arena_root.add_child(left_room_wash)
 	# Alternating hazard-stripe panel on the back wall, kept intentionally dim.
@@ -666,10 +664,7 @@ func _render_snake() -> void:
 			var head_mesh := SphereMesh.new()
 			head_mesh.radius = 0.42
 			head_mesh.height = 0.84
-			var head_material := _material(Color("#66798b"), 0.45, 0.35)
-			head_material.emission_enabled = true
-			head_material.emission = Color("#1E5C2E")
-			head_material.emission_energy_multiplier = 0.3
+			var head_material := _material(Color("#5a6e82"), 0.6, 0.34)
 			var head := _add_mesh(snake_root, head_mesh, at + Vector3(0, 0.54, 0), head_material)
 			var head_axis := Vector3(direction.x, 0, direction.y).normalized()
 			if head_axis.length_squared() > 0.5:
@@ -696,14 +691,19 @@ func _render_snake() -> void:
 			cylinder.bottom_radius = 0.39
 			cylinder.height = 0.93
 			cylinder.radial_segments = 16
-			var body_material := _material(Color("#54687e"), 0.85, 0.28)
+			var body_material := _material(Color("#74879c"), 0.55, 0.38)
+			body_material.emission_enabled = true
+			body_material.emission = Color("#22384c")
+			body_material.emission_energy_multiplier = 0.25
 			var body := _add_mesh(snake_root, cylinder, at + Vector3(0, 0.4, 0), body_material)
 			body.basis = Basis(Quaternion(Vector3.UP, tangent))
-			var ring := TorusMesh.new()
-			ring.inner_radius = 0.275
-			ring.outer_radius = 0.325
-			var ring_node := _add_mesh(snake_root, ring, at + Vector3(0, 0.4, 0) - tangent * (TILE * 0.24), _glow_material(Color("#46FF5E"), 2.1))
-			ring_node.basis = Basis(Quaternion(Vector3.BACK, tangent))
+			var ring := CylinderMesh.new()
+			ring.top_radius = 0.415
+			ring.bottom_radius = 0.415
+			ring.height = 0.16
+			ring.radial_segments = 16
+			var ring_node := _add_mesh(snake_root, ring, at + Vector3(0, 0.4, 0) - tangent * (TILE * 0.30), _glow_material(Color("#00C864"), 1.0))
+			ring_node.basis = Basis(Quaternion(Vector3.UP, tangent))
 			var spine := _sphere(snake_root, at + Vector3(0, 0.765, 0), 0.115, _glow_material(Color("#c8ff6b"), 1.0))
 			spine.scale = Vector3(1.25, 0.55, 1.0)
 
