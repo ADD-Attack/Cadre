@@ -119,6 +119,25 @@ func _sphere(parent: Node3D, position: Vector3, radius: float, color: Color, emi
 	mesh.rings = 6
 	return _mesh(parent, mesh, position, color, emissive)
 
+func _wing(parent: Node3D, side: float) -> void:
+	# A closed triangular prism gives the fighter a swept, genuinely 3D silhouette.
+	var points := PackedVector3Array([
+		Vector3(side * 0.22, 0.45, 0.08),
+		Vector3(side * 1.12, -0.50, 0.08),
+		Vector3(side * 0.22, -0.65, 0.08),
+		Vector3(side * 0.22, 0.45, -0.12),
+		Vector3(side * 1.12, -0.50, -0.12),
+		Vector3(side * 0.22, -0.65, -0.12)
+	])
+	var surface := SurfaceTool.new()
+	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for index in [0, 1, 2, 5, 4, 3, 0, 3, 4, 0, 4, 1, 1, 4, 5, 1, 5, 2, 2, 5, 3, 2, 3, 0]:
+		surface.add_vertex(points[index])
+	surface.generate_normals()
+	var wing := _mesh(parent, surface.commit(), Vector3.ZERO, Color("247ad0"))
+	# Mirrored geometry reverses winding; both sides should remain visible.
+	wing.material_override.cull_mode = BaseMaterial3D.CULL_DISABLED
+
 func _build_ship() -> void:
 	ship = Node3D.new()
 	ship.name = "PlayerShip"
@@ -134,8 +153,7 @@ func _build_ship() -> void:
 	var canopy := _sphere(ship, Vector3(0, 0.25, 0.33), 0.29, Color("38d9ed"))
 	canopy.scale = Vector3(0.75, 1.45, 0.7)
 	for side in [-1.0, 1.0]:
-		var wing := _box(ship, Vector3(side * 0.7, -0.35, 0), Vector3(1.1, 0.55, 0.16), Color("247ad0"))
-		wing.rotation.z = side * 0.35
+		_wing(ship, side)
 		_box(ship, Vector3(side * 1.12, -0.13, 0.05), Vector3(0.15, 0.7, 0.24), Color("eef7ff"))
 		var engine := _sphere(ship, Vector3(side * 0.27, -1.0, 0), 0.17, Color("54dcff"), true)
 		engines.append(engine)
@@ -186,7 +204,7 @@ func _build_hud() -> void:
 		rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		root.add_child(rule)
 	var controls := Label.new()
-	controls.text = "ARROWS / WASD  move     SPACE  fire"
+	controls.text = "ARROW KEYS  move     /     HOLD SPACE  fire"
 	controls.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	controls.position = Vector2(24, -36)
 	controls.add_theme_font_size_override("font_size", 16)
@@ -254,6 +272,7 @@ func _process(delta: float) -> void:
 		engine.scale = Vector3(1, 1.5 + sin(elapsed * 40.0) * 0.4, 1)
 	fire_timer -= delta
 	muzzle.visible = fire_timer > 0.10
+	muzzle.scale = Vector3.ONE * (0.6 + maxf(fire_timer, 0.0) * 4.0)
 	if Input.is_key_pressed(KEY_SPACE) and fire_timer <= 0.0:
 		_fire()
 	for enemy in enemies:
