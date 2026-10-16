@@ -118,7 +118,7 @@ func _build_world() -> void:
 	var environment := Environment.new()
 	var sky_material := ProceduralSkyMaterial.new()
 	sky_material.sky_top_color = Color("#0A1420")
-	sky_material.sky_horizon_color = Color("#132A42")
+	sky_material.sky_horizon_color = Color("#1B3A58")
 	sky_material.ground_bottom_color = Color("#030507")
 	sky_material.ground_horizon_color = Color("#060A10")
 	var sky := Sky.new()
@@ -126,8 +126,9 @@ func _build_world() -> void:
 	environment.background_mode = Environment.BG_SKY
 	environment.sky = sky
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	environment.ambient_light_sky_contribution = 0.45
-	environment.ambient_light_energy = 0.32
+	environment.ambient_light_sky_contribution = 0.55
+	environment.ambient_light_energy = 0.5
+	environment.background_energy_multiplier = 1.35
 	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
 	environment.tonemap_exposure = 0.92
 	environment.glow_enabled = true
@@ -136,8 +137,8 @@ func _build_world() -> void:
 	environment.glow_strength = 1.0
 	environment.glow_hdr_threshold = 0.9
 	environment.fog_enabled = true
-	environment.fog_light_color = Color("#0a1420")
-	environment.fog_density = 0.012
+	environment.fog_light_color = Color("#10222F")
+	environment.fog_density = 0.02
 	environment.fog_sky_affect = 0.25
 	environment.ssao_enabled = true
 	world.environment = environment
@@ -164,7 +165,7 @@ func _build_world() -> void:
 	camera.current = true
 	camera.fov = 33.7
 	add_child(camera)
-	camera.look_at(Vector3.ZERO, Vector3.UP)
+	camera.look_at(Vector3(0, 1.5, 0), Vector3.UP)
 
 	arena_root = Node3D.new()
 	arena_root.name = "Arena"
@@ -189,12 +190,12 @@ func _build_arena() -> void:
 	roughness_noise.height = 128
 	roughness_noise.seamless = true
 	roughness_noise.noise = surface_noise
-	var exterior_material := _material(Color("#2a3644"), 0.15, 0.75)
+	var exterior_material := _material(Color("#33445A"), 0.15, 0.68)
 	exterior_material.albedo_texture = floor_texture
 	exterior_material.uv1_scale = Vector3(9.0, 9.0, 1.0)
 	var exterior_floor := _box(Vector3(70.0, 0.12, 70.0))
 	_add_mesh(arena_root, exterior_floor, Vector3(0, -0.82, 0), exterior_material)
-	var floor_material := _material(Color("#42536a"), 0.25, 0.52)
+	var floor_material := _material(Color("#546C88"), 0.3, 0.44)
 	floor_material.albedo_texture = floor_texture
 	floor_material.uv1_scale = Vector3(7.0, 7.0, 1.0)
 	var floor_mesh := BoxMesh.new()
@@ -305,12 +306,36 @@ func _build_industrial_details(span: float) -> void:
 	high_run_node.rotation.z = PI / 2.0
 	for y in [1.0, 8.4]:
 		_add_mesh(arena_root, _box(Vector3(27.0, 0.045, 0.035)), Vector3(0, y, -16.68), _glow_material(Color("#2FB9D8"), 1.6))
+	# Horizon strip light at the top of the camera-visible wall slice (y~1.9).
+	_add_mesh(arena_root, _box(Vector3(30.0, 0.12, 0.06)), Vector3(0, 1.85, -16.68), _glow_material(Color("#2FB9D8"), 1.2))
+	# Lit windows inside the camera-visible wall slice (bottom ~2m of the wall).
+	var window_mats := [_glow_material(Color("#2FB9D8"), 0.85), _glow_material(Color("#FFB347"), 0.85)]
+	var wi := 0
+	for row_y in [0.85, 1.55]:
+		var wx := -15.0
+		while wx <= 15.0:
+			if (wi + int(row_y * 10.0)) % 4 != 3:
+				_add_mesh(arena_root, _box(Vector3(1.5, 0.45, 0.06)), Vector3(wx, row_y, -16.68), window_mats[wi % 2])
+			wx += 3.0
+			wi += 1
+	var wall_uplight := OmniLight3D.new()
+	wall_uplight.position = Vector3(0, 1.5, -12.5)
+	wall_uplight.light_color = Color("#7FB2D9")
+	wall_uplight.light_energy = 1.2
+	wall_uplight.omni_range = 15.0
+	arena_root.add_child(wall_uplight)
 	var wall_wash := OmniLight3D.new()
 	wall_wash.position = Vector3(0, 5.2, -15.2)
 	wall_wash.light_color = Color("#2FB9D8")
-	wall_wash.light_energy = 0.65
+	wall_wash.light_energy = 1.3
 	wall_wash.omni_range = 20.0
 	arena_root.add_child(wall_wash)
+	var warm_key := OmniLight3D.new()
+	warm_key.position = Vector3(11.0, 12.0, 11.0)
+	warm_key.light_color = Color("#FFB37A")
+	warm_key.light_energy = 1.1
+	warm_key.omni_range = 42.0
+	arena_root.add_child(warm_key)
 	# Three amber practicals cast individual light pools across the room.
 	for x in [-13.0, 0.0, 13.0]:
 		var practical_pos := Vector3(x, 6.0, -16.55)
@@ -742,7 +767,7 @@ func _render_snake() -> void:
 			cylinder.bottom_radius = 0.44
 			cylinder.height = 0.93
 			cylinder.radial_segments = 16
-			var body_material := _material(Color("#74879c"), 0.55, 0.38)
+			var body_material := _material(Color("#74879c"), 0.6, 0.3)
 			body_material.emission_enabled = true
 			body_material.emission = Color("#22384c")
 			body_material.emission_energy_multiplier = 0.25
