@@ -3,4 +3,5 @@
 [ext_resource type="Script" path="galaga_sol.gd" id="1"]
 
 [node name="GalagaSol" type="Node3D"]
+editor_description = "Standalone procedural 3D arcade demo. Arrow keys move; Space fires. Run with GL Compatibility."
 script = ExtResource("1")

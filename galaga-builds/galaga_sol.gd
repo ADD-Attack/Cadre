@@ -15,6 +15,13 @@ var respawn_timer := 0.0
 var rng := RandomNumberGenerator.new()
 
 func _ready() -> void:
+	# Configure the host window at runtime; no project settings are required.
+	var window := get_window()
+	window.size = Vector2i(1152, 648)
+	window.content_scale_size = Vector2i(1152, 648)
+	window.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+	window.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_KEEP
+	window.mode = Window.MODE_FULLSCREEN
 	rng.seed = 61016
 	var camera := Camera3D.new()
 	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
