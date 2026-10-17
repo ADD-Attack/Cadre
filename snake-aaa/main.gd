@@ -198,6 +198,9 @@ func _build_arena() -> void:
 	var floor_material := _material(Color("#546C88"), 0.3, 0.44)
 	floor_material.albedo_texture = floor_texture
 	floor_material.uv1_scale = Vector3(7.0, 7.0, 1.0)
+	floor_material.normal_enabled = true
+	floor_material.normal_texture = load("res://assets/tex-floor-n.png")
+	floor_material.normal_scale = 1.0
 	var floor_mesh := BoxMesh.new()
 	floor_mesh.size = Vector3(GRID_SIZE * TILE, 0.25, GRID_SIZE * TILE)
 	_add_mesh(arena_root, floor_mesh, Vector3(0, -0.2, 0), floor_material)
@@ -267,6 +270,9 @@ func _build_industrial_details(span: float) -> void:
 	var room_material := _material(Color("#7e8fa0"), 0.3, 0.6)
 	room_material.albedo_texture = wall_texture
 	room_material.uv1_scale = Vector3(6.0, 2.0, 1.0)
+	room_material.normal_enabled = true
+	room_material.normal_texture = load("res://assets/tex-wall-n.png")
+	room_material.normal_scale = 1.0
 	var room_height := 14.0
 	var wall_center_y := 6.18
 	var back_wall := _box(Vector3(45.0, room_height, 0.55))
@@ -739,7 +745,12 @@ func _render_snake() -> void:
 			var head_mesh := SphereMesh.new()
 			head_mesh.radius = 0.48
 			head_mesh.height = 0.96
-			var head_material := _material(Color("#5a6e82"), 0.6, 0.34)
+			var head_material := _material(Color("#b9ccdd"), 0.6, 0.34)
+			head_material.albedo_texture = load("res://assets/tex-snake.png")
+			head_material.normal_enabled = true
+			head_material.normal_texture = load("res://assets/tex-snake-n.png")
+			head_material.normal_scale = 1.4
+			head_material.uv1_scale = Vector3(1.5, 0.75, 1.0)
 			var head := _add_mesh(snake_root, head_mesh, at + Vector3(0, 0.54, 0), head_material)
 			var head_axis := Vector3(direction.x, 0, direction.y).normalized()
 			if head_axis.length_squared() > 0.5:
@@ -767,7 +778,12 @@ func _render_snake() -> void:
 			cylinder.bottom_radius = 0.44
 			cylinder.height = 0.93
 			cylinder.radial_segments = 16
-			var body_material := _material(Color("#74879c"), 0.6, 0.3)
+			var body_material := _material(Color("#c7d5e2"), 0.6, 0.3)
+			body_material.albedo_texture = load("res://assets/tex-snake.png")
+			body_material.normal_enabled = true
+			body_material.normal_texture = load("res://assets/tex-snake-n.png")
+			body_material.normal_scale = 1.4
+			body_material.uv1_scale = Vector3(1.0, 0.35, 1.0)
 			body_material.emission_enabled = true
 			body_material.emission = Color("#22384c")
 			body_material.emission_energy_multiplier = 0.25
