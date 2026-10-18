@@ -1,0 +1,16 @@
+{
+  "reference": "\\\\wsl.localhost\\OpenClawGateway\\home\\openclaw\\.openclaw\\workspace-studio-3d\\tickets\\forge-snake-r1\\pkg\\forge-r1-pack\\REFERENCE.png",
+  "sample": "top-right 500x180 clear backdrop",
+  "median_rgb_encoded_0_to_1": [
+    0.760784387588501,
+    0.7647059559822083,
+    0.7529412508010864
+  ],
+  "median_rgb_scaled_255": [
+    194.00001525878906,
+    195.00001525878906,
+    192.00001525878906
+  ],
+  "owner_target": "#C1C1BF",
+  "staging": "inherited matched R1/R2 camera background"
+}

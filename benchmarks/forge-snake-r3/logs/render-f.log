@@ -1,0 +1,114 @@
+Info: No orphaned data-blocks to purge
+R3_RENDER_START PREVIEW-f-full-body.png preview CPU 32
+Blender 4.5.14 LTS (hash 62c1db4208e8 built 2026-09-15 01:33:49)
+Read blend: "\\wsl.localhost\OpenClawGateway\home\openclaw\.openclaw\workspace-studio-3d\tickets\forge-r3\benchmarks\forge-snake-r3\snake-sectional-r3.blend"
+Fra:1 Mem:36.02M (Peak 36.02M) | Time:00:00.00 | Mem:0.00M, Peak:0.00M | Scene, ViewLayer | Synchronizing object | Large neutral key
+Fra:1 Mem:36.02M (Peak 36.02M) | Time:00:00.00 | Mem:0.00M, Peak:0.00M | Scene, ViewLayer | Synchronizing object | Fix2 shadow catcher (staging)
+Fra:1 Mem:36.02M (Peak 36.02M) | Time:00:00.00 | Mem:0.00M, Peak:0.00M | Scene, ViewLayer | Synchronizing object | Segment_00
+Fra:1 Mem:36.02M (Peak 36.02M) | Time:00:00.00 | Mem:0.00M, Peak:0.00M | Scene, ViewLayer | Synchronizing object | Joint_00_Housing
+Fra:1 Mem:36.03M (Peak 36.03M) | Time:00:00.00 | Mem:0.00M, Peak:0.00M | Scene, ViewLayer | Synchronizing object | Tail
+Fra:1 Mem:38.75M (Peak 40.76M) | Time:00:00.01 | Mem:0.00M, Peak:0.00M | Scene, ViewLayer | Initializing
+Fra:1 Mem:38.07M (Peak 40.76M) | Time:00:00.01 | Mem:0.00M, Peak:0.00M | Scene, ViewLayer | Updating Images | Loading R3 head albedo
+Fra:1 Mem:38.07M (Peak 40.76M) | Time:00:00.01 | Mem:0.00M, Peak:0.00M | Scene, ViewLayer | Updating Images | Loading R3 tail ORM
+Fra:1 Mem:150.55M (Peak 198.14M) | Time:00:00.14 | Mem:115.00M, Peak:115.00M | Scene, ViewLayer | Waiting for render to start
+Fra:1 Mem:150.55M (Peak 198.14M) | Time:00:00.14 | Mem:115.00M, Peak:115.00M | Scene, ViewLayer | Updating Scene
+Fra:1 Mem:150.55M (Peak 198.14M) | Time:00:00.14 | Mem:115.00M, Peak:115.00M | Scene, ViewLayer | Updating Shaders
+Fra:1 Mem:150.55M (Peak 198.14M) | Time:00:00.14 | Mem:115.00M, Peak:115.00M | Scene, ViewLayer | Loading render kernels (may take a few minutes the first time)
+Fra:1 Mem:150.64M (Peak 198.14M) | Time:00:00.14 | Mem:115.01M, Peak:115.01M | Scene, ViewLayer | Updating Procedurals
+Fra:1 Mem:150.64M (Peak 198.14M) | Time:00:00.14 | Mem:115.01M, Peak:115.01M | Scene, ViewLayer | Updating Background
+Fra:1 Mem:150.64M (Peak 198.14M) | Time:00:00.14 | Mem:115.01M, Peak:115.01M | Scene, ViewLayer | Updating Camera
+Fra:1 Mem:150.64M (Peak 198.14M) | Time:00:00.14 | Mem:115.01M, Peak:115.01M | Scene, ViewLayer | Updating Meshes Flags
+Fra:1 Mem:150.64M (Peak 198.14M) | Time:00:00.14 | Mem:115.01M, Peak:115.01M | Scene, ViewLayer | Updating Objects
+Fra:1 Mem:150.64M (Peak 198.14M) | Time:00:00.14 | Mem:115.01M, Peak:115.01M | Scene, ViewLayer | Updating Objects | Copying Transformations to device
+Fra:1 Mem:150.67M (Peak 198.14M) | Time:00:00.14 | Mem:115.03M, Peak:115.03M | Scene, ViewLayer | Updating Particle Systems
+Fra:1 Mem:150.67M (Peak 198.14M) | Time:00:00.14 | Mem:115.03M, Peak:115.03M | Scene, ViewLayer | Updating Particle Systems | Copying Particles to device
+Fra:1 Mem:150.67M (Peak 198.14M) | Time:00:00.14 | Mem:115.03M, Peak:115.03M | Scene, ViewLayer | Updating Meshes
+Fra:1 Mem:151.38M (Peak 198.14M) | Time:00:00.15 | Mem:115.03M, Peak:115.03M | Scene, ViewLayer | Updating Objects | Applying Static Transformations
+Fra:1 Mem:151.38M (Peak 198.14M) | Time:00:00.15 | Mem:115.03M, Peak:115.03M | Scene, ViewLayer | Updating Mesh | Computing attributes
+Fra:1 Mem:152.65M (Peak 198.14M) | Time:00:00.15 | Mem:115.03M, Peak:115.03M | Scene, ViewLayer | Updating Mesh | Copying Attributes to device
+Fra:1 Mem:152.64M (Peak 198.14M) | Time:00:00.15 | Mem:116.29M, Peak:116.29M | Scene, ViewLayer | Updating Geometry BVH Recessed housing prototype 4/3 | Building BVH
+Fra:1 Mem:152.64M (Peak 198.14M) | Time:00:00.15 | Mem:116.29M, Peak:116.29M | Scene, ViewLayer | Updating Geometry BVH R2 layered segment 2/3 | Building BVH
+Fra:1 Mem:152.64M (Peak 198.14M) | Time:00:00.15 | Mem:116.34M, Peak:116.34M | Scene, ViewLayer | Updating Geometry BVH R2 layered segment 2/3 | Building BVH 0%
+Fra:1 Mem:152.64M (Peak 198.14M) | Time:00:00.15 | Mem:116.40M, Peak:116.44M | Scene, ViewLayer | Updating Scene BVH | Building
+Fra:1 Mem:152.64M (Peak 198.14M) | Time:00:00.15 | Mem:116.40M, Peak:116.44M | Scene, ViewLayer | Updating Scene BVH | Building BVH
+Fra:1 Mem:152.64M (Peak 198.14M) | Time:00:00.16 | Mem:117.38M, Peak:117.83M | Scene, ViewLayer | Updating Scene BVH | Copying BVH to device
+Fra:1 Mem:152.64M (Peak 198.14M) | Time:00:00.16 | Mem:117.38M, Peak:117.83M | Scene, ViewLayer | Updating Mesh | Computing normals
+Fra:1 Mem:153.70M (Peak 198.14M) | Time:00:00.16 | Mem:117.38M, Peak:117.83M | Scene, ViewLayer | Updating Mesh | Copying Mesh to device
+Fra:1 Mem:153.70M (Peak 198.14M) | Time:00:00.16 | Mem:118.44M, Peak:118.44M | Scene, ViewLayer | Updating Objects Flags
+Fra:1 Mem:153.70M (Peak 198.14M) | Time:00:00.16 | Mem:118.44M, Peak:118.44M | Scene, ViewLayer | Updating Primitive Offsets
+Fra:1 Mem:153.70M (Peak 198.14M) | Time:00:00.16 | Mem:118.44M, Peak:118.44M | Scene, ViewLayer | Updating Images
+Fra:1 Mem:153.70M (Peak 198.14M) | Time:00:00.16 | Mem:118.44M, Peak:118.44M | Scene, ViewLayer | Updating Camera Volume
+Fra:1 Mem:153.70M (Peak 198.14M) | Time:00:00.16 | Mem:118.44M, Peak:118.44M | Scene, ViewLayer | Updating Lookup Tables
+Fra:1 Mem:153.70M (Peak 198.14M) | Time:00:00.16 | Mem:118.52M, Peak:118.52M | Scene, ViewLayer | Updating Lights
+Fra:1 Mem:153.70M (Peak 198.14M) | Time:00:00.16 | Mem:118.52M, Peak:118.52M | Scene, ViewLayer | Updating Lights | Computing tree
+Fra:1 Mem:153.99M (Peak 198.14M) | Time:00:00.16 | Mem:118.81M, Peak:118.81M | Scene, ViewLayer | Updating Integrator
+Fra:1 Mem:153.99M (Peak 198.14M) | Time:00:00.16 | Mem:118.81M, Peak:118.81M | Scene, ViewLayer | Updating Film
+Fra:1 Mem:153.99M (Peak 198.14M) | Time:00:00.16 | Mem:118.73M, Peak:118.81M | Scene, ViewLayer | Updating Lookup Tables
+Fra:1 Mem:153.99M (Peak 198.14M) | Time:00:00.16 | Mem:118.81M, Peak:118.81M | Scene, ViewLayer | Updating Baking
+Fra:1 Mem:153.99M (Peak 198.14M) | Time:00:00.16 | Mem:118.81M, Peak:118.81M | Scene, ViewLayer | Updating Device | Writing constant memory
+Fra:1 Mem:154.00M (Peak 198.14M) | Time:00:00.16 | Mem:118.81M, Peak:118.81M | Scene, ViewLayer | Loading denoising kernels (may take a few minutes the first time)
+Fra:1 Mem:154.00M (Peak 198.14M) | Time:00:00.16 | Mem:118.81M, Peak:118.81M | Scene, ViewLayer | Sample 0/32
+Fra:1 Mem:245.26M (Peak 245.26M) | Time:00:00.60 | Remaining:00:13.58 | Mem:209.95M, Peak:209.95M | Scene, ViewLayer | Sample 1/32
+Fra:1 Mem:268.04M (Peak 302.21M) | Time:00:20.11 | Mem:209.95M, Peak:209.95M | Scene, ViewLayer | Sample 32/32
+Fra:1 Mem:268.04M (Peak 302.21M) | Time:00:20.11 | Mem:209.95M, Peak:209.95M | Scene, ViewLayer | Finished
+Fra:1 Mem:56.15M (Peak 302.21M) | Time:00:20.11 | Compositing
+Saved: '\\wsl.localhost\OpenClawGateway\home\openclaw\.openclaw\workspace-studio-3d\tickets\forge-r3\benchmarks\forge-snake-r3\previews\PREVIEW-f-full-body.png'
+Time: 00:20.46 (Saving: 00:00.30)
+
+R3_RENDER_DONE PREVIEW-f-full-body.png
+R3_RENDER_START PREVIEW-f-head-closeup.png preview CPU 32
+Fra:1 Mem:34.37M (Peak 34.37M) | Time:00:00.00 | Mem:0.00M, Peak:0.00M | Scene, ViewLayer | Synchronizing object | R2 socket lens 1
+Fra:1 Mem:34.51M (Peak 34.51M) | Time:00:00.00 | Mem:0.00M, Peak:0.00M | Scene, ViewLayer | Synchronizing object | R2 socket lens -1
+Fra:1 Mem:34.66M (Peak 34.66M) | Time:00:00.00 | Mem:0.00M, Peak:0.00M | Scene, ViewLayer | Synchronizing object | Head
+Fra:1 Mem:34.68M (Peak 34.68M) | Time:00:00.00 | Mem:0.00M, Peak:0.00M | Scene, ViewLayer | Synchronizing object | Large neutral key
+Fra:1 Mem:34.70M (Peak 34.70M) | Time:00:00.00 | Mem:0.00M, Peak:0.00M | Scene, ViewLayer | Synchronizing object | Fix2 shadow catcher (staging)
+Fra:1 Mem:35.84M (Peak 36.93M) | Time:00:00.00 | Mem:0.00M, Peak:0.00M | Scene, ViewLayer | Initializing
+Fra:1 Mem:35.54M (Peak 36.93M) | Time:00:00.00 | Mem:0.00M, Peak:0.00M | Scene, ViewLayer | Updating Images | Loading R3 head albedo
+Fra:1 Mem:35.54M (Peak 36.93M) | Time:00:00.00 | Mem:0.00M, Peak:0.00M | Scene, ViewLayer | Updating Images | Loading R3 head ORM
+Fra:1 Mem:88.85M (Peak 125.56M) | Time:00:00.11 | Mem:54.00M, Peak:54.00M | Scene, ViewLayer | Waiting for render to start
+Fra:1 Mem:88.85M (Peak 125.56M) | Time:00:00.11 | Mem:54.00M, Peak:54.00M | Scene, ViewLayer | Updating Scene
+Fra:1 Mem:88.85M (Peak 125.56M) | Time:00:00.11 | Mem:54.00M, Peak:54.00M | Scene, ViewLayer | Updating Shaders
+Fra:1 Mem:88.85M (Peak 125.56M) | Time:00:00.11 | Mem:54.00M, Peak:54.00M | Scene, ViewLayer | Loading render kernels (may take a few minutes the first time)
+Fra:1 Mem:88.93M (Peak 125.56M) | Time:00:00.11 | Mem:54.00M, Peak:54.00M | Scene, ViewLayer | Updating Procedurals
+Fra:1 Mem:88.93M (Peak 125.56M) | Time:00:00.11 | Mem:54.00M, Peak:54.00M | Scene, ViewLayer | Updating Background
+Fra:1 Mem:88.93M (Peak 125.56M) | Time:00:00.11 | Mem:54.00M, Peak:54.00M | Scene, ViewLayer | Updating Camera
+Fra:1 Mem:88.93M (Peak 125.56M) | Time:00:00.11 | Mem:54.00M, Peak:54.00M | Scene, ViewLayer | Updating Meshes Flags
+Fra:1 Mem:88.93M (Peak 125.56M) | Time:00:00.11 | Mem:54.00M, Peak:54.00M | Scene, ViewLayer | Updating Objects
+Fra:1 Mem:88.93M (Peak 125.56M) | Time:00:00.11 | Mem:54.00M, Peak:54.00M | Scene, ViewLayer | Updating Objects | Copying Transformations to device
+Fra:1 Mem:88.94M (Peak 125.56M) | Time:00:00.11 | Mem:54.01M, Peak:54.01M | Scene, ViewLayer | Updating Particle Systems
+Fra:1 Mem:88.94M (Peak 125.56M) | Time:00:00.11 | Mem:54.01M, Peak:54.01M | Scene, ViewLayer | Updating Particle Systems | Copying Particles to device
+Fra:1 Mem:88.94M (Peak 125.56M) | Time:00:00.11 | Mem:54.01M, Peak:54.01M | Scene, ViewLayer | Updating Meshes
+Fra:1 Mem:89.41M (Peak 125.56M) | Time:00:00.11 | Mem:54.01M, Peak:54.01M | Scene, ViewLayer | Updating Objects | Applying Static Transformations
+Fra:1 Mem:89.41M (Peak 125.56M) | Time:00:00.11 | Mem:54.01M, Peak:54.01M | Scene, ViewLayer | Updating Mesh | Computing attributes
+Fra:1 Mem:90.26M (Peak 125.56M) | Time:00:00.11 | Mem:54.01M, Peak:54.01M | Scene, ViewLayer | Updating Mesh | Copying Attributes to device
+Fra:1 Mem:90.26M (Peak 125.56M) | Time:00:00.11 | Mem:54.85M, Peak:54.85M | Scene, ViewLayer | Updating Scene BVH | Building
+Fra:1 Mem:90.26M (Peak 125.56M) | Time:00:00.11 | Mem:54.85M, Peak:54.85M | Scene, ViewLayer | Updating Scene BVH | Building BVH
+Fra:1 Mem:90.26M (Peak 125.56M) | Time:00:00.11 | Mem:55.22M, Peak:55.22M | Scene, ViewLayer | Updating Scene BVH | Building BVH 0%
+Fra:1 Mem:90.26M (Peak 125.56M) | Time:00:00.12 | Mem:55.63M, Peak:56.00M | Scene, ViewLayer | Updating Scene BVH | Copying BVH to device
+Fra:1 Mem:90.26M (Peak 125.56M) | Time:00:00.12 | Mem:55.63M, Peak:56.00M | Scene, ViewLayer | Updating Mesh | Computing normals
+Fra:1 Mem:90.98M (Peak 125.56M) | Time:00:00.12 | Mem:55.63M, Peak:56.00M | Scene, ViewLayer | Updating Mesh | Copying Mesh to device
+Fra:1 Mem:90.98M (Peak 125.56M) | Time:00:00.12 | Mem:56.35M, Peak:56.35M | Scene, ViewLayer | Updating Objects Flags
+Fra:1 Mem:90.98M (Peak 125.56M) | Time:00:00.12 | Mem:56.35M, Peak:56.35M | Scene, ViewLayer | Updating Primitive Offsets
+Fra:1 Mem:90.98M (Peak 125.56M) | Time:00:00.12 | Mem:56.35M, Peak:56.35M | Scene, ViewLayer | Updating Images
+Fra:1 Mem:90.98M (Peak 125.56M) | Time:00:00.12 | Mem:56.35M, Peak:56.35M | Scene, ViewLayer | Updating Camera Volume
+Fra:1 Mem:90.98M (Peak 125.56M) | Time:00:00.12 | Mem:56.35M, Peak:56.35M | Scene, ViewLayer | Updating Lookup Tables
+Fra:1 Mem:90.98M (Peak 125.56M) | Time:00:00.12 | Mem:56.44M, Peak:56.44M | Scene, ViewLayer | Updating Lights
+Fra:1 Mem:90.98M (Peak 125.56M) | Time:00:00.12 | Mem:56.44M, Peak:56.44M | Scene, ViewLayer | Updating Lights | Computing tree
+Fra:1 Mem:91.23M (Peak 125.56M) | Time:00:00.12 | Mem:56.69M, Peak:56.69M | Scene, ViewLayer | Updating Integrator
+Fra:1 Mem:91.23M (Peak 125.56M) | Time:00:00.12 | Mem:56.69M, Peak:56.69M | Scene, ViewLayer | Updating Film
+Fra:1 Mem:91.24M (Peak 125.56M) | Time:00:00.12 | Mem:56.60M, Peak:56.69M | Scene, ViewLayer | Updating Lookup Tables
+Fra:1 Mem:91.24M (Peak 125.56M) | Time:00:00.12 | Mem:56.69M, Peak:56.69M | Scene, ViewLayer | Updating Baking
+Fra:1 Mem:91.24M (Peak 125.56M) | Time:00:00.12 | Mem:56.69M, Peak:56.69M | Scene, ViewLayer | Updating Device | Writing constant memory
+Fra:1 Mem:91.24M (Peak 125.56M) | Time:00:00.12 | Mem:56.69M, Peak:56.69M | Scene, ViewLayer | Loading denoising kernels (may take a few minutes the first time)
+Fra:1 Mem:91.24M (Peak 125.56M) | Time:00:00.12 | Mem:56.69M, Peak:56.69M | Scene, ViewLayer | Sample 0/32
+Fra:1 Mem:182.50M (Peak 182.50M) | Time:00:00.30 | Remaining:00:05.56 | Mem:147.83M, Peak:147.83M | Scene, ViewLayer | Sample 1/32
+Fra:1 Mem:205.28M (Peak 239.46M) | Time:00:11.89 | Mem:147.83M, Peak:147.83M | Scene, ViewLayer | Sample 32/32
+Fra:1 Mem:205.28M (Peak 239.46M) | Time:00:11.89 | Mem:147.83M, Peak:147.83M | Scene, ViewLayer | Finished
+Fra:1 Mem:56.15M (Peak 239.46M) | Time:00:11.90 | Compositing
+Saved: '\\wsl.localhost\OpenClawGateway\home\openclaw\.openclaw\workspace-studio-3d\tickets\forge-r3\benchmarks\forge-snake-r3\previews\PREVIEW-f-head-closeup.png'
+Time: 00:12.07 (Saving: 00:00.14)
+
+R3_RENDER_DONE PREVIEW-f-head-closeup.png
+R3_RENDER_COMPLETE
+
+Blender quit

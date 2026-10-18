@@ -1,0 +1,98 @@
+01:15:00 | INFO: Data are loaded, start creating Blender stuff
+01:15:00 | INFO: Blender create Mesh node R2 fitted head
+01:15:00 | INFO: Blender create Mesh node R2 socket lens -1
+01:15:00 | INFO: Blender create Mesh node R2 socket lens 1
+01:15:00 | INFO: Blender create Mesh node R2 layered segment
+01:15:00 | INFO: Blender create Mesh node R1 arc emitter
+01:15:00 | INFO: Blender create Mesh node Recessed housing prototype
+01:15:00 | INFO: Blender create Mesh node R2 plated tail
+01:15:00 | INFO: glTF import finished in 0.08s
+WEATHER_START head
+WEATHER_READY head {'anchors': 14, 'rust_fraction_gt_025': 0.0002914748210824954, 'edge_exposure_gt_025': 0.01878040767334894, 'source_ao_mean': 0.5659167766571045, 'direction': 'local -Z runoff; finite diagonal scratches; sharp geometric edge wear', 'uniform_rust_noise': False}
+WEATHER_START segment
+WEATHER_READY segment {'anchors': 6, 'rust_fraction_gt_025': 0.000602673603863746, 'edge_exposure_gt_025': 0.023633283248760902, 'source_ao_mean': 0.45412203669548035, 'direction': 'local -Z runoff; finite diagonal scratches; sharp geometric edge wear', 'uniform_rust_noise': False}
+WEATHER_START tail
+WEATHER_READY tail {'anchors': 5, 'rust_fraction_gt_025': 0.00010354515288681829, 'edge_exposure_gt_025': 0.024742834298269012, 'source_ao_mean': 0.4753473401069641, 'direction': 'local -Z runoff; finite diagonal scratches; sharp geometric edge wear', 'uniform_rust_noise': False}
+R3_COUNTS {"head_including_lenses": 13152, "segment": 1388, "joint": 168, "segment_plus_joint": 1556, "tail": 2669, "tail_plus_joint": 2837, "assembly_instanced_triangles": 59557, "segment_nodes": 28, "segment_shared_meshes": 1, "housing_nodes": 29, "glow_nodes": 29}
+INFO Draco mesh compression is available, use library at C:\Users\Moore\Blender\blender-4.5.14-windows-x64\4.5\scripts\addons_core\io_scene_gltf2\extern_draco.dll
+01:15:31 | INFO: Starting glTF 2.0 export
+01:15:31 | INFO: Extracting primitive: R2 fitted head
+01:15:32 | INFO: Occlusion and metal-roughness texture will be exported separately (use same-sized images if you want them combined)
+01:15:32 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+01:15:32 | INFO: Primitives created: 1
+01:15:32 | INFO: Extracting primitive: R2 socket lens -1
+01:15:32 | INFO: Primitives created: 4
+01:15:32 | INFO: Extracting primitive: R2 socket lens 1
+01:15:32 | INFO: Primitives created: 4
+01:15:32 | INFO: Extracting primitive: R2 layered segment
+01:15:32 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+01:15:32 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+01:15:32 | INFO: Primitives created: 2
+01:15:32 | INFO: Extracting primitive: R3 thin recessed arc emitter
+01:15:32 | INFO: Primitives created: 1
+01:15:32 | INFO: Extracting primitive: Recessed housing prototype.001
+01:15:32 | INFO: Primitives created: 1
+01:15:32 | INFO: Extracting primitive: R2 plated tail
+01:15:33 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+01:15:33 | INFO: Primitives created: 3
+01:15:33 | INFO: Finished glTF 2.0 export in 1.2948074340820312 s
+Blender 4.5.14 LTS (hash 62c1db4208e8 built 2026-09-15 01:33:49)
+Read blend: "C:\Users\Moore\forge-r1\out\snake-sectional-r1.blend"
+Fra:1 Mem:291.50M (Peak 291.50M) | Time:00:00.45 | Mem:0.00M, Peak:0.00M | Scene, ViewLayer | Synchronizing object | Large neutral key
+Fra:1 Mem:291.50M (Peak 291.50M) | Time:00:00.45 | Mem:0.00M, Peak:0.00M | Scene, ViewLayer | Synchronizing object | Soft fill
+Fra:1 Mem:291.50M (Peak 291.50M) | Time:00:00.45 | Mem:0.00M, Peak:0.00M | Scene, ViewLayer | Synchronizing object | Rim
+Fra:1 Mem:291.50M (Peak 291.50M) | Time:00:00.45 | Mem:0.00M, Peak:0.00M | Scene, ViewLayer | Synchronizing object | Head
+Fra:1 Mem:291.50M (Peak 291.50M) | Time:00:00.45 | Mem:0.00M, Peak:0.00M | Scene, ViewLayer | Synchronizing object | R2 socket lens -1
+Fra:1 Mem:291.50M (Peak 291.50M) | Time:00:00.45 | Mem:0.00M, Peak:0.00M | Scene, ViewLayer | Synchronizing object | R2 socket lens 1
+Fra:1 Mem:291.50M (Peak 291.50M) | Time:00:00.45 | Mem:0.00M, Peak:0.00M | Scene, ViewLayer | Synchronizing object | Segment_00
+Fra:1 Mem:291.50M (Peak 291.50M) | Time:00:00.45 | Mem:0.00M, Peak:0.00M | Scene, ViewLayer | Synchronizing object | Joint_00_GlowBars
+Fra:1 Mem:291.50M (Peak 291.50M) | Time:00:00.45 | Mem:0.00M, Peak:0.00M | Scene, ViewLayer | Synchronizing object | Tail
+Fra:1 Mem:294.18M (Peak 296.38M) | Time:00:00.46 | Mem:0.00M, Peak:0.00M | Scene, ViewLayer | Initializing
+Fra:1 Mem:293.50M (Peak 296.38M) | Time:00:00.46 | Mem:0.00M, Peak:0.00M | Scene, ViewLayer | Updating Images | Loading r2-tail-ORM
+Fra:1 Mem:293.50M (Peak 296.38M) | Time:00:00.46 | Mem:0.00M, Peak:0.00M | Scene, ViewLayer | Updating Images | Loading r2-tail-normal
+Fra:1 Mem:495.05M (Peak 497.51M) | Time:00:00.52 | Mem:204.00M, Peak:204.00M | Scene, ViewLayer | Waiting for render to start
+Fra:1 Mem:495.05M (Peak 497.51M) | Time:00:00.52 | Mem:204.00M, Peak:204.00M | Scene, ViewLayer | Updating Scene
+Fra:1 Mem:495.05M (Peak 497.51M) | Time:00:00.52 | Mem:204.00M, Peak:204.00M | Scene, ViewLayer | Updating Shaders
+Fra:1 Mem:495.05M (Peak 497.51M) | Time:00:00.52 | Mem:204.00M, Peak:204.00M | Scene, ViewLayer | Loading render kernels (may take a few minutes the first time)
+Out of memory in CUDA queue enqueue (integrator_shade_surface)
+
+Refer to the Cycles GPU rendering documentation for possible solutions:
+https://docs.blender.org/manual/en/latest/render/cycles/gpu_rendering.html
+
+Fra:1 Mem:495.05M (Peak 522.21M) | Time:00:00.77 | Mem:204.02M, Peak:204.02M | Scene, ViewLayer | Out of memory in CUDA queue enqueue (integrator_shade_surface)
+Fra:1 Mem:495.05M (Peak 522.21M) | Time:00:00.77 | Mem:204.02M, Peak:204.02M | Scene, ViewLayer | Updating Device | Writing constant memory
+Fra:1 Mem:495.05M (Peak 522.21M) | Time:00:00.77 | Mem:204.02M, Peak:204.02M | Scene, ViewLayer | Loading denoising kernels (may take a few minutes the first time)
+System is out of GPU memory
+System is out of GPU memory
+System is out of GPU memory
+System is out of GPU memory
+System is out of GPU memory
+System is out of GPU memory
+System is out of GPU memory
+System is out of GPU memory
+System is out of GPU memory
+System is out of GPU memory
+System is out of GPU memory
+System is out of GPU memory
+Out of memory in cuMemsetD8_v2((CUdeviceptr)mem.device_pointer, 0, mem.memory_size()) (C:\Users\blender\git\blender-v450\blender.git\intern\cycles\device\cuda\device_impl.cpp:653)
+Fra:1 Mem:499.56M (Peak 522.21M) | Time:00:00.80 | Mem:600.02M, Peak:600.02M | Scene, ViewLayer | Out of memory in CUDA queue enqueue (integrator_shade_surface)
+Traceback (most recent call last):
+  File "C:\Users\Moore\forge-r3\benchmarks\forge-snake-r3\source\build_r3.py", line 280, in <module>
+    shot(dest+'/'+prefix+'-full-body.png',frames['full']);shot(dest+'/'+prefix+'-head-closeup.png',frames['head'],[head]+eyes)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Moore\forge-r3\benchmarks\forge-snake-r3\source\build_r3.py", line 274, in shot
+    cam.location=frame['location'];cam.rotation_euler=frame['rotation'];cam.data.ortho_scale=frame['ortho_scale'];sc.render.filepath=str(O/name);bpy.ops.render.render(write_still=True)
+                                                                                                                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Moore\Blender\blender-4.5.14-windows-x64\4.5\scripts\modules\bpy\ops.py", line 109, in __call__
+
+Info: No new files have been packed
+Info: Saved as "snake-sectional-r3.blend"
+Error: Out of memory in CUDA queue enqueue (integrator_shade_surface)
+Error: Out of memory in CUDA queue enqueue (integrator_shade_surface)
+    ret = _op_call(self.idname_py(), kw)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: Error: Out of memory in CUDA queue enqueue (integrator_shade_surface)
+Error: Out of memory in CUDA queue enqueue (integrator_shade_surface)
+
+
+Blender quit

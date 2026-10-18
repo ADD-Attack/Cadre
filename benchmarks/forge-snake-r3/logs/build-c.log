@@ -1,0 +1,55 @@
+Info: Deleted 50 data-block(s)
+01:17:48 | INFO: Data are loaded, start creating Blender stuff
+01:17:48 | INFO: Blender create Mesh node R2 fitted head
+01:17:48 | INFO: Blender create Mesh node R2 socket lens -1
+01:17:48 | INFO: Blender create Mesh node R2 socket lens 1
+01:17:48 | INFO: Blender create Mesh node R2 layered segment
+01:17:48 | INFO: Blender create Mesh node R1 arc emitter
+01:17:48 | INFO: Blender create Mesh node Recessed housing prototype
+01:17:48 | INFO: Blender create Mesh node R2 plated tail
+01:17:48 | INFO: glTF import finished in 0.08s
+WEATHER_START head
+WEATHER_READY head {'anchors': 14, 'rust_fraction_gt_025': 0.0010252594814062013, 'edge_exposure_gt_025': 0.026259308867397448, 'source_ao_mean': 0.5397109389305115, 'direction': 'local -Z runoff; finite diagonal scratches; sharp geometric edge wear', 'uniform_rust_noise': False}
+WEATHER_START segment
+WEATHER_READY segment {'anchors': 6, 'rust_fraction_gt_025': 0.0019015550176954739, 'edge_exposure_gt_025': 0.03960182995297026, 'source_ao_mean': 0.45412203669548035, 'direction': 'local -Z runoff; finite diagonal scratches; sharp geometric edge wear', 'uniform_rust_noise': False}
+WEATHER_START tail
+WEATHER_READY tail {'anchors': 5, 'rust_fraction_gt_025': 0.0003879340883723145, 'edge_exposure_gt_025': 0.03379207894342551, 'source_ao_mean': 0.4767170250415802, 'direction': 'local -Z runoff; finite diagonal scratches; sharp geometric edge wear', 'uniform_rust_noise': False}
+R3_COUNTS {"head_including_lenses": 13152, "segment": 1388, "joint": 168, "segment_plus_joint": 1556, "tail": 2669, "tail_plus_joint": 2837, "assembly_instanced_triangles": 59557, "segment_nodes": 28, "segment_shared_meshes": 1, "housing_nodes": 29, "glow_nodes": 29}
+INFO Draco mesh compression is available, use library at C:\Users\Moore\Blender\blender-4.5.14-windows-x64\4.5\scripts\addons_core\io_scene_gltf2\extern_draco.dll
+01:18:11 | INFO: Starting glTF 2.0 export
+01:18:11 | INFO: Extracting primitive: R2 fitted head
+01:18:11 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+01:18:11 | INFO: Primitives created: 1
+01:18:11 | INFO: Extracting primitive: R2 socket lens -1
+01:18:11 | INFO: Primitives created: 4
+01:18:11 | INFO: Extracting primitive: R2 socket lens 1
+01:18:11 | INFO: Primitives created: 4
+01:18:11 | INFO: Extracting primitive: R2 layered segment
+01:18:11 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+01:18:11 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+01:18:11 | INFO: Primitives created: 2
+01:18:11 | INFO: Extracting primitive: R3 thin recessed arc emitter
+01:18:11 | INFO: Primitives created: 1
+01:18:11 | INFO: Extracting primitive: Recessed housing prototype
+01:18:11 | INFO: Primitives created: 1
+01:18:11 | INFO: Extracting primitive: R2 plated tail
+01:18:11 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+01:18:11 | INFO: Primitives created: 3
+01:18:11 | INFO: Finished glTF 2.0 export in 0.34970951080322266 s
+Blender 4.5.14 LTS (hash 62c1db4208e8 built 2026-09-15 01:33:49)
+Read blend: "C:\Users\Moore\forge-r1\out\snake-sectional-r1.blend"
+Traceback (most recent call last):
+  File "C:\Users\Moore\forge-r3\benchmarks\forge-snake-r3\source\build_r3.py", line 281, in <module>
+
+Info: Deleted 9 data-block(s)
+Info: No new files have been packed
+Error: No space left on device
+    bpy.ops.file.pack_all();bpy.context.preferences.filepaths.save_version=0;bpy.ops.wm.save_as_mainfile(filepath=str(O/'snake-sectional-r3.blend'))
+                                                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Moore\Blender\blender-4.5.14-windows-x64\4.5\scripts\modules\bpy\ops.py", line 109, in __call__
+    ret = _op_call(self.idname_py(), kw)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: Error: No space left on device
+
+
+Blender quit

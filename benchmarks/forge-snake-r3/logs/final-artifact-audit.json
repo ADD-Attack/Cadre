@@ -1,0 +1,19 @@
+{
+  "status": "ALL_ARTIFACT_CHECKS_PASS",
+  "counts": {
+    "head_including_lenses": 12152,
+    "segment": 1422,
+    "joint": 168,
+    "segment_plus_joint": 1590,
+    "tail": 2669,
+    "tail_plus_joint": 2837,
+    "assembly_instanced_triangles": 59509,
+    "segment_nodes": 28,
+    "segment_shared_meshes": 1,
+    "housing_nodes": 29,
+    "glow_nodes": 29
+  },
+  "GLB_SHA256": "c34f3b69ecc48278263e7ea691b5011c65bb07837b7721fc29f39248a5ded34a",
+  "production_images": 4,
+  "Godot": "4.7.2 PASS"
+}

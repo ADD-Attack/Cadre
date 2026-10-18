@@ -1,0 +1,28 @@
+Info: Deleted 50 data-block(s)
+01:16:40 | INFO: Data are loaded, start creating Blender stuff
+01:16:40 | INFO: Blender create Mesh node R2 fitted head
+01:16:40 | INFO: Blender create Mesh node R2 socket lens -1
+01:16:40 | INFO: Blender create Mesh node R2 socket lens 1
+01:16:40 | INFO: Blender create Mesh node R2 layered segment
+01:16:40 | INFO: Blender create Mesh node R1 arc emitter
+01:16:40 | INFO: Blender create Mesh node Recessed housing prototype
+01:16:40 | INFO: Blender create Mesh node R2 plated tail
+01:16:40 | INFO: glTF import finished in 0.12s
+WEATHER_START head
+Blender 4.5.14 LTS (hash 62c1db4208e8 built 2026-09-15 01:33:49)
+Read blend: "C:\Users\Moore\forge-r1\out\snake-sectional-r1.blend"
+Traceback (most recent call last):
+  File "C:\Users\Moore\forge-r3\benchmarks\forge-snake-r3\source\build_r3.py", line 240, in <module>
+    weather(head,'head',2048,anchors)
+  File "C:\Users\Moore\forge-r3\benchmarks\forge-snake-r3\source\build_r3.py", line 192, in weather
+    x,y,z=pos.transpose(2,0,1);n=noise(x+y*.2,z,23,3);fine=noise(x,z+y*.1,120,5)
+                                 ^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Moore\forge-r3\benchmarks\forge-snake-r3\source\build_r3.py", line 158, in noise
+    return (hash2(ix,iy,s)*(1-a)+hash2(ix+1,iy,s)*a)*(1-b)+(hash2(ix,iy+1,s)*(1-a)+hash2(ix+1,iy+1,s)*a)*b
+                                 ^^^^^^^^^^^^^^^^
+  File "C:\Users\Moore\forge-r3\benchmarks\forge-snake-r3\source\build_r3.py", line 155, in hash2
+    def hash2(x,y,s=0):return np.mod(np.sin(x*127.1+y*311.7+s*73.19)*43758.5453,1)
+                                            ~~~~~~~^~~~~~~~
+numpy.core._exceptions._ArrayMemoryError: Unable to allocate 16.0 MiB for an array with shape (2048, 2048) and data type float32
+
+Blender quit

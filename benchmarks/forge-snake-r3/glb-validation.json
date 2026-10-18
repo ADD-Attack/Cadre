@@ -1,0 +1,29 @@
+{
+  "sha256": "c34f3b69ecc48278263e7ea691b5011c65bb07837b7721fc29f39248a5ded34a",
+  "bytes": 18121464,
+  "head": 12152,
+  "segment": 1422,
+  "joint": 168,
+  "segment_plus_joint": 1590,
+  "tail_plus_joint": 2837,
+  "assembly_triangles": 59509,
+  "segment_nodes": 28,
+  "segment_distinct_mesh_indices": [
+    5
+  ],
+  "housing_nodes": 29,
+  "glow_nodes": 29,
+  "mesh_nodes": 90,
+  "missing_attributes": [],
+  "packed_orm_materials": [
+    "R3 directional head",
+    "R3 directional segment",
+    "R3 machined edge steel",
+    "R3 fitted hardware gunmetal",
+    "R3 directional tail"
+  ],
+  "skins": 0,
+  "extensions": [
+    "KHR_materials_emissive_strength"
+  ]
+}

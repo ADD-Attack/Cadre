@@ -1,0 +1,432 @@
+{
+  "order": "op-forge-snake-r3-20261018",
+  "base_sha": "52c96999907cb6a34ae41116092d97b9b4141024",
+  "mode": "build",
+  "tag": "h",
+  "parameters": {},
+  "concealed_liner_triangle_savings": 1000,
+  "added_segment_triangles": 86,
+  "added_tail_triangles": 108,
+  "weathering": {
+    "head": {
+      "anchors": 14,
+      "rust_fraction_gt_025": 0.0010251792193778817,
+      "edge_exposure_gt_025": 0.05684309622074861,
+      "source_ao_mean": 0.5396688580513,
+      "direction": "local -Z runoff; finite diagonal scratches; sharp geometric edge wear",
+      "uniform_rust_noise": false
+    },
+    "segment": {
+      "anchors": 6,
+      "rust_fraction_gt_025": 0.0019015550176954739,
+      "edge_exposure_gt_025": 0.08475535275988111,
+      "source_ao_mean": 0.45412203669548035,
+      "direction": "local -Z runoff; finite diagonal scratches; sharp geometric edge wear",
+      "uniform_rust_noise": false
+    },
+    "tail": {
+      "anchors": 5,
+      "rust_fraction_gt_025": 0.0003879340883723145,
+      "edge_exposure_gt_025": 0.07158603483741031,
+      "source_ao_mean": 0.4767170250415802,
+      "direction": "local -Z runoff; finite diagonal scratches; sharp geometric edge wear",
+      "uniform_rust_noise": false
+    }
+  },
+  "counts": {
+    "head_including_lenses": 12152,
+    "segment": 1422,
+    "joint": 168,
+    "segment_plus_joint": 1590,
+    "tail": 2669,
+    "tail_plus_joint": 2837,
+    "assembly_instanced_triangles": 59509,
+    "segment_nodes": 28,
+    "segment_shared_meshes": 1,
+    "housing_nodes": 29,
+    "glow_nodes": 29
+  },
+  "objects": {
+    "Head": 8352,
+    "Joint_00_GlowBars": 24,
+    "Joint_00_Housing": 144,
+    "Joint_01_GlowBars": 24,
+    "Joint_01_Housing": 144,
+    "Joint_02_GlowBars": 24,
+    "Joint_02_Housing": 144,
+    "Joint_03_GlowBars": 24,
+    "Joint_03_Housing": 144,
+    "Joint_04_GlowBars": 24,
+    "Joint_04_Housing": 144,
+    "Joint_05_GlowBars": 24,
+    "Joint_05_Housing": 144,
+    "Joint_06_GlowBars": 24,
+    "Joint_06_Housing": 144,
+    "Joint_07_GlowBars": 24,
+    "Joint_07_Housing": 144,
+    "Joint_08_GlowBars": 24,
+    "Joint_08_Housing": 144,
+    "Joint_09_GlowBars": 24,
+    "Joint_09_Housing": 144,
+    "Joint_10_GlowBars": 24,
+    "Joint_10_Housing": 144,
+    "Joint_11_GlowBars": 24,
+    "Joint_11_Housing": 144,
+    "Joint_12_GlowBars": 24,
+    "Joint_12_Housing": 144,
+    "Joint_13_GlowBars": 24,
+    "Joint_13_Housing": 144,
+    "Joint_14_GlowBars": 24,
+    "Joint_14_Housing": 144,
+    "Joint_15_GlowBars": 24,
+    "Joint_15_Housing": 144,
+    "Joint_16_GlowBars": 24,
+    "Joint_16_Housing": 144,
+    "Joint_17_GlowBars": 24,
+    "Joint_17_Housing": 144,
+    "Joint_18_GlowBars": 24,
+    "Joint_18_Housing": 144,
+    "Joint_19_GlowBars": 24,
+    "Joint_19_Housing": 144,
+    "Joint_20_GlowBars": 24,
+    "Joint_20_Housing": 144,
+    "Joint_21_GlowBars": 24,
+    "Joint_21_Housing": 144,
+    "Joint_22_GlowBars": 24,
+    "Joint_22_Housing": 144,
+    "Joint_23_GlowBars": 24,
+    "Joint_23_Housing": 144,
+    "Joint_24_GlowBars": 24,
+    "Joint_24_Housing": 144,
+    "Joint_25_GlowBars": 24,
+    "Joint_25_Housing": 144,
+    "Joint_26_GlowBars": 24,
+    "Joint_26_Housing": 144,
+    "Joint_27_GlowBars": 24,
+    "Joint_27_Housing": 144,
+    "R2 socket lens -1": 1900,
+    "R2 socket lens 1": 1900,
+    "Segment_00": 1422,
+    "Segment_01": 1422,
+    "Segment_02": 1422,
+    "Segment_03": 1422,
+    "Segment_04": 1422,
+    "Segment_05": 1422,
+    "Segment_06": 1422,
+    "Segment_07": 1422,
+    "Segment_08": 1422,
+    "Segment_09": 1422,
+    "Segment_10": 1422,
+    "Segment_11": 1422,
+    "Segment_12": 1422,
+    "Segment_13": 1422,
+    "Segment_14": 1422,
+    "Segment_15": 1422,
+    "Segment_16": 1422,
+    "Segment_17": 1422,
+    "Segment_18": 1422,
+    "Segment_19": 1422,
+    "Segment_20": 1422,
+    "Segment_21": 1422,
+    "Segment_22": 1422,
+    "Segment_23": 1422,
+    "Segment_24": 1422,
+    "Segment_25": 1422,
+    "Segment_26": 1422,
+    "Segment_27": 1422,
+    "Tail": 2669,
+    "TailJoint_GlowBars": 24,
+    "TailJoint_Housing": 144
+  },
+  "rig_max_transform_delta": 5.960464477539063e-08,
+  "rig_preserved": true,
+  "staging": {
+    "frames": {
+      "full": {
+        "location": [
+          -6.508448123931885,
+          -12.411722183227539,
+          6.754112243652344
+        ],
+        "rotation": [
+          1.224887490272522,
+          -2.397841925017019e-09,
+          -0.5585994720458984
+        ],
+        "ortho_scale": 10.366149020724826
+      },
+      "head": {
+        "location": [
+          -4.277194976806641,
+          -6.935287952423096,
+          5.175177097320557
+        ],
+        "rotation": [
+          1.4115170240402222,
+          -2.8816909747320096e-08,
+          -0.24335533380508423
+        ],
+        "ortho_scale": 2.7696817864312067
+      }
+    },
+    "engine": "Cycles",
+    "device": "CPU (OPTIX attempted; VRAM exhausted)",
+    "samples": 32,
+    "adaptive_threshold": 0.01,
+    "denoise": true,
+    "backdrop": "reference sampled #C1C1BF; inherited R1/R2 world",
+    "lighting": "unchanged R1/R2 shaped neutral key/fill/rim",
+    "occlusion": "original R2 baked ORM-R multiply connected in render materials, shadow catcher",
+    "bloom": "inherited subtle FOG_GLOW compositor"
+  },
+  "judged_render": {
+    "application": "4.5.14 LTS",
+    "engine": "CYCLES",
+    "device": "CPU",
+    "max_samples": 256,
+    "adaptive": true,
+    "noise_threshold": 0.009999999776482582,
+    "denoise": true,
+    "denoiser": "OPENIMAGEDENOISE",
+    "resolution": [
+      1920,
+      1080
+    ],
+    "identical_frames_to_R2": true,
+    "camera_frames": {
+      "full": {
+        "location": [
+          -6.508448123931885,
+          -12.411722183227539,
+          6.754112243652344
+        ],
+        "rotation": [
+          1.224887490272522,
+          -2.397841925017019e-09,
+          -0.5585994720458984
+        ],
+        "ortho_scale": 10.366149020724826
+      },
+      "head": {
+        "location": [
+          -4.277194976806641,
+          -6.935287952423096,
+          5.175177097320557
+        ],
+        "rotation": [
+          1.4115170240402222,
+          -2.8816909747320096e-08,
+          -0.24335533380508423
+        ],
+        "ortho_scale": 2.7696817864312067
+      }
+    },
+    "AO": "ORM R multiplied into Blender shader; packed separate in GLB",
+    "contact_shadow": "inherited shadow catcher",
+    "glow": {
+      "type": "FOG_GLOW",
+      "threshold": 0.0,
+      "mix": -0.75,
+      "size": 6
+    },
+    "backdrop": "reference-sampled #C1C1BF world; same baseline and after"
+  },
+  "resolved_R2_panel_medians": {
+    "MATCH": 5.0,
+    "QUALITY": 4.5
+  },
+  "binary_glb_validation": {
+    "sha256": "c34f3b69ecc48278263e7ea691b5011c65bb07837b7721fc29f39248a5ded34a",
+    "bytes": 18121464,
+    "head": 12152,
+    "segment": 1422,
+    "joint": 168,
+    "segment_plus_joint": 1590,
+    "tail_plus_joint": 2837,
+    "assembly_triangles": 59509,
+    "segment_nodes": 28,
+    "segment_distinct_mesh_indices": [
+      5
+    ],
+    "housing_nodes": 29,
+    "glow_nodes": 29,
+    "mesh_nodes": 90,
+    "missing_attributes": [],
+    "packed_orm_materials": [
+      "R3 directional head",
+      "R3 directional segment",
+      "R3 machined edge steel",
+      "R3 fitted hardware gunmetal",
+      "R3 directional tail"
+    ],
+    "skins": 0,
+    "extensions": [
+      "KHR_materials_emissive_strength"
+    ]
+  },
+  "rig_comparison": {
+    "input_nodes": 90,
+    "output_nodes": 90,
+    "max_component_delta": 8.344650268554688e-07,
+    "differences_over_1e_5": [],
+    "passed": true
+  },
+  "godot": {
+    "version": "4.7.2.stable.official.ed1daf0bf",
+    "required_executable": "C:\\Users\\Moore\\Godot\\Godot_v4.7.2-stable_win64_console.exe",
+    "import_exit_code": 0,
+    "check_exit_code": 0,
+    "capture_exit_code": 0,
+    "result": {
+      "glow_nodes": 29,
+      "housing_nodes": 29,
+      "loaded": true,
+      "materials": {
+        "Dark recessed joint housing": "StandardMaterial3D",
+        "R2 exposed steel": "StandardMaterial3D",
+        "R2 lens glass": "StandardMaterial3D",
+        "R2 lens teal": "StandardMaterial3D",
+        "R2 recessed graphite": "StandardMaterial3D",
+        "R3 directional head": "StandardMaterial3D",
+        "R3 directional segment": "StandardMaterial3D",
+        "R3 directional tail": "StandardMaterial3D",
+        "R3 fitted hardware gunmetal": "StandardMaterial3D",
+        "R3 machined edge steel": "StandardMaterial3D",
+        "Recessed saturated teal joint emission": "StandardMaterial3D"
+      },
+      "mesh_instances": 90,
+      "segment_distinct_meshes": 1,
+      "segment_nodes": 28,
+      "segments_posable": 28,
+      "surfaces_without_tangents": 0,
+      "textured_materials": {
+        "R3 directional head": {
+          "albedo": true,
+          "ao": true,
+          "ao_enabled": true,
+          "metallic": true,
+          "normal": true,
+          "roughness": true
+        },
+        "R3 directional segment": {
+          "albedo": true,
+          "ao": true,
+          "ao_enabled": true,
+          "metallic": true,
+          "normal": true,
+          "roughness": true
+        },
+        "R3 directional tail": {
+          "albedo": true,
+          "ao": true,
+          "ao_enabled": true,
+          "metallic": true,
+          "normal": true,
+          "roughness": true
+        }
+      },
+      "triangles": 59509
+    },
+    "native_capture": {
+      "camera_position": "(-6.610928, 6.723595, 12.36064)",
+      "camera_size": 5.75828695297241,
+      "renderer": "gl_compatibility",
+      "role": "import and rest-pose evidence, not judged capture",
+      "save_error": 0,
+      "viewport": [
+        1280,
+        720
+      ]
+    },
+    "final_logs_without_errors": true
+  },
+  "export": {
+    "format": "GLB",
+    "gltf_yup": true,
+    "tangents": true,
+    "packed_ORM": true,
+    "materials": "Principled-only metal/roughness",
+    "Draco": false,
+    "skins": false
+  },
+  "self_checks": [
+    {
+      "checkpoint": "a",
+      "caught": "too-clean finish, insufficient layering",
+      "changed": "finite scratches, edge abrasion, physical notched crown and crosswires"
+    },
+    {
+      "checkpoint": "d",
+      "caught": "faceted optical socket after decimation",
+      "changed": "restored original optical tessellation; reclaimed 1000 concealed liner tris"
+    },
+    {
+      "checkpoint": "f",
+      "caught": "regular comb-like abrasion bands",
+      "changed": "lower-frequency sparse broken edge scuffs; finite scratches retained"
+    },
+    {
+      "checkpoint": "h",
+      "caught": "bright slab-like crown additions",
+      "changed": "darkened gunmetal faces and modeled bevel; traded two optional screws"
+    }
+  ],
+  "artifacts": {
+    "captures/r3-full-body.png": {
+      "bytes": 2480592,
+      "sha256": "413bb78dce42045c8010c307badaaf611a6b167bb89f440f671e4f8915f9ef76",
+      "width": 1920,
+      "height": 1080
+    },
+    "captures/r3-head-closeup.png": {
+      "bytes": 2160211,
+      "sha256": "376bddae67600a5628386eab6b4ce50426dfe87809387121fc36838686d33f76",
+      "width": 1920,
+      "height": 1080
+    },
+    "captures/baseline-r2-full-body.png": {
+      "bytes": 2570282,
+      "sha256": "98893a5779975cd993a7c8103a10c661aba4970b32ae7c33029645a94998c4a1",
+      "width": 1920,
+      "height": 1080
+    },
+    "captures/baseline-r2-head-closeup.png": {
+      "bytes": 2266276,
+      "sha256": "1465763684d39c44f8ef84716ed6d6103743c6c201eb95256a0946905d35812b",
+      "width": 1920,
+      "height": 1080
+    },
+    "godot/godot-import-pose.png": {
+      "bytes": 447667,
+      "sha256": "1db4ae4a1a224043d8ac8f4f58b1fb1835a7b803c5f2af2046353fe1296edce0",
+      "width": 1280,
+      "height": 720
+    },
+    "previews/PREVIEW-h-full-body.png": {
+      "bytes": 961522,
+      "sha256": "2aafdde77ad8e90c83233408d3d3c7736609c510d12e242fb702dd012836a1b2",
+      "width": 1152,
+      "height": 648
+    },
+    "previews/PREVIEW-h-head-closeup.png": {
+      "bytes": 821150,
+      "sha256": "558849e74d4af9a98acbde6e626c849eeb26629ec4af0f6f62a5a15dc707d000",
+      "width": 1152,
+      "height": 648
+    },
+    "previews/PREVIEW-detail-module.png": {
+      "bytes": 1030305,
+      "sha256": "772257400af8c99d7a4ab143bf6cefea1d013dcc7c50216004ba5824e6a92204",
+      "width": 1280,
+      "height": 720
+    },
+    "previews/PREVIEW-detail-tail.png": {
+      "bytes": 925055,
+      "sha256": "31712a39f10bb944821f2ef3f640076f8569413f50838bd6f9951c88d51f50f7",
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "delivery_folder": "benchmarks/forge-snake-r3/",
+  "branch": "forge-snake-r3-20261018"
+}
