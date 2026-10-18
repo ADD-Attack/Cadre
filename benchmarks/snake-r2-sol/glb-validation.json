@@ -1,0 +1,27 @@
+{
+  "sha256": "7e38d91836a8cd4e02a5b84b8c26b49117b35a5253355a7f40f2135c71504424",
+  "bytes": 31247664,
+  "head": 13152,
+  "segment": 1336,
+  "joint": 192,
+  "segment_plus_joint": 1528,
+  "tail_plus_joint": 2753,
+  "assembly_triangles": 58689,
+  "segment_nodes": 28,
+  "segment_distinct_mesh_indices": [
+    5
+  ],
+  "housing_nodes": 29,
+  "glow_nodes": 29,
+  "mesh_nodes": 90,
+  "missing_attributes": [],
+  "packed_orm_materials": [
+    "R2 baked head",
+    "R2 baked segment",
+    "R2 baked tail"
+  ],
+  "skins": 0,
+  "extensions": [
+    "KHR_materials_emissive_strength"
+  ]
+}

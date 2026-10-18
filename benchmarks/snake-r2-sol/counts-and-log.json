@@ -1,0 +1,397 @@
+{
+  "order": "op-snake-r2-rescue-20261018",
+  "base": "forge-snake-r1-20261017 @ 32c661e",
+  "head_rebase": "Procedurally fitted skull and armor; no Hunyuan generation used.",
+  "staging_frames_from_R1": {
+    "full": {
+      "location": [
+        -6.508448123931885,
+        -12.411722183227539,
+        6.754112243652344
+      ],
+      "rotation": [
+        1.224887490272522,
+        -2.397841925017019e-09,
+        -0.5585994720458984
+      ],
+      "ortho_scale": 10.366149020724826
+    },
+    "head": {
+      "location": [
+        -4.277194976806641,
+        -6.935287952423096,
+        5.175177097320557
+      ],
+      "rotation": [
+        1.4115170240402222,
+        -2.8816909747320096e-08,
+        -0.24335533380508423
+      ],
+      "ortho_scale": 2.7696817864312067
+    }
+  },
+  "uncapped_detail_cost_study": {
+    "additional_modeled_triangles": 720,
+    "module": 2056,
+    "module_plus_joint": 2248,
+    "detail": "24 six-sided crosswires plus 12 additional hex fasteners",
+    "status": "in-memory geometry cost study; not linked or exported"
+  },
+  "geometry_before_atlas": {
+    "head": 13152,
+    "segment": 1336,
+    "tail": 2561
+  },
+  "weathering": {
+    "head": {
+      "ao_mean": 0.5904185175895691,
+      "rust_coverage_gt_025": 0.285153684519911,
+      "grime_coverage_gt_04": 0.41994413059305635,
+      "wear_coverage_gt_025": 0.08566290766451948,
+      "runoff_sources": 78,
+      "basecolor_mean": 0.09215706586837769
+    },
+    "segment": {
+      "ao_mean": 0.44638440012931824,
+      "rust_coverage_gt_025": 0.2458135125903999,
+      "grime_coverage_gt_04": 0.5806197546875403,
+      "wear_coverage_gt_025": 0.10240345930058284,
+      "runoff_sources": 12,
+      "basecolor_mean": 0.08785209059715271
+    },
+    "tail": {
+      "ao_mean": 0.48326972126960754,
+      "rust_coverage_gt_025": 0.1800142132491814,
+      "grime_coverage_gt_04": 0.5409882115093689,
+      "wear_coverage_gt_025": 0.09964110803998107,
+      "runoff_sources": 0,
+      "basecolor_mean": 0.08290491253137589
+    }
+  },
+  "counts": {
+    "head": 13152,
+    "segment": 1336,
+    "joint": 192,
+    "segment_plus_joint": 1528,
+    "tail_plus_joint": 2753,
+    "total": 58689,
+    "segment_nodes": 28,
+    "segment_meshes": 1
+  },
+  "objects": {
+    "Head": 9352,
+    "Joint_00_GlowBars": 48,
+    "Joint_00_Housing": 144,
+    "Joint_01_GlowBars": 48,
+    "Joint_01_Housing": 144,
+    "Joint_02_GlowBars": 48,
+    "Joint_02_Housing": 144,
+    "Joint_03_GlowBars": 48,
+    "Joint_03_Housing": 144,
+    "Joint_04_GlowBars": 48,
+    "Joint_04_Housing": 144,
+    "Joint_05_GlowBars": 48,
+    "Joint_05_Housing": 144,
+    "Joint_06_GlowBars": 48,
+    "Joint_06_Housing": 144,
+    "Joint_07_GlowBars": 48,
+    "Joint_07_Housing": 144,
+    "Joint_08_GlowBars": 48,
+    "Joint_08_Housing": 144,
+    "Joint_09_GlowBars": 48,
+    "Joint_09_Housing": 144,
+    "Joint_10_GlowBars": 48,
+    "Joint_10_Housing": 144,
+    "Joint_11_GlowBars": 48,
+    "Joint_11_Housing": 144,
+    "Joint_12_GlowBars": 48,
+    "Joint_12_Housing": 144,
+    "Joint_13_GlowBars": 48,
+    "Joint_13_Housing": 144,
+    "Joint_14_GlowBars": 48,
+    "Joint_14_Housing": 144,
+    "Joint_15_GlowBars": 48,
+    "Joint_15_Housing": 144,
+    "Joint_16_GlowBars": 48,
+    "Joint_16_Housing": 144,
+    "Joint_17_GlowBars": 48,
+    "Joint_17_Housing": 144,
+    "Joint_18_GlowBars": 48,
+    "Joint_18_Housing": 144,
+    "Joint_19_GlowBars": 48,
+    "Joint_19_Housing": 144,
+    "Joint_20_GlowBars": 48,
+    "Joint_20_Housing": 144,
+    "Joint_21_GlowBars": 48,
+    "Joint_21_Housing": 144,
+    "Joint_22_GlowBars": 48,
+    "Joint_22_Housing": 144,
+    "Joint_23_GlowBars": 48,
+    "Joint_23_Housing": 144,
+    "Joint_24_GlowBars": 48,
+    "Joint_24_Housing": 144,
+    "Joint_25_GlowBars": 48,
+    "Joint_25_Housing": 144,
+    "Joint_26_GlowBars": 48,
+    "Joint_26_Housing": 144,
+    "Joint_27_GlowBars": 48,
+    "Joint_27_Housing": 144,
+    "R2 socket lens -1": 1900,
+    "R2 socket lens 1": 1900,
+    "Segment_00": 1336,
+    "Segment_01": 1336,
+    "Segment_02": 1336,
+    "Segment_03": 1336,
+    "Segment_04": 1336,
+    "Segment_05": 1336,
+    "Segment_06": 1336,
+    "Segment_07": 1336,
+    "Segment_08": 1336,
+    "Segment_09": 1336,
+    "Segment_10": 1336,
+    "Segment_11": 1336,
+    "Segment_12": 1336,
+    "Segment_13": 1336,
+    "Segment_14": 1336,
+    "Segment_15": 1336,
+    "Segment_16": 1336,
+    "Segment_17": 1336,
+    "Segment_18": 1336,
+    "Segment_19": 1336,
+    "Segment_20": 1336,
+    "Segment_21": 1336,
+    "Segment_22": 1336,
+    "Segment_23": 1336,
+    "Segment_24": 1336,
+    "Segment_25": 1336,
+    "Segment_26": 1336,
+    "Segment_27": 1336,
+    "Tail": 2561,
+    "TailJoint_GlowBars": 48,
+    "TailJoint_Housing": 144
+  },
+  "glb_validation": {
+    "sha256": "7e38d91836a8cd4e02a5b84b8c26b49117b35a5253355a7f40f2135c71504424",
+    "bytes": 31247664,
+    "head": 13152,
+    "segment": 1336,
+    "joint": 192,
+    "segment_plus_joint": 1528,
+    "tail_plus_joint": 2753,
+    "assembly_triangles": 58689,
+    "segment_nodes": 28,
+    "segment_distinct_mesh_indices": [
+      5
+    ],
+    "housing_nodes": 29,
+    "glow_nodes": 29,
+    "mesh_nodes": 90,
+    "missing_attributes": [],
+    "packed_orm_materials": [
+      "R2 baked head",
+      "R2 baked segment",
+      "R2 baked tail"
+    ],
+    "skins": 0,
+    "extensions": [
+      "KHR_materials_emissive_strength"
+    ]
+  },
+  "rig_comparison": {
+    "preserved_rigid_node_transforms": 88,
+    "comparison": "exact JSON TRS/matrix equality against shipped R1",
+    "changed": []
+  },
+  "godot": {
+    "glow_nodes": 29,
+    "housing_nodes": 29,
+    "loaded": true,
+    "materials": {
+      "Dark recessed joint housing": "StandardMaterial3D",
+      "R2 baked head": "StandardMaterial3D",
+      "R2 baked segment": "StandardMaterial3D",
+      "R2 baked tail": "StandardMaterial3D",
+      "R2 exposed steel": "StandardMaterial3D",
+      "R2 lens glass": "StandardMaterial3D",
+      "R2 lens teal": "StandardMaterial3D",
+      "R2 recessed graphite": "StandardMaterial3D",
+      "Recessed saturated teal joint emission": "StandardMaterial3D"
+    },
+    "mesh_instances": 90,
+    "segment_distinct_meshes": 1,
+    "segment_nodes": 28,
+    "segments_posable": 28,
+    "surfaces_without_tangents": 0,
+    "textured_materials": {
+      "R2 baked head": {
+        "albedo": true,
+        "ao": true,
+        "ao_enabled": true,
+        "metallic": true,
+        "normal": true,
+        "roughness": true
+      },
+      "R2 baked segment": {
+        "albedo": true,
+        "ao": true,
+        "ao_enabled": true,
+        "metallic": true,
+        "normal": true,
+        "roughness": true
+      },
+      "R2 baked tail": {
+        "albedo": true,
+        "ao": true,
+        "ao_enabled": true,
+        "metallic": true,
+        "normal": true,
+        "roughness": true
+      }
+    },
+    "triangles": 58689
+  },
+  "godot_native_capture": {
+    "camera_position": "(-6.540285, 6.719996, 12.40632)",
+    "camera_size": 5.74971866607666,
+    "renderer": "gl_compatibility",
+    "role": "import and rest-pose evidence, not judged capture",
+    "save_error": 0,
+    "viewport": [
+      1280,
+      720
+    ]
+  },
+  "input_pack": {
+    "bytes": 52335140,
+    "sha256": "37d0b267806c04813c151449c9954bff531e32797458a617db7fd96ee8a1f2c6"
+  },
+  "render_settings": {
+    "blender": "4.5.14 LTS",
+    "engine": "CYCLES",
+    "device": "CPU / Linux",
+    "max_samples": 384,
+    "adaptive_sampling": true,
+    "adaptive_threshold": 0.01,
+    "denoise": true,
+    "resolution": [
+      1920,
+      1080
+    ],
+    "staging": "R1 original key/fill/rim, backdrop, contact shadow catcher and compositor glow retained",
+    "render_AO": "ORM-R multiplied into render material AFTER canonical GLB export"
+  },
+  "image_stats": [
+    {
+      "path": "snake-r2-rescue-input/pack/REFERENCE.png",
+      "background_rgb": [
+        194.02448979591836,
+        194.96163265306123,
+        192.15020408163267
+      ],
+      "foreground_percent": 44.7479248046875,
+      "luminance_mean_rgb_p10_p25_p50_p75_p90": [
+        9.0,
+        35.333333333333336,
+        79.66666666666667,
+        141.66666666666666,
+        174.33333333333334
+      ],
+      "teal_percent": 2.1841824092386735,
+      "mask": "sum(abs(pixel-bg)) > 40; same family as R1 stats, includes contact shadow"
+    },
+    {
+      "path": "snake-r2-sol-delivery/benchmarks/forge-snake-r1/captures/r1-full-body.png",
+      "background_rgb": [
+        191.26448979591837,
+        191.18857142857144,
+        190.4391836734694
+      ],
+      "foreground_percent": 38.950183256172835,
+      "luminance_mean_rgb_p10_p25_p50_p75_p90": [
+        43.333333333333336,
+        63.333333333333336,
+        90.0,
+        128.66666666666666,
+        167.66666666666666
+      ],
+      "teal_percent": 1.7565320532741673,
+      "mask": "sum(abs(pixel-bg)) > 40; same family as R1 stats, includes contact shadow"
+    },
+    {
+      "path": "snake-r2-sol-delivery/benchmarks/snake-r2-sol/captures/r2-full-body.png",
+      "background_rgb": [
+        191.27183673469386,
+        191.18938775510205,
+        190.44326530612244
+      ],
+      "foreground_percent": 38.38618827160494,
+      "luminance_mean_rgb_p10_p25_p50_p75_p90": [
+        36.0,
+        55.333333333333336,
+        79.0,
+        122.0,
+        167.66666666666666
+      ],
+      "teal_percent": 1.8970421218730211,
+      "mask": "sum(abs(pixel-bg)) > 40; same family as R1 stats, includes contact shadow"
+    },
+    {
+      "path": "snake-r2-sol-delivery/benchmarks/snake-r2-sol/captures/r2-head-closeup.png",
+      "background_rgb": [
+        191.29387755102042,
+        191.27755102040817,
+        190.47755102040816
+      ],
+      "foreground_percent": 40.58825231481482,
+      "luminance_mean_rgb_p10_p25_p50_p75_p90": [
+        48.0,
+        65.66666666666667,
+        82.0,
+        102.66666666666667,
+        137.66666666666666
+      ],
+      "teal_percent": 0.9430420204410922,
+      "mask": "sum(abs(pixel-bg)) > 40; same family as R1 stats, includes contact shadow"
+    }
+  ],
+  "inspected_images": [
+    "captures/r2-full-body.png",
+    "captures/r2-head-closeup.png",
+    "godot/godot-import-pose.png",
+    "previews/PREVIEW-final-module.png",
+    "previews/PREVIEW-final-tail.png"
+  ],
+  "artifacts_sha256": {
+    "NOTE.md": "74e2e33972d4f36cd8b71e8b0e047e501605ecd1757409fd8fc815f435352e80",
+    "captures/r2-full-body.png": "a5cf1d827b08fd14034e2386470dc47b344ee2ae14cad8d136f852b94b6e3873",
+    "captures/r2-head-closeup.png": "1145537ab1a31007461da6bbb7fd726f966a56e1a529be713c512d47078109ea",
+    "glb-validation.json": "8e4af81beb50dba647c6172d0205c3c188b590dc5671f71cbd98d284f3721265",
+    "godot/capture.gd": "8a41ca608895149ceda5d41bf559f0b04f3437cbe89f0d086d51fc588e63a5e5",
+    "godot/capture.log": "c8d7973cc6b1811b81ea41189f93985bdb2c3fbf9bdb78826549113988b4a6a1",
+    "godot/check.gd": "5aee7c0ad5f92ec8fd45e97ba20a9f5f2a75f140f9fc30ac78cc7b850a1ffc86",
+    "godot/check.log": "5f1ea64b8575465f622598898df715dc42daa1f1307270da9f528403c5fb1c6c",
+    "godot/godot-import-pose.png": "707ea8be4b0c1e36dff61082bfa22a98d67f8b993a38778fd82c2a429291694d",
+    "godot/import.log": "5e986c43df23b0feb0c9b3c5053654574dc127fa9f2aed34e45d77803d57796f",
+    "godot/project.godot": "1fce9e436ab30038371c56bf7994db0019535750e70df7d399fa6ecb5eb9a2f2",
+    "godot/run.sh": "962706aaba3a923620e9791778c039d1812a65bb89be482541f8e407eec9b71e",
+    "image-stats.json": "c656923f68125fc001dadc7386197ed91b400747a3049909be359b5b895faf45",
+    "logs/build-final.log": "a00a6ce8be2b70cc71db6db6a12eb7935735b485481f00a81605d95507855b1c",
+    "logs/details-final.log": "e891ecb6773c44a80e995b944b6599a1993fade26d8075b8661853a5190d1f5d",
+    "previews/PREVIEW-c-full-body.png": "c6d5b1b67dbbc4cbee70ea6b0f2760b1b3d42ab5bce5361fd8eda8aa740745c7",
+    "previews/PREVIEW-c-head.png": "598496cc6b93957cae2d798a99cc17e6cfaca67ee68f8c93a074fdaaff5a797c",
+    "previews/PREVIEW-c-module.png": "85438be052a82b31b0592b726d7afbf84848a5725f3e2439735136f366ec6ffb",
+    "previews/PREVIEW-final-module.png": "0208b82253b29dff692ce8160040ba18b6d04ee7e6c0ba5d75a01d7be1d1d4dc",
+    "previews/PREVIEW-final-tail.png": "88dc5e0fe4e7a64f9d03a796f566628ce8a70584678636154574948c2d84cad3",
+    "previews/README.md": "b6b9aa284eb044cbaeb8da4cba6710087f3a24dfeafc058f0d73d8c9c8c4dd04",
+    "rig-comparison.json": "937d4491a158180b898062e9ce69636b32884d721ab5ae58237866def672a891",
+    "snake-sectional-r2.glb": "7e38d91836a8cd4e02a5b84b8c26b49117b35a5253355a7f40f2135c71504424",
+    "source/build_r2.py": "a8dcf08b23df22c09a2beeaa79ecf97dc1c944295664e2841fc09aa6a143667a",
+    "source/compare_rig.py": "beffe579fd07a14fd9ac27c788f587b1aa5cade0c41e867be39a5db4d69d1c9d",
+    "source/image_stats.py": "199479019252da048be7d44f20ae83b973fc84fc3804e2cb1eb467e46e7b72ef",
+    "source/render_details.py": "35ef6ea4305cbc80770270c488592ffde8d79b5daab290df6741a4b5a72e9e1e",
+    "source/run-build.sh": "b100fe9970fe55264cc67d0111bcf4daa8f25539ff6f7b7bbc57f5c0a56f37ce",
+    "source/validate_glb.py": "ffe8cddd99ae822bddfc201ee2b5c73765809eb32db786b38b6fd81e661b1030",
+    "source/weather.py": "e37560ab556dde5abd2479b64c9376a92fdf1a6a5e9495a4f7bab6dff0cf6081"
+  },
+  "handoff": "Implementation and evidence submitted for independent panel/Brick review; not accepted or self-graded."
+}
