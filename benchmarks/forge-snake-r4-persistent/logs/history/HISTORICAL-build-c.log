@@ -1,0 +1,51 @@
+Info: Deleted 32 data-block(s)
+05:43:06 | INFO: Data are loaded, start creating Blender stuff
+05:43:06 | INFO: Blender create Mesh node R2 fitted head
+05:43:06 | INFO: Blender create Mesh node R2 socket lens -1
+05:43:06 | INFO: Blender create Mesh node R2 socket lens 1
+05:43:06 | INFO: Blender create Mesh node R2 layered segment
+05:43:06 | INFO: Blender create Mesh node R3 thin recessed arc emitter
+05:43:06 | INFO: Blender create Mesh node Recessed housing prototype
+05:43:06 | INFO: Blender create Mesh node R2 plated tail
+05:43:06 | INFO: glTF import finished in 0.08s
+R4_SILVER_READY head
+R4_SILVER_READY segment
+R4_SILVER_READY tail
+R4_COUNTS {"head": 11232, "segment": 1336, "joint": 240, "segment_plus_joint": 1576, "tail": 2439, "tail_plus_joint": 2679, "assembly_triangles": 58039, "mesh_nodes": 90, "segment_nodes": 28, "housing_nodes": 29, "emitter_nodes": 29}
+INFO Draco mesh compression is available, use library at C:\Users\Moore\Blender\blender-4.5.14-windows-x64\4.5\scripts\addons_core\io_scene_gltf2\extern_draco.dll
+05:43:12 | INFO: Starting glTF 2.0 export
+05:43:12 | INFO: Extracting primitive: R2 fitted head
+05:43:12 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+05:43:12 | INFO: Primitives created: 1
+05:43:12 | INFO: Extracting primitive: R4 flush circular optical assembly
+05:43:12 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+05:43:12 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+05:43:12 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+05:43:12 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+05:43:12 | INFO: Primitives created: 4
+05:43:12 | INFO: Extracting primitive: R4 flush circular optical assembly.001
+05:43:12 | INFO: Primitives created: 4
+05:43:12 | INFO: Extracting primitive: R2 layered segment
+05:43:12 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+05:43:12 | INFO: Primitives created: 2
+05:43:12 | INFO: Extracting primitive: R4 48-sided full circumference cyan ribbon
+05:43:12 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+05:43:12 | INFO: Primitives created: 1
+05:43:12 | INFO: Extracting primitive: Recessed housing prototype
+05:43:12 | INFO: Primitives created: 1
+05:43:12 | INFO: Extracting primitive: R2 plated tail
+05:43:12 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+05:43:12 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+05:43:12 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+05:43:12 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+05:43:12 | INFO: Primitives created: 7
+05:43:13 | INFO: Finished glTF 2.0 export in 1.0708518028259277 s
+
+Info: Deleted 15 data-block(s)
+Info: No new files have been packed
+Info: Saved as "snake-sectional-r4.blend"
+R4_BUILD_COMPLETE
+Blender 4.5.14 LTS (hash 62c1db4208e8 built 2026-09-15 01:33:49)
+Read blend: "\\wsl.localhost\OpenClawGateway\home\openclaw\.openclaw\workspace-studio-3d\tickets\forge-r3\benchmarks\forge-snake-r3\snake-sectional-r3.blend"
+
+Blender quit

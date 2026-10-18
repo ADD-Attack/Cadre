@@ -1,0 +1,43 @@
+{
+  "outcome": "PASS",
+  "counts": {
+    "sha256": "8819c6ef236c1cb9496a52216533566ef23bbd600dd22f68219b8da80fb9e457",
+    "bytes": 18947544,
+    "head": 11832,
+    "segment": 1384,
+    "joint": 216,
+    "segment_plus_joint": 1600,
+    "tail_plus_joint": 2743,
+    "assembly_triangles": 59375,
+    "segment_nodes": 28,
+    "segment_distinct_mesh_indices": [
+      5
+    ],
+    "housing_nodes": 29,
+    "glow_nodes": 29,
+    "mesh_nodes": 90,
+    "missing_attributes": [],
+    "packed_orm_materials": [
+      "R4 satin silver edge steel",
+      "R4 graphite recess",
+      "R4 luminous green eye",
+      "R4 bright green optical core",
+      "R4 green iris recess",
+      "R4 directional silver head",
+      "R4 titanium plated fin",
+      "R4 continuous cyan joint band",
+      "R4 directional silver segment",
+      "R4 directional silver tail",
+      "R3 machined edge steel",
+      "R3 fitted hardware gunmetal"
+    ],
+    "skins": 0,
+    "extensions": [
+      "KHR_materials_emissive_strength"
+    ]
+  },
+  "rig_preserved": true,
+  "paired_staging_equal": true,
+  "godot_pass": true,
+  "image_files": 28
+}

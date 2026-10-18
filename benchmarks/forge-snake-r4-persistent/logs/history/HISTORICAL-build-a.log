@@ -1,0 +1,23 @@
+Info: Deleted 32 data-block(s)
+05:42:19 | INFO: Data are loaded, start creating Blender stuff
+05:42:19 | INFO: Blender create Mesh node R2 fitted head
+05:42:19 | INFO: Blender create Mesh node R2 socket lens -1
+05:42:19 | INFO: Blender create Mesh node R2 socket lens 1
+05:42:19 | INFO: Blender create Mesh node R2 layered segment
+05:42:19 | INFO: Blender create Mesh node R3 thin recessed arc emitter
+05:42:19 | INFO: Blender create Mesh node Recessed housing prototype
+05:42:19 | INFO: Blender create Mesh node R2 plated tail
+05:42:19 | INFO: glTF import finished in 0.07s
+R4_SILVER_READY head
+R4_SILVER_READY segment
+R4_SILVER_READY tail
+R4_COUNTS {"head": 11232, "segment": 1368, "joint": 240, "segment_plus_joint": 1608, "tail": 2439, "tail_plus_joint": 2679, "assembly_triangles": 58935, "mesh_nodes": 90, "segment_nodes": 28, "housing_nodes": 29, "emitter_nodes": 29}
+Blender 4.5.14 LTS (hash 62c1db4208e8 built 2026-09-15 01:33:49)
+Read blend: "\\wsl.localhost\OpenClawGateway\home\openclaw\.openclaw\workspace-studio-3d\tickets\forge-r3\benchmarks\forge-snake-r3\snake-sectional-r3.blend"
+Traceback (most recent call last):
+  File "\\wsl.localhost\OpenClawGateway\home\openclaw\.openclaw\workspace-studio-3d\tickets\forge-r3\benchmarks\forge-snake-r4-persistent\source\build.py", line 176, in <module>
+    assert 10000<=rep['head']<=18000 and rep['segment_plus_joint']<=1600 and rep['tail_plus_joint']<=3000 and 30000<=rep['assembly_triangles']<=60000,rep
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: {'head': 11232, 'segment': 1368, 'joint': 240, 'segment_plus_joint': 1608, 'tail': 2439, 'tail_plus_joint': 2679, 'assembly_triangles': 58935, 'mesh_nodes': 90, 'segment_nodes': 28, 'housing_nodes': 29, 'emitter_nodes': 29}
+
+Blender quit

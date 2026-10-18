@@ -1,0 +1,86 @@
+{
+  "R4 green iris recess": {
+    "surface_shaders": [
+      "BSDF_PRINCIPLED"
+    ],
+    "micro_normal_strengths": []
+  },
+  "R3 fitted hardware gunmetal": {
+    "surface_shaders": [
+      "BSDF_PRINCIPLED"
+    ],
+    "micro_normal_strengths": []
+  },
+  "R4 continuous cyan joint band": {
+    "surface_shaders": [
+      "BSDF_PRINCIPLED"
+    ],
+    "micro_normal_strengths": []
+  },
+  "R4 luminous green eye": {
+    "surface_shaders": [
+      "BSDF_PRINCIPLED"
+    ],
+    "micro_normal_strengths": []
+  },
+  "R4 graphite recess": {
+    "surface_shaders": [
+      "BSDF_PRINCIPLED"
+    ],
+    "micro_normal_strengths": []
+  },
+  "R4 bright green optical core": {
+    "surface_shaders": [
+      "BSDF_PRINCIPLED"
+    ],
+    "micro_normal_strengths": []
+  },
+  "R4 satin silver edge steel": {
+    "surface_shaders": [
+      "BSDF_PRINCIPLED"
+    ],
+    "micro_normal_strengths": []
+  },
+  "R4 directional silver segment": {
+    "surface_shaders": [
+      "BSDF_PRINCIPLED"
+    ],
+    "micro_normal_strengths": [
+      0.3499999940395355
+    ]
+  },
+  "Recessed saturated teal joint emission": {
+    "surface_shaders": [
+      "BSDF_PRINCIPLED"
+    ],
+    "micro_normal_strengths": []
+  },
+  "R4 directional silver tail": {
+    "surface_shaders": [
+      "BSDF_PRINCIPLED"
+    ],
+    "micro_normal_strengths": [
+      0.3499999940395355
+    ]
+  },
+  "R4 titanium plated fin": {
+    "surface_shaders": [
+      "BSDF_PRINCIPLED"
+    ],
+    "micro_normal_strengths": []
+  },
+  "R3 machined edge steel": {
+    "surface_shaders": [
+      "BSDF_PRINCIPLED"
+    ],
+    "micro_normal_strengths": []
+  },
+  "R4 directional silver head": {
+    "surface_shaders": [
+      "BSDF_PRINCIPLED"
+    ],
+    "micro_normal_strengths": [
+      0.3499999940395355
+    ]
+  }
+}

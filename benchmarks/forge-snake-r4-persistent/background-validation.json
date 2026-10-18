@@ -1,0 +1,27 @@
+{
+  "sample": "clear top-right 20x20 encoded RGB median",
+  "owner_world_input": "#C1C1BF",
+  "rendered_background_rgb255": {
+    "r4-full-body.png": [
+      195.00001525878906,
+      195.00001525878906,
+      194.00001525878906
+    ],
+    "r4-head-closeup.png": [
+      195.00001525878906,
+      195.00001525878906,
+      195.00001525878906
+    ],
+    "baseline-r3-full-body.png": [
+      195.00001525878906,
+      195.00001525878906,
+      194.00001525878906
+    ],
+    "baseline-r3-head-closeup.png": [
+      195.00001525878906,
+      195.00001525878906,
+      195.00001525878906
+    ]
+  },
+  "paired_max_channel_difference": 0.0
+}

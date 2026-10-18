@@ -1,0 +1,6 @@
+*.blend
+*.blend1
+godot/.godot/
+godot/snake-sectional-r4.glb
+godot/*.import
+godot/snake-sectional-r4_*.png
