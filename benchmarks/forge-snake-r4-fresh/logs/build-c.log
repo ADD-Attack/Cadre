@@ -1,0 +1,55 @@
+02:12:48 | INFO: Data are loaded, start creating Blender stuff
+02:12:48 | INFO: Blender create Mesh node R2 fitted head
+02:12:48 | INFO: Blender create Mesh node R2 socket lens -1
+02:12:49 | INFO: Blender create Mesh node R2 socket lens 1
+02:12:49 | INFO: Blender create Mesh node R2 layered segment
+02:12:49 | INFO: Blender create Mesh node R3 thin recessed arc emitter
+02:12:49 | INFO: Blender create Mesh node Recessed housing prototype
+02:12:49 | INFO: Blender create Mesh node R2 plated tail
+02:12:49 | INFO: glTF import finished in 0.08s
+SEGMENT_BURIED_FACE_REMOVALS 132
+WEATHER_START head
+WEATHER_READY head {'anchors': 4, 'rust_fraction_gt_025': 0.00021939633099526653, 'edge_exposure_gt_025': 0.06056685031136827, 'source_ao_mean': 0.5652570724487305, 'direction': 'local -Z runoff; finite diagonal scratches; sharp geometric edge wear', 'uniform_rust_noise': False}
+WEATHER_START segment
+WEATHER_READY segment {'anchors': 4, 'rust_fraction_gt_025': 0.0027127996666771706, 'edge_exposure_gt_025': 0.1114530704564632, 'source_ao_mean': 0.5981509685516357, 'direction': 'local -Z runoff; finite diagonal scratches; sharp geometric edge wear', 'uniform_rust_noise': False}
+WEATHER_START tail
+WEATHER_READY tail {'anchors': 5, 'rust_fraction_gt_025': 0.0004227784675674326, 'edge_exposure_gt_025': 0.08349700512560818, 'source_ao_mean': 0.4766247570514679, 'direction': 'local -Z runoff; finite diagonal scratches; sharp geometric edge wear', 'uniform_rust_noise': False}
+R4_COUNTS {"head_including_lenses": 12416, "segment": 1346, "joint": 240, "segment_plus_joint": 1586, "tail": 2749, "tail_plus_joint": 2989, "assembly_instanced_triangles": 59813, "segment_nodes": 28, "segment_shared_meshes": 1, "housing_nodes": 29, "glow_nodes": 29}
+INFO Draco mesh compression is available, use library at C:\Users\Moore\Blender\blender-4.5.14-windows-x64\4.5\scripts\addons_core\io_scene_gltf2\extern_draco.dll
+02:13:28 | INFO: Starting glTF 2.0 export
+02:13:28 | INFO: Extracting primitive: R2 fitted head
+02:13:28 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+02:13:28 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+02:13:28 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+02:13:28 | INFO: Primitives created: 3
+02:13:28 | INFO: Extracting primitive: R2 socket lens -1
+02:13:28 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+02:13:28 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+02:13:28 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+02:13:28 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+02:13:28 | INFO: Primitives created: 4
+02:13:28 | INFO: Extracting primitive: R2 socket lens 1
+02:13:28 | INFO: Primitives created: 4
+02:13:28 | INFO: Extracting primitive: R2 layered segment
+02:13:28 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+02:13:28 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+02:13:28 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+02:13:28 | INFO: Primitives created: 4
+02:13:28 | INFO: Extracting primitive: R4 full circumference cyan band
+02:13:28 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+02:13:28 | INFO: Primitives created: 1
+02:13:28 | INFO: Extracting primitive: Recessed housing prototype
+02:13:28 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+02:13:28 | INFO: Primitives created: 1
+02:13:28 | INFO: Extracting primitive: R2 plated tail
+02:13:28 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+02:13:28 | INFO: Primitives created: 6
+02:13:29 | INFO: Finished glTF 2.0 export in 1.3473589420318604 s
+
+Info: Deleted 10 data-block(s)
+Info: No new files have been packed
+Info: Saved as "snake-sectional-r4-fresh.blend"
+R4_BUILD_COMPLETE
+Blender 4.5.14 LTS (hash 62c1db4208e8 built 2026-09-15 01:33:49)
+
+Blender quit

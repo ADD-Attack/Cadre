@@ -1,0 +1,138 @@
+{
+  "paired_staging_equal": true,
+  "camera_frames_identical_to_published_R3": true,
+  "production_settings_verified": true,
+  "active_glare_inputs_verified": true,
+  "reference_background_sample": {
+    "reference": "own workspace tickets/forge-snake-r1/pkg/forge-r1-pack/REFERENCE.png",
+    "patch": "top-right clear backdrop x1400:1900 y0:180",
+    "median_srgb_255": [
+      194.0,
+      195.0,
+      192.0
+    ],
+    "staging_target": "#C1C1BF",
+    "source_stage": "published R3 render-settings.json, reconstructed identically for R3 baseline and R4 candidate"
+  },
+  "images": [
+    {
+      "file": "captures/baseline-r3-full-body.png",
+      "dimensions": [
+        1920,
+        1080
+      ],
+      "sha256": "37f32d29e444bc6a4be1754d1f5b171701de7c82cd2457cd9732b0d5bd0fd1f6",
+      "clear_top_right_rgb_median": [
+        196.0,
+        195.0,
+        195.0
+      ]
+    },
+    {
+      "file": "captures/baseline-r3-head-closeup.png",
+      "dimensions": [
+        1920,
+        1080
+      ],
+      "sha256": "f3e3573c5d787657d8a6c3c09009ca7599a6bae921c62b1e0ea7214d41b041d9",
+      "clear_top_right_rgb_median": [
+        196.0,
+        196.0,
+        195.0
+      ]
+    },
+    {
+      "file": "captures/r4-fresh-full-body.png",
+      "dimensions": [
+        1920,
+        1080
+      ],
+      "sha256": "121f9e885dbd7281fa3e6ebbb056df5434f550af1bc13d94590d8f6e077ed117",
+      "clear_top_right_rgb_median": [
+        196.0,
+        195.0,
+        195.0
+      ]
+    },
+    {
+      "file": "captures/r4-fresh-head-closeup.png",
+      "dimensions": [
+        1920,
+        1080
+      ],
+      "sha256": "7d05966a067fc0c1c073da29d15603c645883f32b81933cef67b17c7b90bb099",
+      "clear_top_right_rgb_median": [
+        196.0,
+        196.0,
+        195.0
+      ]
+    }
+  ],
+  "Godot_4_7_2": {
+    "passed": true,
+    "check": {
+      "glow_nodes": 29,
+      "housing_nodes": 29,
+      "loaded": true,
+      "materials": {
+        "Dark recessed joint housing": "StandardMaterial3D",
+        "R2 exposed steel": "StandardMaterial3D",
+        "R2 lens glass": "StandardMaterial3D",
+        "R2 lens teal": "StandardMaterial3D",
+        "R2 recessed graphite": "StandardMaterial3D",
+        "R3 fitted hardware gunmetal": "StandardMaterial3D",
+        "R3 machined edge steel": "StandardMaterial3D",
+        "R4 edge steel": "StandardMaterial3D",
+        "R4 graphite": "StandardMaterial3D",
+        "R4 layered steel": "StandardMaterial3D",
+        "R4 silver head": "StandardMaterial3D",
+        "R4 silver segment": "StandardMaterial3D",
+        "R4 silver tail": "StandardMaterial3D",
+        "Recessed saturated teal joint emission": "StandardMaterial3D"
+      },
+      "mesh_instances": 90,
+      "segment_distinct_meshes": 1,
+      "segment_nodes": 28,
+      "segments_posable": 28,
+      "surfaces_without_tangents": 0,
+      "textured_materials": {
+        "R4 silver head": {
+          "albedo": true,
+          "ao": true,
+          "ao_enabled": true,
+          "metallic": true,
+          "normal": true,
+          "roughness": true
+        },
+        "R4 silver segment": {
+          "albedo": true,
+          "ao": true,
+          "ao_enabled": true,
+          "metallic": true,
+          "normal": true,
+          "roughness": true
+        },
+        "R4 silver tail": {
+          "albedo": true,
+          "ao": true,
+          "ao_enabled": true,
+          "metallic": true,
+          "normal": true,
+          "roughness": true
+        }
+      },
+      "triangles": 59925
+    },
+    "native_capture": {
+      "camera_position": "(-6.421873, 6.720541, 12.4801)",
+      "camera_size": 5.76555776596069,
+      "renderer": "gl_compatibility",
+      "role": "import and rest-pose evidence, not judged capture",
+      "save_error": 0,
+      "viewport": [
+        1280,
+        720
+      ]
+    }
+  }
+}

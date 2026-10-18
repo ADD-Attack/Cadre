@@ -1,0 +1,475 @@
+{
+  "order": "op-forge-snake-r4b-20261018",
+  "base_sha": "7a3a2c7c3af1f4d7803ad31753231d5f728043b0",
+  "source_glb": "benchmarks/forge-snake-r3/snake-sectional-r3.glb",
+  "no_peek": true,
+  "segment_removed_faces": 132,
+  "new_segment_detail_triangles": 60,
+  "tail_added_triangles": 80,
+  "head_added_triangles": 264,
+  "weathering": {
+    "head": {
+      "anchors": 4,
+      "rust_fraction_gt_025": 0.00021939633099526653,
+      "edge_exposure_gt_025": 0.06056685031136827,
+      "source_ao_mean": 0.5652570724487305,
+      "direction": "local -Z runoff; finite diagonal scratches; sharp geometric edge wear",
+      "uniform_rust_noise": false
+    },
+    "segment": {
+      "anchors": 4,
+      "rust_fraction_gt_025": 0.002597257089237384,
+      "edge_exposure_gt_025": 0.10987608933892139,
+      "source_ao_mean": 0.5981509685516357,
+      "direction": "local -Z runoff; finite diagonal scratches; sharp geometric edge wear",
+      "uniform_rust_noise": false
+    },
+    "tail": {
+      "anchors": 5,
+      "rust_fraction_gt_025": 0.0004227784675674326,
+      "edge_exposure_gt_025": 0.08349700512560818,
+      "source_ao_mean": 0.4766247570514679,
+      "direction": "local -Z runoff; finite diagonal scratches; sharp geometric edge wear",
+      "uniform_rust_noise": false
+    }
+  },
+  "counts": {
+    "head_including_lenses": 12416,
+    "segment": 1350,
+    "joint": 240,
+    "segment_plus_joint": 1590,
+    "tail": 2749,
+    "tail_plus_joint": 2989,
+    "assembly_instanced_triangles": 59925,
+    "segment_nodes": 28,
+    "segment_shared_meshes": 1,
+    "housing_nodes": 29,
+    "glow_nodes": 29
+  },
+  "objects": {
+    "Head": 8616,
+    "Joint_00_GlowBars": 96,
+    "Joint_00_Housing": 144,
+    "Joint_01_GlowBars": 96,
+    "Joint_01_Housing": 144,
+    "Joint_02_GlowBars": 96,
+    "Joint_02_Housing": 144,
+    "Joint_03_GlowBars": 96,
+    "Joint_03_Housing": 144,
+    "Joint_04_GlowBars": 96,
+    "Joint_04_Housing": 144,
+    "Joint_05_GlowBars": 96,
+    "Joint_05_Housing": 144,
+    "Joint_06_GlowBars": 96,
+    "Joint_06_Housing": 144,
+    "Joint_07_GlowBars": 96,
+    "Joint_07_Housing": 144,
+    "Joint_08_GlowBars": 96,
+    "Joint_08_Housing": 144,
+    "Joint_09_GlowBars": 96,
+    "Joint_09_Housing": 144,
+    "Joint_10_GlowBars": 96,
+    "Joint_10_Housing": 144,
+    "Joint_11_GlowBars": 96,
+    "Joint_11_Housing": 144,
+    "Joint_12_GlowBars": 96,
+    "Joint_12_Housing": 144,
+    "Joint_13_GlowBars": 96,
+    "Joint_13_Housing": 144,
+    "Joint_14_GlowBars": 96,
+    "Joint_14_Housing": 144,
+    "Joint_15_GlowBars": 96,
+    "Joint_15_Housing": 144,
+    "Joint_16_GlowBars": 96,
+    "Joint_16_Housing": 144,
+    "Joint_17_GlowBars": 96,
+    "Joint_17_Housing": 144,
+    "Joint_18_GlowBars": 96,
+    "Joint_18_Housing": 144,
+    "Joint_19_GlowBars": 96,
+    "Joint_19_Housing": 144,
+    "Joint_20_GlowBars": 96,
+    "Joint_20_Housing": 144,
+    "Joint_21_GlowBars": 96,
+    "Joint_21_Housing": 144,
+    "Joint_22_GlowBars": 96,
+    "Joint_22_Housing": 144,
+    "Joint_23_GlowBars": 96,
+    "Joint_23_Housing": 144,
+    "Joint_24_GlowBars": 96,
+    "Joint_24_Housing": 144,
+    "Joint_25_GlowBars": 96,
+    "Joint_25_Housing": 144,
+    "Joint_26_GlowBars": 96,
+    "Joint_26_Housing": 144,
+    "Joint_27_GlowBars": 96,
+    "Joint_27_Housing": 144,
+    "R2 socket lens -1": 1900,
+    "R2 socket lens 1": 1900,
+    "Segment_00": 1350,
+    "Segment_01": 1350,
+    "Segment_02": 1350,
+    "Segment_03": 1350,
+    "Segment_04": 1350,
+    "Segment_05": 1350,
+    "Segment_06": 1350,
+    "Segment_07": 1350,
+    "Segment_08": 1350,
+    "Segment_09": 1350,
+    "Segment_10": 1350,
+    "Segment_11": 1350,
+    "Segment_12": 1350,
+    "Segment_13": 1350,
+    "Segment_14": 1350,
+    "Segment_15": 1350,
+    "Segment_16": 1350,
+    "Segment_17": 1350,
+    "Segment_18": 1350,
+    "Segment_19": 1350,
+    "Segment_20": 1350,
+    "Segment_21": 1350,
+    "Segment_22": 1350,
+    "Segment_23": 1350,
+    "Segment_24": 1350,
+    "Segment_25": 1350,
+    "Segment_26": 1350,
+    "Segment_27": 1350,
+    "Tail": 2749,
+    "TailJoint_GlowBars": 96,
+    "TailJoint_Housing": 144
+  },
+  "base_glb_sha256": "c34f3b69ecc48278263e7ea691b5011c65bb07837b7721fc29f39248a5ded34a",
+  "delivered_build": "g",
+  "binary_validation": {
+    "sha256": "ed4c8874be4938e1146f5af46c9c93249e3fdc78cb989d1d2c853d858abbcf62",
+    "bytes": 18876648,
+    "head": 12416,
+    "segment": 1350,
+    "joint": 240,
+    "segment_plus_joint": 1590,
+    "tail_plus_joint": 2989,
+    "assembly_triangles": 59925,
+    "segment_nodes": 28,
+    "segment_distinct_mesh_indices": [
+      5
+    ],
+    "housing_nodes": 29,
+    "glow_nodes": 29,
+    "mesh_nodes": 90,
+    "missing_attributes": [],
+    "packed_orm_materials": [
+      "R2 exposed steel",
+      "R2 recessed graphite",
+      "R2 lens teal",
+      "R2 lens glass",
+      "R4 silver head",
+      "R4 edge steel",
+      "R4 layered steel",
+      "Recessed saturated teal joint emission",
+      "Dark recessed joint housing",
+      "R4 silver segment",
+      "R3 machined edge steel",
+      "R3 fitted hardware gunmetal",
+      "R4 graphite",
+      "R4 silver tail"
+    ],
+    "skins": 0,
+    "extensions": [
+      "KHR_materials_emissive_strength"
+    ]
+  },
+  "hierarchy_validation": {
+    "input_nodes": 90,
+    "output_nodes": 90,
+    "max_component_delta": 4.917383193969727e-07,
+    "differences_over_1e_5": [],
+    "passed": true
+  },
+  "judged_render": {
+    "frames": {
+      "full": {
+        "location": [
+          -6.508448123931885,
+          -12.411722183227539,
+          6.754112243652344
+        ],
+        "rotation": [
+          1.224887490272522,
+          -2.397841925017019e-09,
+          -0.5585994720458984
+        ],
+        "ortho_scale": 10.366149020724826
+      },
+      "head": {
+        "location": [
+          -4.277194976806641,
+          -6.935287952423096,
+          5.175177097320557
+        ],
+        "rotation": [
+          1.4115170240402222,
+          -2.8816909747320096e-08,
+          -0.24335533380508423
+        ],
+        "ortho_scale": 2.7696817864312067
+      }
+    },
+    "view_transform": "AgX",
+    "look": "None",
+    "exposure": 0.0,
+    "gamma": 1.0,
+    "engine": "CYCLES",
+    "device": "CPU",
+    "samples": 256,
+    "adaptive": true,
+    "adaptive_threshold": 0.009999999776482582,
+    "denoise": true,
+    "resolution": [
+      1920,
+      1080
+    ],
+    "glare": {
+      "type": "FOG_GLOW",
+      "threshold": 0.4000000059604645,
+      "strength": 0.25,
+      "size_normalized": 0.125
+    },
+    "lights": [
+      {
+        "name": "Large neutral key",
+        "location": [
+          -4.0,
+          -6.0,
+          9.0
+        ],
+        "rotation": [
+          0.7657627463340759,
+          -2.0350189089413107e-08,
+          -0.5880025625228882
+        ],
+        "energy": 2400.0,
+        "size": 5.0,
+        "color": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      {
+        "name": "Rim",
+        "location": [
+          1.0,
+          5.0,
+          8.0
+        ],
+        "rotation": [
+          0.6651962995529175,
+          -6.25557845523872e-08,
+          2.944197177886963
+        ],
+        "energy": 2300.0,
+        "size": 5.0,
+        "color": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      {
+        "name": "Soft fill",
+        "location": [
+          5.0,
+          -2.0,
+          6.0
+        ],
+        "rotation": [
+          0.8747047781944275,
+          -7.833124016087822e-08,
+          1.190290093421936
+        ],
+        "energy": 450.0,
+        "size": 5.0,
+        "color": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    ],
+    "world_backgrounds": [
+      {
+        "color": [
+          0.533276379108429,
+          0.533276379108429,
+          0.520995557308197,
+          1.0
+        ],
+        "strength": 1.149999976158142
+      },
+      {
+        "color": [
+          0.533276379108429,
+          0.533276379108429,
+          0.520995557308197,
+          1.0
+        ],
+        "strength": 1.6200000047683716
+      }
+    ]
+  },
+  "capture_verification": {
+    "paired_staging_equal": true,
+    "camera_frames_identical_to_published_R3": true,
+    "production_settings_verified": true,
+    "active_glare_inputs_verified": true,
+    "reference_background_sample": {
+      "reference": "own workspace tickets/forge-snake-r1/pkg/forge-r1-pack/REFERENCE.png",
+      "patch": "top-right clear backdrop x1400:1900 y0:180",
+      "median_srgb_255": [
+        194.0,
+        195.0,
+        192.0
+      ],
+      "staging_target": "#C1C1BF",
+      "source_stage": "published R3 render-settings.json, reconstructed identically for R3 baseline and R4 candidate"
+    },
+    "images": [
+      {
+        "file": "captures/baseline-r3-full-body.png",
+        "dimensions": [
+          1920,
+          1080
+        ],
+        "sha256": "37f32d29e444bc6a4be1754d1f5b171701de7c82cd2457cd9732b0d5bd0fd1f6",
+        "clear_top_right_rgb_median": [
+          196.0,
+          195.0,
+          195.0
+        ]
+      },
+      {
+        "file": "captures/baseline-r3-head-closeup.png",
+        "dimensions": [
+          1920,
+          1080
+        ],
+        "sha256": "f3e3573c5d787657d8a6c3c09009ca7599a6bae921c62b1e0ea7214d41b041d9",
+        "clear_top_right_rgb_median": [
+          196.0,
+          196.0,
+          195.0
+        ]
+      },
+      {
+        "file": "captures/r4-fresh-full-body.png",
+        "dimensions": [
+          1920,
+          1080
+        ],
+        "sha256": "121f9e885dbd7281fa3e6ebbb056df5434f550af1bc13d94590d8f6e077ed117",
+        "clear_top_right_rgb_median": [
+          196.0,
+          195.0,
+          195.0
+        ]
+      },
+      {
+        "file": "captures/r4-fresh-head-closeup.png",
+        "dimensions": [
+          1920,
+          1080
+        ],
+        "sha256": "7d05966a067fc0c1c073da29d15603c645883f32b81933cef67b17c7b90bb099",
+        "clear_top_right_rgb_median": [
+          196.0,
+          196.0,
+          195.0
+        ]
+      }
+    ],
+    "Godot_4_7_2": {
+      "passed": true,
+      "check": {
+        "glow_nodes": 29,
+        "housing_nodes": 29,
+        "loaded": true,
+        "materials": {
+          "Dark recessed joint housing": "StandardMaterial3D",
+          "R2 exposed steel": "StandardMaterial3D",
+          "R2 lens glass": "StandardMaterial3D",
+          "R2 lens teal": "StandardMaterial3D",
+          "R2 recessed graphite": "StandardMaterial3D",
+          "R3 fitted hardware gunmetal": "StandardMaterial3D",
+          "R3 machined edge steel": "StandardMaterial3D",
+          "R4 edge steel": "StandardMaterial3D",
+          "R4 graphite": "StandardMaterial3D",
+          "R4 layered steel": "StandardMaterial3D",
+          "R4 silver head": "StandardMaterial3D",
+          "R4 silver segment": "StandardMaterial3D",
+          "R4 silver tail": "StandardMaterial3D",
+          "Recessed saturated teal joint emission": "StandardMaterial3D"
+        },
+        "mesh_instances": 90,
+        "segment_distinct_meshes": 1,
+        "segment_nodes": 28,
+        "segments_posable": 28,
+        "surfaces_without_tangents": 0,
+        "textured_materials": {
+          "R4 silver head": {
+            "albedo": true,
+            "ao": true,
+            "ao_enabled": true,
+            "metallic": true,
+            "normal": true,
+            "roughness": true
+          },
+          "R4 silver segment": {
+            "albedo": true,
+            "ao": true,
+            "ao_enabled": true,
+            "metallic": true,
+            "normal": true,
+            "roughness": true
+          },
+          "R4 silver tail": {
+            "albedo": true,
+            "ao": true,
+            "ao_enabled": true,
+            "metallic": true,
+            "normal": true,
+            "roughness": true
+          }
+        },
+        "triangles": 59925
+      },
+      "native_capture": {
+        "camera_position": "(-6.421873, 6.720541, 12.4801)",
+        "camera_size": 5.76555776596069,
+        "renderer": "gl_compatibility",
+        "role": "import and rest-pose evidence, not judged capture",
+        "save_error": 0,
+        "viewport": [
+          1280,
+          720
+        ]
+      }
+    }
+  },
+  "self_checks": {
+    "actual_reference_viewed_in_session": true,
+    "R3_full_and_head_viewed_before_build": true,
+    "own_checkpoint_full_and_head_viewed_during_build": true,
+    "production_full_and_head_viewed_in_session": true,
+    "Godot_native_capture_viewed_in_session": true,
+    "module_and_tail_detail_previews_viewed_in_session": true,
+    "no_other_entrant_used": true,
+    "iteration_corrections": [
+      "a budget gate rejected overrun before export",
+      "b coarse superseded struts reclaimed",
+      "c stronger panel tones, green optical face, larger core and reduced normal strength",
+      "d checkpoint caught floating crest bolts; raycast seating replaces guessed placement; added sparse etched scratches",
+      "g module detail exposed armor/cassette overlap; lifted complete cassette assemblies and added recessed dark backings; repeated capture and import checks",
+      "Godot evidence filename substitution fixed; fresh pipeline rerun"
+    ]
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "sha256": "ed4c8874be4938e1146f5af46c9c93249e3fdc78cb989d1d2c853d858abbcf62",
+  "bytes": 18876648,
+  "head": 12416,
+  "segment": 1350,
+  "joint": 240,
+  "segment_plus_joint": 1590,
+  "tail_plus_joint": 2989,
+  "assembly_triangles": 59925,
+  "segment_nodes": 28,
+  "segment_distinct_mesh_indices": [
+    5
+  ],
+  "housing_nodes": 29,
+  "glow_nodes": 29,
+  "mesh_nodes": 90,
+  "missing_attributes": [],
+  "packed_orm_materials": [
+    "R2 exposed steel",
+    "R2 recessed graphite",
+    "R2 lens teal",
+    "R2 lens glass",
+    "R4 silver head",
+    "R4 edge steel",
+    "R4 layered steel",
+    "Recessed saturated teal joint emission",
+    "Dark recessed joint housing",
+    "R4 silver segment",
+    "R3 machined edge steel",
+    "R3 fitted hardware gunmetal",
+    "R4 graphite",
+    "R4 silver tail"
+  ],
+  "skins": 0,
+  "extensions": [
+    "KHR_materials_emissive_strength"
+  ]
+}

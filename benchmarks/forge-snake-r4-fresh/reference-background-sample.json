@@ -1,0 +1,11 @@
+{
+  "reference": "own workspace tickets/forge-snake-r1/pkg/forge-r1-pack/REFERENCE.png",
+  "patch": "top-right clear backdrop x1400:1900 y0:180",
+  "median_srgb_255": [
+    194.0,
+    195.0,
+    192.0
+  ],
+  "staging_target": "#C1C1BF",
+  "source_stage": "published R3 render-settings.json, reconstructed identically for R3 baseline and R4 candidate"
+}

@@ -1,0 +1,7 @@
+{
+  "input_nodes": 90,
+  "output_nodes": 90,
+  "max_component_delta": 4.917383193969727e-07,
+  "differences_over_1e_5": [],
+  "passed": true
+}
