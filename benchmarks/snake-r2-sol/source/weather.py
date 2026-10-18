@@ -36,7 +36,7 @@ def weather(o,kind,size,anchors,extra=()):
   vs=list(f.verts);fl=[]
   for k in range(3):
    a,b=vs[(k+1)%3],vs[(k+2)%3];e=next(e for e in a.link_edges if e.other_vert(a)==b)
-   
+
    if len(e.link_faces)==2 and all(q.smooth for q in e.link_faces):fl.append(0);continue
    ang=e.calc_face_angle_signed(0) if e.is_manifold else 1.0;fl.append(1 if ang>.30 else (-1 if ang<-.30 else 0))
   ef[f.index]=fl

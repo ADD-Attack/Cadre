@@ -299,7 +299,7 @@ def shot(path,loc,target,only=None):
 sc.render.image_settings.file_format='PNG';sc.render.resolution_percentage=100
 if MODE!='final':
  sc.cycles.samples=32;sc.cycles.use_adaptive_sampling=False;sc.render.resolution_x=1152;sc.render.resolution_y=648;p=OUT/'previews';p.mkdir(exist_ok=True)
- 
+
  if MODE!='geometry':shot(p/f'PREVIEW-{TAG}-full-body.png',(-7,-12,7),(.5,0,1.9))
  shot(p/f'PREVIEW-{TAG}-head.png',(-4,-7,5.2),(-2.2,.25,4),[head]+eyes)
  if MODE!='geometry':shot(p/f'PREVIEW-{TAG}-module.png',(-2,-7,4),(0,0,0),segs[9:12]+[c for s in segs[9:12] for c in s.children])

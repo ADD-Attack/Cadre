@@ -385,13 +385,13 @@
     "previews/README.md": "b6b9aa284eb044cbaeb8da4cba6710087f3a24dfeafc058f0d73d8c9c8c4dd04",
     "rig-comparison.json": "937d4491a158180b898062e9ce69636b32884d721ab5ae58237866def672a891",
     "snake-sectional-r2.glb": "7e38d91836a8cd4e02a5b84b8c26b49117b35a5253355a7f40f2135c71504424",
-    "source/build_r2.py": "a8dcf08b23df22c09a2beeaa79ecf97dc1c944295664e2841fc09aa6a143667a",
+    "source/build_r2.py": "89198b7043168d9fe4b6604bb2cdc8e7210302def52e4724d2a5af8a3396be0f",
     "source/compare_rig.py": "beffe579fd07a14fd9ac27c788f587b1aa5cade0c41e867be39a5db4d69d1c9d",
     "source/image_stats.py": "199479019252da048be7d44f20ae83b973fc84fc3804e2cb1eb467e46e7b72ef",
     "source/render_details.py": "35ef6ea4305cbc80770270c488592ffde8d79b5daab290df6741a4b5a72e9e1e",
     "source/run-build.sh": "b100fe9970fe55264cc67d0111bcf4daa8f25539ff6f7b7bbc57f5c0a56f37ce",
     "source/validate_glb.py": "ffe8cddd99ae822bddfc201ee2b5c73765809eb32db786b38b6fd81e661b1030",
-    "source/weather.py": "e37560ab556dde5abd2479b64c9376a92fdf1a6a5e9495a4f7bab6dff0cf6081"
+    "source/weather.py": "5996a2acf1fab5a1a0fc3154ca00ae59cd7b31d51fcbb2c0e6798214ef559b6a"
   },
   "handoff": "Implementation and evidence submitted for independent panel/Brick review; not accepted or self-graded."
 }
