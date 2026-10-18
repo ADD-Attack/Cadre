@@ -19,7 +19,7 @@ workspace and accessed by the required Windows applications through WSL UNC.
 4. Run `render.py` with `R3_MODE=final`, `R3_BASELINE=0`, then again with
    `R3_BASELINE=1` for identically staged paired R2 captures. Defaults: CPU Cycles,
    256 samples, adaptive 0.01, OpenImageDenoise, 1920×1080. Tight fog glow is
-   threshold 0.65 / size 6 / mix -0.75 for both paired assets.
+   active Threshold 0.4 / Strength 0.25 / normalized Size 0.125 for both paired assets.
 5. `python3 benchmarks/forge-snake-r3/source/validate_glb.py benchmarks/forge-snake-r3/snake-sectional-r3.glb`
 6. `python3 benchmarks/forge-snake-r3/source/compare_rig.py benchmarks/snake-r2-sol/snake-sectional-r2.glb benchmarks/forge-snake-r3/snake-sectional-r3.glb`
 7. `bash benchmarks/forge-snake-r3/source/run-godot.sh` — Godot 4.7.2 import,
@@ -29,3 +29,6 @@ The working packed `.blend` is local and ignored, not a delivery dependency.
 Textures embedded in the GLB and their generated PNGs are provided. Judged renders
 are `captures/r3-full-body.png` and `captures/r3-head-closeup.png`; baseline pairs
 are explicitly named `baseline-r2-*`. Godot Compatibility evidence is not judged.
+
+`persist_final_staging.py` saves the verified final stage into the ignored local
+working blend for Round 4 Arm A in this same session, without changing the GLB.

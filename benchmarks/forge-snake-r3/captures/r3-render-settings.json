@@ -42,9 +42,9 @@
   ],
   "glare": {
     "type": "FOG_GLOW",
-    "threshold": 0.0,
-    "mix": -0.75,
-    "size": 6
+    "threshold": 0.4000000059604645,
+    "strength": 0.25,
+    "size_normalized": 0.125
   },
   "lights": [
     {

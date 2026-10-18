@@ -1,0 +1,9 @@
+GLARE_INITIAL FOG_GLOW 0.0 -0.30000001192092896 7 [('Image', '<bpy_float[4], NodeSocketColor.default_value>'), ('Threshold', '1.0'), ('Smoothness', '0.10000000149011612'), ('Clamp', 'False'), ('Maximum', '10.0'), ('Strength', '0.699999988079071'), ('Saturation', '1.0'), ('Tint', '<bpy_float[4], NodeSocketColor.default_value>'), ('Size', '0.25'), ('Streaks', '4'), ('Streaks Angle', '0.0'), ('Iterations', '3'), ('Fade', '0.8999999761581421'), ('Color Modulation', '0.25'), ('Diagonal', 'True')]
+GLARE_LEGACY_SET 0.0 -0.75 6 [('Image', '<bpy_float[4], NodeSocketColor.default_value>'), ('Threshold', '1.0'), ('Smoothness', '0.10000000149011612'), ('Clamp', 'False'), ('Maximum', '10.0'), ('Strength', '0.25'), ('Saturation', '1.0'), ('Tint', '<bpy_float[4], NodeSocketColor.default_value>'), ('Size', '0.125'), ('Streaks', '4'), ('Streaks Angle', '0.0'), ('Iterations', '3'), ('Fade', '0.8999999761581421'), ('Color Modulation', '0.25'), ('Diagonal', 'True')]
+Blender 4.5.14 LTS (hash 62c1db4208e8 built 2026-09-15 01:33:49)
+Read blend: "\\wsl.localhost\OpenClawGateway\home\openclaw\.openclaw\workspace-studio-3d\tickets\forge-r3\benchmarks\forge-snake-r3\snake-sectional-r3.blend"
+RNA_float_get: NodeSocket.default_value not found.
+RNA_float_set: NodeSocket.default_value not found.
+RNA_float_get: NodeSocket.default_value not found.
+
+Blender quit

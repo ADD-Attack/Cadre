@@ -170,14 +170,19 @@
       }
     },
     "engine": "Cycles",
-    "device": "CPU (OPTIX attempted; VRAM exhausted)",
-    "samples": 32,
+    "device": "CPU",
+    "samples": 256,
     "adaptive_threshold": 0.01,
     "denoise": true,
     "backdrop": "reference sampled #C1C1BF; inherited R1/R2 world",
     "lighting": "unchanged R1/R2 shaped neutral key/fill/rim",
     "occlusion": "original R2 baked ORM-R multiply connected in render materials, shadow catcher",
-    "bloom": "inherited subtle FOG_GLOW compositor"
+    "bloom": {
+      "type": "FOG_GLOW",
+      "threshold": 0.4000000059604645,
+      "strength": 0.25,
+      "size_normalized": 0.125
+    }
   },
   "judged_render": {
     "application": "4.5.14 LTS",
@@ -225,9 +230,9 @@
     "contact_shadow": "inherited shadow catcher",
     "glow": {
       "type": "FOG_GLOW",
-      "threshold": 0.0,
-      "mix": -0.75,
-      "size": 6
+      "threshold": 0.4000000059604645,
+      "strength": 0.25,
+      "size_normalized": 0.125
     },
     "backdrop": "reference-sampled #C1C1BF world; same baseline and after"
   },
@@ -369,30 +374,40 @@
       "checkpoint": "h",
       "caught": "bright slab-like crown additions",
       "changed": "darkened gunmetal faces and modeled bevel; traded two optional screws"
+    },
+    {
+      "checkpoint": "final-import-audit",
+      "caught": "zero-byte screenshot from C: failure scanned by Godot importer",
+      "changed": "removed generated screenshot before fresh import/check/capture; final logs clean"
+    },
+    {
+      "checkpoint": "final-active-glare-audit",
+      "caught": "Blender 4.5 legacy glare threshold setter ignored; active input stayed 1.0",
+      "changed": "set actual input sockets: Threshold 0.4, Strength 0.25, Size 0.125; re-rendered all four baseline/after images"
     }
   ],
   "artifacts": {
     "captures/r3-full-body.png": {
-      "bytes": 2480592,
-      "sha256": "413bb78dce42045c8010c307badaaf611a6b167bb89f440f671e4f8915f9ef76",
+      "bytes": 2489737,
+      "sha256": "c4e208cd7fada2776c181609a37de548661edf8f9f0636db4281cc44cdb5b1a7",
       "width": 1920,
       "height": 1080
     },
     "captures/r3-head-closeup.png": {
-      "bytes": 2160211,
-      "sha256": "376bddae67600a5628386eab6b4ce50426dfe87809387121fc36838686d33f76",
+      "bytes": 2092076,
+      "sha256": "368ffaa2141e3633260daa4139d755db8bc2a3ad9a8049b05e28510ebb5cda1d",
       "width": 1920,
       "height": 1080
     },
     "captures/baseline-r2-full-body.png": {
-      "bytes": 2570282,
-      "sha256": "98893a5779975cd993a7c8103a10c661aba4970b32ae7c33029645a94998c4a1",
+      "bytes": 2575688,
+      "sha256": "d8f31276a1f59838aa1264b651195a581edd52ff397a333bc09daba9d65d7975",
       "width": 1920,
       "height": 1080
     },
     "captures/baseline-r2-head-closeup.png": {
-      "bytes": 2266276,
-      "sha256": "1465763684d39c44f8ef84716ed6d6103743c6c201eb95256a0946905d35812b",
+      "bytes": 2226482,
+      "sha256": "4ad59993e25591c2b243936f05f533d518e8692e9f86cef62e39ee02f0e96694",
       "width": 1920,
       "height": 1080
     },
@@ -428,5 +443,12 @@
     }
   },
   "delivery_folder": "benchmarks/forge-snake-r3/",
-  "branch": "forge-snake-r3-20261018"
+  "branch": "forge-snake-r3-20261018",
+  "identical_baseline_after_staging_verified": true,
+  "active_glare_inputs_verified": {
+    "type": "FOG_GLOW",
+    "threshold": 0.4000000059604645,
+    "strength": 0.25,
+    "size_normalized": 0.125
+  }
 }

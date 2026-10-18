@@ -91,9 +91,11 @@ scales are fixed; the camera is not re-fitted to flatter the edited asset.
 Blender **4.5.14**, **Cycles CPU**, 1920×1080, **256 maximum samples**, adaptive
 noise threshold 0.01, OpenImageDenoise on. Plain reference-matched light-grey
 backdrop, unchanged shaped neutral key/fill/rim, real ORM-R AO multiply in render
-materials, soft shadow-catcher contact shadow, tight, subtle compositor fog glow (threshold 0.65, size 6, mix -0.75),
+materials, soft shadow-catcher contact shadow, tight, subtle compositor fog glow (active Threshold 0.4, Strength 0.25, normalized Size 0.125),
 applied identically to R2 baseline and R3 so even the dimmed seams get bloom. Camera backdrop uses the owner's #C1C1BF target. Actual top-right reference
 sample median is RGB 194/195/192; see `reference-background-sample.json`.
+A final clear rendered corner is RGB 196/196/195 after AgX and subtle fog glow;
+the plain baseline and after backdrop use identical settings.
 Workbench was not used. Godot Compatibility images are import evidence only.
 
 ## Actual-eye checkpoints and corrections
@@ -122,6 +124,10 @@ iteration, then the production captures were checked before delivery.
   scanned as an input by Godot. Removed it and repeated the fresh import/check/
   capture pipeline; the run script now removes its generated screenshot before
   import.
+- Final metadata audit caught Blender 4.5 silently ignoring the legacy glare
+  threshold property setter (active input remained 1.0). Corrected the actual
+  Threshold/Strength/Size node inputs and re-rendered all four judged/baseline
+  images identically. The manifest now asserts the active inputs.
 - Final **h** full-body/head plus module/tail detail previews and judged captures
   are the final visual self-check evidence. Historical previews are labeled;
   they are not judged captures and are not alternate deliveries.

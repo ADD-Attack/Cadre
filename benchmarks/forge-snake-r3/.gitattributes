@@ -1,0 +1,10 @@
+*.md text eol=lf
+*.py text eol=lf
+*.sh text eol=lf
+*.gd text eol=lf
+*.godot text eol=lf
+*.uid text eol=lf
+*.json text eol=lf
+*.log text eol=lf
+*.png binary
+*.glb binary
