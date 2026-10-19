@@ -175,34 +175,73 @@ def _reset_coordination_state():
 
 
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 8_000_000  # screenshots travel as responses
+app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024  # 16MB file-drop is ~22MB base64; hands still caps the file at 16MB
+
+_fail_by_peer = {}
+_lockout_by_peer = {}
 
 
-def _locked_out() -> bool:
-    return time.monotonic() < _lockout_until
+def _peer_key():
+    try:
+        return request.remote_addr or "-"
+    except RuntimeError:
+        return "-"
+
+
+def _locked_out(peer=None) -> bool:
+    """Per-peer lockout. The global bucket is not consulted."""
+    if peer is None:
+        peer = _peer_key()
+    with _fail_lock:
+        return time.monotonic() < _lockout_by_peer.get(peer, 0.0)
 
 
 def _record_failure() -> None:
-    global _lockout_until
+    """Record one bad token for this peer. Valid tokens never call this."""
     now = time.monotonic()
     with _fail_lock:
-        _fail_times[:] = [t for t in _fail_times if now - t < FAIL_WINDOW]
-        _fail_times.append(now)
-        if len(_fail_times) >= MAX_FAILS:
-            _lockout_until = now + LOCKOUT_SECONDS
-            _fail_times.clear()
+        peer = _peer_key()
+        times = _fail_by_peer.setdefault(peer, [])
+        times[:] = [t for t in times if now - t < FAIL_WINDOW]
+        times.append(now)
+        if len(times) >= MAX_FAILS:
+            _lockout_by_peer[peer] = now + LOCKOUT_SECONDS
+            times.clear()
             app.logger.warning("LOCKOUT: too many bad tokens")
+
+
+def _gate_decision(provided):
+    """Decide and record in one critical section.
+
+    A request that already presents the valid token is never locked out,
+    even when this peer is over the failure budget. Empty TOKEN fails closed.
+    """
+    now = time.monotonic()
+    peer = _peer_key()
+    with _fail_lock:
+        if TOKEN and hmac.compare_digest(provided, TOKEN):
+            return "ok"
+        if now < _lockout_by_peer.get(peer, 0.0):
+            return "locked"
+        times = _fail_by_peer.setdefault(peer, [])
+        times[:] = [t for t in times if now - t < FAIL_WINDOW]
+        times.append(now)
+        if len(times) >= MAX_FAILS:
+            _lockout_by_peer[peer] = now + LOCKOUT_SECONDS
+            times.clear()
+            app.logger.warning("LOCKOUT: too many bad tokens")
+        return "bad"
 
 
 @app.before_request
 def gate():
     if request.path == "/health":
         return
-    if _locked_out():
-        return jsonify({"ok": False, "error": "locked out"}), 429
     provided = request.headers.get("X-Relay-Token") or ""
-    if not TOKEN or not hmac.compare_digest(provided, TOKEN):
-        _record_failure()
+    decision = _gate_decision(provided)
+    if decision == "locked":
+        return jsonify({"ok": False, "error": "locked out"}), 429
+    if decision != "ok":
         return jsonify({"ok": False, "error": "bad token"}), 401
 
 
@@ -408,8 +447,18 @@ def hands_release():
             )
         current = _current_claim_locked(now)
         if current is None:
-            # Already expired (or never held): releasing is a no-op.
-            return jsonify({"ok": True, "released": False, "claim": None})
+            # Already expired (or never held). Expiry may have just reserved
+            # the queue head; report that same snapshot, including reserved_for.
+            claim, queue, reserved = _claim_snapshot(now)
+            return jsonify(
+                {
+                    "ok": True,
+                    "released": False,
+                    "claim": claim,
+                    "queue": queue,
+                    "reserved_for": reserved,
+                }
+            )
         if current["holder"] != holder:
             return (
                 jsonify(
@@ -623,7 +672,7 @@ def _decode_masked(png_bytes, mask_bottom):
     return img
 
 
-def _frame_hash(png_a, png_b, mask_bottom):
+def _frame_hash(png_a, png_b, mask_bottom, size_match_out=None):
     """SHA-256 of a screenshot's masked pixels.
 
     With png_b given (stable mode), the two frames are composited first
@@ -633,14 +682,23 @@ def _frame_hash(png_a, png_b, mask_bottom):
     (a terminal caret) drops out entirely, leaving the untouched
     frame. Only persistent content moves the hash.
     Returns (hex_digest, width, height) of the masked frame.
+    size_match_out, when a list, receives True/False: False means the two
+    samples differed in size and were NOT composited. Callers that asked
+    for stable=1 must report stable false in that case. The 3-tuple return
+    is unchanged so existing unpackers keep working.
     """
     img_a = _decode_masked(png_a, mask_bottom)
+    sizes_match = True
     if png_b is not None:
         from PIL import ImageChops
 
         img_b = _decode_masked(png_b, mask_bottom)
         if img_b.size == img_a.size:
             img_a = ImageChops.darker(img_a, img_b)
+        else:
+            sizes_match = False
+    if size_match_out is not None:
+        size_match_out.append(sizes_match)
     return hashlib.sha256(img_a.tobytes()).hexdigest(), img_a.width, img_a.height
 
 
@@ -732,8 +790,9 @@ def screen_hash():
         png_b, _, err = _fetch_screenshot(**kwargs)
         if err is not None:
             return err
+    size_match = []
     try:
-        digest, width, height = _frame_hash(png_a, png_b, mask_bottom)
+        digest, width, height = _frame_hash(png_a, png_b, mask_bottom, size_match)
     except _HashUnavailable:
         return (
             jsonify(
@@ -748,7 +807,74 @@ def screen_hash():
         {
             "ok": True,
             "hash": digest,
-            "stable": stable,
+            "stable": bool(stable and (size_match[0] if size_match else True)),
+            "mask_bottom": mask_bottom,
+            "width": width,
+            "height": height,
+        }
+    )
+
+
+@app.get("/v1/screen/wait")
+def screen_wait():
+    """Long-poll sibling of /v1/screen/hash.
+
+    Holds until the masked frame hash differs from `since` (also accepted
+    as `hash`) or timeout elapses (default 25s, capped at 25). Returns the
+    current hash JSON plus timed_out. Reuses _frame_hash / _fetch_screenshot.
+    Single-sample (not the two-frame stable composite) so a 25s hold is not
+    a chain of 0.65s gaps.
+    """
+    since = request.args.get("since", request.args.get("hash", ""))
+    if not isinstance(since, str):
+        since = ""
+    try:
+        timeout = float(request.args.get("timeout", "25"))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "timeout must be a number"}), 400
+    if timeout != timeout or timeout in (float("inf"), float("-inf")):
+        return jsonify({"ok": False, "error": "timeout must be a number"}), 400
+    timeout = min(max(timeout, 0.0), 25.0)
+    try:
+        mask_bottom = int(request.args.get("mask_bottom", DEFAULT_MASK_BOTTOM))
+    except ValueError:
+        return jsonify({"ok": False, "error": "mask_bottom must be an integer"}), 400
+    mask_bottom = max(0, min(mask_bottom, 2000))
+    kwargs, err = _screen_fetch_kwargs()
+    if err is not None:
+        return err
+    deadline = time.monotonic() + timeout
+    timed_out = True
+    digest = width = height = None
+    while True:
+        png, _, err = _fetch_screenshot(**kwargs)
+        if err is not None:
+            return err
+        try:
+            digest, width, height = _frame_hash(png, None, mask_bottom)
+        except _HashUnavailable:
+            return (
+                jsonify(
+                    {
+                        "ok": False,
+                        "error": "image decoding unavailable on gateway (pillow not installed)",
+                    }
+                ),
+                501,
+            )
+        if digest != since:
+            timed_out = False
+            break
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        time.sleep(min(0.2, remaining))
+    return jsonify(
+        {
+            "ok": True,
+            "hash": digest,
+            "timed_out": timed_out,
+            "stable": False,
             "mask_bottom": mask_bottom,
             "width": width,
             "height": height,
@@ -833,17 +959,18 @@ def _pump_receipt(receipt, now):
     except Exception as exc:  # a stubbed / broken forward must not kill the pump
         status, result = None, {"ok": False, "error": f"forward failed: {exc}"}
         failed = True
+        yielded = False
     else:
-        failed = (
-            status == 502
-            and isinstance(result, dict)
-            and "hands unreachable" in str(result.get("error") or "").lower()
-        )
+        error = str(result.get("error") or "").lower() if isinstance(result, dict) else ""
+        yielded = status == 409 and ("yield" in error or "user active" in error)
+        # 2xx applied. Yield-409 stays held (deadline still -> refused-yielded).
+        # Everything else, including 400/500/503/502 and a non-yield 409, fails.
+        failed = not (isinstance(status, int) and 200 <= status < 300)
     with _receipts_lock:
         receipt["updated_at"] = now
         if status is not None:
             receipt["hands_status"] = status
-        if status == 409:
+        if yielded:
             if now >= receipt["deadline"]:
                 receipt["state"] = "refused-yielded"
                 _pending_payloads.pop(receipt["id"], None)
@@ -1087,6 +1214,16 @@ def _hands_post(path, payload):
         body = {"ok": False, "error": f"hands returned {r.status_code}"}
     if not isinstance(body, dict):
         body = {"ok": False, "error": "hands returned a non-object response"}
+    if r.status_code == 401:
+        # Same mapping as the other hands forwarders: a hands secret mismatch
+        # must not look like a bad gateway token.
+        return (
+            502,
+            {
+                "ok": False,
+                "error": "hands rejected the gateway's secret — HANDS_SECRET does not match the hands app's current session secret",
+            },
+        )
     return r.status_code, body
 
 
@@ -1125,9 +1262,18 @@ def _filedrop_via_hands(folder, filename, data, sha256_hex, post=None):
             },
         )
         if status != 200 or not body.get("ok"):
+            try:
+                post("/filedrop/abort", {"upload_id": upload_id})
+            except Exception:
+                pass
             return body, status
         offset += len(chunk)
     status, body = post("/filedrop/commit", {"upload_id": upload_id})
+    if status != 200 or not isinstance(body, dict) or not body.get("ok"):
+        try:
+            post("/filedrop/abort", {"upload_id": upload_id})
+        except Exception:
+            pass
     return body, status
 
 
@@ -1159,6 +1305,10 @@ def filedrop():
     if supplied is not None:
         if not isinstance(supplied, str) or supplied.lower() != digest:
             return jsonify({"ok": False, "error": "sha256 mismatch"}), 400
+    # Hands filedrop_begin rejects size > 16MB. Enforce the same here so a
+    # raised MAX_CONTENT_LENGTH cannot sneak a larger object through.
+    if len(data) > 16 * 1024 * 1024:
+        return jsonify({"ok": False, "error": "file exceeds 16MB"}), 400
     result, status = _filedrop_via_hands(folder, filename, data, digest)
     return jsonify(result), status
 
@@ -1235,6 +1385,23 @@ def _check_window_title(contains, fetch=None):
     titles, status = fetch()
     if status in (404, 501):
         raise _WaitUnsupported()
+    if status != 200:
+        # _WaitFetchError carries a ready (response, status) tuple.
+        # wait_for already returns exc.response. 401 is rewritten to 502 so a
+        # hands secret mismatch does not look like a bad gateway token.
+        out = 502 if status == 401 else status
+        raise _WaitFetchError(
+            (
+                jsonify(
+                    {
+                        "ok": False,
+                        "error": f"window title fetch failed ({status})",
+                        "hands_status": status,
+                    }
+                ),
+                out,
+            )
+        )
     if not titles:
         return False
     needle = str(contains).lower()

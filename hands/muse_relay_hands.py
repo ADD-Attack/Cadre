@@ -182,20 +182,120 @@ def alert_phone(title: str, message: str) -> None:
     threading.Thread(target=_send, daemon=True).start()
 
 
-def _auth_locked_out() -> bool:
-    return time.monotonic() < _lockout_until
+_fail_by_peer = {}
+_lockout_by_peer = {}
+
+
+def _peer_key():
+    try:
+        return request.remote_addr or "-"
+    except RuntimeError:
+        return "-"
+
+
+def _auth_locked_out(peer=None) -> bool:
+    if peer is None:
+        peer = _peer_key()
+    with _fail_lock:
+        return time.monotonic() < _lockout_by_peer.get(peer, 0.0)
 
 
 def _record_failure() -> None:
-    global _lockout_until
     now = time.monotonic()
     file_log("bad secret attempt")
+    tripped = False
     with _fail_lock:
-        _fail_times[:] = [t for t in _fail_times if now - t < FAIL_WINDOW]
-        _fail_times.append(now)
-        if len(_fail_times) >= MAX_FAILS:
-            _lockout_until = now + LOCKOUT_SECONDS
-            _fail_times.clear()
+        peer = _peer_key()
+        times = _fail_by_peer.setdefault(peer, [])
+        times[:] = [t for t in times if now - t < FAIL_WINDOW]
+        times.append(now)
+        if len(times) >= MAX_FAILS:
+            _lockout_by_peer[peer] = now + LOCKOUT_SECONDS
+            times.clear()
+            tripped = True
+    if tripped:
+        log_line(
+            "LOCKOUT: too many bad secrets -- authentication paused "
+            "for 5 minutes"
+        )
+        file_log("LOCKOUT triggered (10 bad secrets inside 10 minutes)")
+        alert_phone(
+            "Muse Relay LOCKOUT",
+            "Someone just made 10 bad secret guesses at your relay. "
+            "Authentication is paused for 5 minutes.",
+        )
+
+
+_ACT_PATHS = {
+    "/move",
+    "/click",
+    "/type",
+    "/key",
+    "/scroll",
+    "/hotkey",
+    "/drag",
+    "/focus",
+}
+
+
+def _yield_if_active():
+    """409 and do not run the op when the owner was active recently.
+
+    _probe_lock_state is the only seam: (locked, idle_seconds), or
+    (None, None) off Windows / on failure. None idle means inactive.
+    Yield only when idle_seconds < HANDS_YIELD_IDLE_SECONDS (default 5).
+    """
+    try:
+        threshold = float(os.environ.get("HANDS_YIELD_IDLE_SECONDS", "5"))
+    except (TypeError, ValueError):
+        threshold = 5.0
+    _locked, idle_seconds = _probe_lock_state()
+    if idle_seconds is not None and idle_seconds < threshold:
+        return jsonify({"ok": False, "error": "user active — control yielded"}), 409
+    return None
+
+
+def _auth_decide(provided):
+    """One critical section. A valid secret is never locked out.
+
+    An empty SHARED_SECRET does not compare equal to an empty header.
+    Those rejects are not counted: the packaged app assigns the secret
+    after import, and a blank config must not burn the lockout budget.
+    """
+    now = time.monotonic()
+    peer = _peer_key()
+    with _fail_lock:
+        secret = SHARED_SECRET or ""
+        if secret and hmac.compare_digest(provided, secret):
+            return "ok", False
+        if now < _lockout_by_peer.get(peer, 0.0):
+            return "locked", False
+        if not secret:
+            return "bad", False
+        times = _fail_by_peer.setdefault(peer, [])
+        times[:] = [t for t in times if now - t < FAIL_WINDOW]
+        times.append(now)
+        tripped = len(times) >= MAX_FAILS
+        if tripped:
+            _lockout_by_peer[peer] = now + LOCKOUT_SECONDS
+            times.clear()
+        return "bad", tripped
+
+
+@app.before_request
+def gate():
+    if request.path == "/health":
+        return  # liveness only, per this file's contract: a lockout or a
+        # secret-less probe must never read as "down" (the gateway probes
+        # /health to decide reachability, and a supervisor restart on a
+        # false "down" would wipe the very lockout that is protecting us)
+    provided = request.headers.get("X-Secret") or ""
+    decision, tripped = _auth_decide(provided)
+    if decision == "locked":
+        return jsonify({"ok": False, "error": "locked out"}), 429
+    if decision != "ok":
+        file_log("bad secret attempt")
+        if tripped:
             log_line(
                 "LOCKOUT: too many bad secrets -- authentication paused "
                 "for 5 minutes"
@@ -206,22 +306,12 @@ def _record_failure() -> None:
                 "Someone just made 10 bad secret guesses at your relay. "
                 "Authentication is paused for 5 minutes.",
             )
-
-
-@app.before_request
-def gate():
-    if request.path == "/health":
-        return  # liveness only, per this file's contract: a lockout or a
-        # secret-less probe must never read as "down" (the gateway probes
-        # /health to decide reachability, and a supervisor restart on a
-        # false "down" would wipe the very lockout that is protecting us)
-    if _auth_locked_out():
-        return jsonify({"ok": False, "error": "locked out"}), 429
-    provided = request.headers.get("X-Secret") or ""
-    if not hmac.compare_digest(provided, SHARED_SECRET):
-        _record_failure()
         log_line(f"rejected request to {request.path} (bad secret)")
         return jsonify({"ok": False, "error": "bad secret"}), 401
+    if request.path in _ACT_PATHS:
+        refused = _yield_if_active()
+        if refused is not None:
+            return refused
 
 
 @app.after_request
@@ -540,6 +630,9 @@ def type_text():
     "delays_planned", "planned_seconds"} — the delay fields describe the
     keystroke plan (0 on the paste path).
     """
+    refused = _yield_if_active()
+    if refused is not None:
+        return refused
     d = request.get_json(force=True, silent=True) or {}
     text = d.get("text")
     if not isinstance(text, str):
@@ -573,16 +666,19 @@ def type_text():
             readable = True
         except Exception:
             pass  # unreadable clipboard: paste anyway, skip the restore
-        backend.set_text(text)
-        pyautogui.hotkey("ctrl", "v")
-        if readable and saved is not None:
-            # Give the target app a beat to consume the paste before the
-            # previous clipboard contents go back.
-            time.sleep(0.1)
-            try:
-                backend.set_text(saved)
-            except Exception:
-                pass
+        try:
+            backend.set_text(text)
+            pyautogui.hotkey("ctrl", "v")
+            if readable:
+                # Give the target app a beat to consume the paste before the
+                # previous clipboard contents go back.
+                time.sleep(0.1)
+        finally:
+            if readable and saved is not None:
+                try:
+                    backend.set_text(saved)
+                except Exception:
+                    pass
         return "paste"
 
     if method == "keys":
@@ -714,17 +810,29 @@ _uploads: dict = {}
 _uploads_lock = threading.Lock()
 
 
+def _accept_drop_dir(p):
+    """Absolute allowlist entries only, compared case-insensitively later.
+
+    Relative entries are rejected (not realpath'd against the cwd).
+    Exact path match is unchanged — this is not a prefix match.
+    """
+    text = str(p).strip()
+    if not text or not os.path.isabs(text):
+        return None
+    return os.path.normcase(os.path.realpath(text))
+
+
 def _filedrop_dirs():
     env = os.environ.get("HANDS_FILEDROP_DIRS")
     if env is not None:
         if not env.strip():
             return []
-        return [os.path.realpath(p) for p in env.split(os.pathsep) if p]
+        return [d for d in (_accept_drop_dir(p) for p in env.split(os.pathsep)) if d]
     cfg = _load_config()
     dirs = cfg.get("filedrop_dirs") if isinstance(cfg, dict) else None
     if not isinstance(dirs, list):
         return []
-    return [os.path.realpath(str(p)) for p in dirs if str(p)]
+    return [d for d in (_accept_drop_dir(p) for p in dirs) if d]
 
 
 def _purge_uploads():
@@ -755,7 +863,7 @@ def filedrop_begin():
     sha256 = body.get("sha256")
     if not isinstance(folder, str) or not folder:
         return jsonify({"ok": False, "error": "folder required"}), 400
-    real_folder = os.path.realpath(folder)
+    real_folder = os.path.normcase(os.path.realpath(folder))
     if real_folder not in _filedrop_dirs():
         return jsonify({"ok": False, "error": "folder not in file-drop allowlist"}), 403
     if (
@@ -795,43 +903,29 @@ def filedrop_chunk():
     data_b64 = body.get("data_b64")
     with _uploads_lock:
         upload = _uploads.get(upload_id)
-    if upload is None:
-        return jsonify({"ok": False, "error": "unknown upload_id"}), 404
-    expected = len(upload["buffer"])
-    if isinstance(offset, bool) or not isinstance(offset, int) or offset != expected:
-        return (
-            jsonify(
-                {
-                    "ok": False,
-                    "error": "offset mismatch",
-                    "expected_offset": expected,
-                    "expected": expected,
-                }
-            ),
-            409,
-        )
-    if not isinstance(data_b64, str):
-        return jsonify({"ok": False, "error": "data_b64 required"}), 400
-    try:
-        chunk = base64.b64decode(data_b64, validate=True)
-    except (binascii.Error, ValueError):
-        return jsonify({"ok": False, "error": "data_b64 is not valid base64"}), 400
-    if expected + len(chunk) > upload["size"]:
-        return jsonify({"ok": False, "error": "chunk exceeds declared size"}), 400
-    with _uploads_lock:
-        # Re-check under lock in case a concurrent call appended.
-        if len(upload["buffer"]) != expected:
+        if upload is None or upload.get("closed"):
+            return jsonify({"ok": False, "error": "unknown upload_id"}), 404
+        expected = len(upload["buffer"])
+        if isinstance(offset, bool) or not isinstance(offset, int) or offset != expected:
             return (
                 jsonify(
                     {
                         "ok": False,
                         "error": "offset mismatch",
-                        "expected_offset": len(upload["buffer"]),
-                        "expected": len(upload["buffer"]),
+                        "expected_offset": expected,
+                        "expected": expected,
                     }
                 ),
                 409,
             )
+        if not isinstance(data_b64, str):
+            return jsonify({"ok": False, "error": "data_b64 required"}), 400
+        try:
+            chunk = base64.b64decode(data_b64, validate=True)
+        except (binascii.Error, ValueError):
+            return jsonify({"ok": False, "error": "data_b64 is not valid base64"}), 400
+        if expected + len(chunk) > upload["size"]:
+            return jsonify({"ok": False, "error": "chunk exceeds declared size"}), 400
         upload["buffer"].extend(chunk)
         received = len(upload["buffer"])
     return jsonify({"ok": True, "received": received, "offset": received})
@@ -846,20 +940,29 @@ def filedrop_commit():
     upload_id = body.get("upload_id")
     with _uploads_lock:
         upload = _uploads.get(upload_id)
-    if upload is None:
-        return jsonify({"ok": False, "error": "unknown upload_id"}), 404
-    data = bytes(upload["buffer"])
-    if len(data) != upload["size"]:
+        if upload is None or upload.get("closed"):
+            return jsonify({"ok": False, "error": "unknown upload_id"}), 404
+        # Close under the same lock as chunk append so a concurrent chunk
+        # cannot extend a buffer this commit already copied.
+        data = bytes(upload["buffer"])
+        meta_size = upload["size"]
+        meta_sha = upload["sha256"]
+        meta_dir = upload["dir"]
+        meta_name = upload["filename"]
+        upload["closed"] = True
+    if len(data) != meta_size:
+        with _uploads_lock:
+            _uploads.pop(upload_id, None)
         return jsonify({"ok": False, "error": "incomplete upload: size mismatch"}), 400
     digest = hashlib.sha256(data).hexdigest()
-    if digest != upload["sha256"]:
+    if digest != meta_sha:
         with _uploads_lock:
             _uploads.pop(upload_id, None)
         return jsonify({"ok": False, "error": "sha256 mismatch"}), 400
-    final_path = os.path.join(upload["dir"], upload["filename"])
+    final_path = os.path.join(meta_dir, meta_name)
     tmp_path = None
     try:
-        fd, tmp_path = tempfile.mkstemp(dir=upload["dir"], prefix=".filedrop-", suffix=".tmp")
+        fd, tmp_path = tempfile.mkstemp(dir=meta_dir, prefix=".filedrop-", suffix=".tmp")
         with os.fdopen(fd, "wb") as fh:
             fh.write(data)
         os.replace(tmp_path, final_path)
@@ -870,6 +973,10 @@ def filedrop_commit():
                 os.unlink(tmp_path)
             except OSError:
                 pass
+        with _uploads_lock:
+            upload = _uploads.get(upload_id)
+            if upload is not None:
+                upload["closed"] = False
         return jsonify({"ok": False, "error": f"write failed: {exc}"}), 500
     with _uploads_lock:
         _uploads.pop(upload_id, None)
@@ -933,6 +1040,9 @@ def break_():
 @app.post("/drag")
 def drag():
     """Press the mouse button at (x1, y1), drag to (x2, y2), release."""
+    refused = _yield_if_active()
+    if refused is not None:
+        return refused
     d = request.get_json(force=True, silent=True) or {}
     try:
         x1, y1, x2, y2 = (int(d[k]) for k in ("x1", "y1", "x2", "y2"))
@@ -946,9 +1056,16 @@ def drag():
     except (TypeError, ValueError):
         return jsonify({"ok": False, "error": "duration must be a number"}), 400
     pyautogui.moveTo(x1, y1)
-    pyautogui.mouseDown(button=button)
-    pyautogui.moveTo(x2, y2, duration=duration or 0.4)
-    pyautogui.mouseUp(button=button)
+    down = False
+    try:
+        # Mark first so a mouseDown/move failure still releases the button.
+        # duration 0 is real; do not coerce it with `or 0.4`.
+        down = True
+        pyautogui.mouseDown(button=button)
+        pyautogui.moveTo(x2, y2, duration=duration)
+    finally:
+        if down:
+            pyautogui.mouseUp(button=button)
     return {"ok": True}
 
 
@@ -1103,9 +1220,10 @@ def _activate_window(win):
     On Windows: restore first if minimised, then SetForegroundWindow.
     The well-known foreground-lock workaround (AttachThreadInput) is
     deliberately out of scope here — see docs/VERIFICATION.md.
+    Returns True only when activation was applied.
     """
     if os.name != "nt":
-        return
+        return False
     try:
         import win32con
         import win32gui
@@ -1118,14 +1236,16 @@ def _activate_window(win):
                     if getattr(fallback, "isMinimized", False):
                         fallback.restore()
                     fallback.activate()
+                    return True
                 except Exception:
-                    pass
-            return
+                    return False
+            return False
         if win32gui.IsIconic(hwnd):
             win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
         win32gui.SetForegroundWindow(hwnd)
+        return True
     except Exception:
-        pass  # best effort: foreground lock can refuse; caller still matched
+        return False  # foreground lock can refuse; caller must not claim ok
 
 
 @app.get("/windows")
@@ -1150,11 +1270,24 @@ def focus():
         return jsonify({"ok": False, "error": "title must be a non-empty string"}), 400
     exact = bool(d.get("exact", False))
     needle = title.casefold()
+    refused = _yield_if_active()
+    if refused is not None:
+        return refused
     for win in _enum_windows():
         candidate = (win.get("title") or "").casefold()
         matched = candidate == needle if exact else needle in candidate
         if matched:
-            _activate_window(win)
+            if not _activate_window(win):
+                return (
+                    jsonify(
+                        {
+                            "ok": False,
+                            "error": "activation failed",
+                            "window": _shape_window(win),
+                        }
+                    ),
+                    409,
+                )
             return jsonify({"ok": True, "window": _shape_window(win)})
     return jsonify({"ok": False, "error": f"no window matching {title!r}"}), 404
 
@@ -1307,10 +1440,15 @@ def _run_elevated(entry) -> bool:
     if os.name != "nt":
         return False
     try:
-        result = ctypes.windll.shell32.ShellExecuteW(
+        shell32 = ctypes.windll.shell32
+        # HINSTANCE is pointer-sized. The default c_int restype truncates it
+        # and can record launched vs launch_failed backwards.
+        shell32.ShellExecuteW.restype = ctypes.c_void_p
+        result = shell32.ShellExecuteW(
             None, "runas", entry.get("exe") or "", entry.get("args") or None, None, 1
         )
-        return bool(result and result > 32)
+        code = 0 if result is None else int(result)
+        return code > 32
     except Exception:
         return False
 

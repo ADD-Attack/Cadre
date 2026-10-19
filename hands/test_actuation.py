@@ -230,7 +230,7 @@ def run():
     wins = [win("Alpha Editor"), win("Beta - alpha notes"), win("Gamma")]
     hands._enum_windows = lambda: wins
     activated = []
-    hands._activate_window = lambda w: activated.append(w)
+    hands._activate_window = lambda w: activated.append(w) or True
 
     r = client.get("/windows", headers=AUTH)
     body = r.get_json()

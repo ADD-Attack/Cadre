@@ -76,8 +76,10 @@ def run():
     check("control: a real route without the secret is still 401",
           r.status_code == 401)
 
-    # Force the lockout state the gate checks.
-    hands._lockout_until = time.monotonic() + 300
+    # Force the per-peer lockout the gate checks. A valid secret is never
+    # locked out; a bad secret from the same peer is.
+    peer = "127.0.0.1"
+    hands._lockout_by_peer[peer] = time.monotonic() + 300
     try:
         r = client.get("/health")
         check("health answers 200 during a lockout",
@@ -86,10 +88,13 @@ def run():
         check("health answers 200 during a lockout even with the secret",
               r.status_code == 200)
         r = client.get("/windows", headers=AUTH)
-        check("control: real routes stay locked out (429) during a lockout",
+        check("valid secret is not locked out",
+              r.status_code == 200)
+        r = client.get("/windows", headers={"X-Secret": "not-the-secret"})
+        check("bad secret from a locked-out peer is 429",
               r.status_code == 429)
     finally:
-        hands._lockout_until = 0.0
+        hands._lockout_by_peer.pop(peer, None)
 
     r = client.get("/windows", headers=AUTH)
     check("control: real routes work again once the lockout clears",

@@ -46,6 +46,7 @@ def _default_models_dir():
 MODELS_DIR = os.environ.get("PARSER_MODELS_DIR", _default_models_dir())
 
 _state_lock = threading.Lock()
+_infer_lock = threading.RLock()
 _detector = None
 _detector_state = "not_tried"  # -> loaded | weights_missing | deps_missing | load_error: ...
 _captioner = None
@@ -93,9 +94,11 @@ def _get_captioner():
     Returns (model, processor) or None. Labels fall back to "icon" without it.
     """
     global _captioner, _captioner_state
-    if _captioner is not None or _captioner_state != "not_tried":
-        return _captioner
-    with _state_lock:
+    # Same lock as predict/generate so a load cannot race an inference.
+    # Remote code from the Florence folder is not enabled. If the folder
+    # cannot be loaded by the stock class, the captioner stays unloaded
+    # and labels remain "icon".
+    with _infer_lock:
         if _captioner is not None or _captioner_state != "not_tried":
             return _captioner
         cap_dir = os.path.join(MODELS_DIR, "icon_caption_florence")
@@ -109,10 +112,8 @@ def _get_captioner():
             _captioner_state = "deps_missing"
             return None
         try:
-            model = AutoModelForCausalLM.from_pretrained(
-                cap_dir, trust_remote_code=True
-            ).eval()
-            processor = AutoProcessor.from_pretrained(cap_dir, trust_remote_code=True)
+            model = AutoModelForCausalLM.from_pretrained(cap_dir).eval()
+            processor = AutoProcessor.from_pretrained(cap_dir)
             _captioner = (model, processor)
             _captioner_state = "loaded"
         except Exception as exc:
@@ -130,12 +131,13 @@ def _caption(crop):
 
         task = "<CAPTION>"
         inputs = processor(text=task, images=crop, return_tensors="pt")
-        with torch.no_grad():
-            ids = model.generate(
-                input_ids=inputs["input_ids"],
-                pixel_values=inputs["pixel_values"],
-                max_new_tokens=32,
-            )
+        with _infer_lock:
+            with torch.no_grad():
+                ids = model.generate(
+                    input_ids=inputs["input_ids"],
+                    pixel_values=inputs["pixel_values"],
+                    max_new_tokens=32,
+                )
         text = processor.batch_decode(ids, skip_special_tokens=True)[0]
         return text.strip() or None
     except Exception:
@@ -197,32 +199,34 @@ def _run_parse(raw_bytes):
         return None
 
     width, height = image.size
-    results = detector.predict(image, conf=CONF, verbose=False)
-    boxes = []
-    for r in results:
-        if r.boxes is None:
-            continue
-        for b in r.boxes:
-            x0, y0, x1, y1 = (int(v) for v in b.xyxy[0].tolist())
-            boxes.append((x0, y0, x1, y1))
-    boxes.sort(key=lambda b: (b[1], b[0]))  # reading order: top-to-bottom, left-to-right
+    captioner = _get_captioner()
+    with _infer_lock:
+        results = detector.predict(image, conf=CONF, verbose=False)
+        boxes = []
+        for r in results:
+            if r.boxes is None:
+                continue
+            for b in r.boxes:
+                x0, y0, x1, y1 = (int(v) for v in b.xyxy[0].tolist())
+                boxes.append((x0, y0, x1, y1))
+        boxes.sort(key=lambda b: (b[1], b[0]))  # reading order: top-to-bottom, left-to-right
 
-    elements = []
-    for i, (x0, y0, x1, y1) in enumerate(boxes):
-        label = None
-        if _get_captioner() is not None:
-            label = _caption(image.crop((x0, y0, x1, y1)))
-        elements.append(
-            {
-                "id": i,
-                "label": label or "icon",
-                "label_source": "captioner" if label else "detector",
-                "bbox": [x0, y0, x1, y1],
-                "center": [(x0 + x1) // 2, (y0 + y1) // 2],
-                "interactable": True,
-            }
-        )
-    return elements, width, height
+        elements = []
+        for i, (x0, y0, x1, y1) in enumerate(boxes):
+            label = None
+            if captioner is not None:
+                label = _caption(image.crop((x0, y0, x1, y1)))
+            elements.append(
+                {
+                    "id": i,
+                    "label": label or "icon",
+                    "label_source": "captioner" if label else "detector",
+                    "bbox": [x0, y0, x1, y1],
+                    "center": [(x0 + x1) // 2, (y0 + y1) // 2],
+                    "interactable": True,
+                }
+            )
+        return elements, width, height
 
 
 def _find_matches(elements, text, case_sensitive=False):

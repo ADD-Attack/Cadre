@@ -147,20 +147,24 @@ class ServiceHealth:
         self._gave_up = False
 
     def note(self, ok):
-        if ok:
+        lock = getattr(self, "_note_lock", None)
+        if lock is None:
+            lock = self._note_lock = threading.Lock()
+        with lock:
+            if ok:
+                self._consecutive = 0
+                return "none"
+            self._consecutive += 1
+            if self._consecutive < self.max_consecutive:
+                return "none"
             self._consecutive = 0
+            if self._restarts < self.max_restarts:
+                self._restarts += 1
+                return "restart"
+            if not self._gave_up:
+                self._gave_up = True
+                return "give_up"
             return "none"
-        self._consecutive += 1
-        if self._consecutive < self.max_consecutive:
-            return "none"
-        self._consecutive = 0
-        if self._restarts < self.max_restarts:
-            self._restarts += 1
-            return "restart"
-        if not self._gave_up:
-            self._gave_up = True
-            return "give_up"
-        return "none"
 
 
 def _app_dir():
@@ -361,6 +365,7 @@ class RelayApp:
         name = req.get("name") or ""
         exe = req.get("exe") or ""
         args = req.get("args") or ""
+        self._elevation_dialog_open = True
         try:
             from tkinter import messagebox
 
@@ -374,16 +379,27 @@ class RelayApp:
             )
         except Exception:
             approved = False  # no dialog, no approval — deny by default
+        finally:
+            self._elevation_dialog_open = False
         try:
             resolved = hands._resolve_elevation(eid, approved)
         except Exception as exc:
             self.log_line(f"Elevation request '{name}': resolver failed ({exc})")
             return
-        self.log_line(
-            f"Elevation request '{name}': "
-            f"{'approved by the operator' if approved else 'denied by the operator'} "
-            f"(resolved={resolved})"
-        )
+        state = "unresolved"
+        try:
+            elevations = getattr(hands, "_elevations", {})
+            lk = getattr(hands, "_elevations_lock", None)
+            if lk is None:
+                found = elevations.get(eid)
+            else:
+                with lk:
+                    found = elevations.get(eid)
+            if isinstance(found, dict) and found.get("state"):
+                state = found["state"]
+        except Exception:
+            pass
+        self.log_line(f"Elevation request '{name}': state={state} (resolved={resolved})")
 
     def _drain_queue(self):
         # Forward anything the in-process hands logged (bad-secret
@@ -465,6 +481,14 @@ class RelayApp:
         self.root.after(POLL_MS, self._poll)
 
     def _start_one(self, name):
+        locks = getattr(self, "_start_locks", None)
+        if locks is None:
+            locks = self._start_locks = {}
+        lock = locks.setdefault(name, threading.Lock())
+        with lock:
+            return self._start_one_locked(name)
+
+    def _start_one_locked(self, name):
         label = SERVICE_LABELS[name]
         port = SERVICE_PORTS[name]
         host = SERVICE_HOSTS[name]
@@ -528,6 +552,7 @@ class RelayApp:
             module.HANDS_URL = HANDS_URL
             module.HANDS_SECRET = self._hands_secret
             module.PARSER_URL = f"http://127.0.0.1:{PARSER_PORT}"
+            self._gateway_module = module
         try:
             server = waitress.create_server(module.app, host=host, port=port, threads=8)
         except OSError as exc:
@@ -547,6 +572,31 @@ class RelayApp:
         self.log_line(f"{label} service started on port {port}.")
         self.set_status(name, f"{label} (:{port}): running")
 
+    def _skip_restart(self, name):
+        """Do not restart a process that still holds live coordination."""
+        if name == "hands" and getattr(self, "_elevation_dialog_open", False):
+            return True
+        if name == "hands":
+            module = getattr(self, "_hands_module", None)
+            table, lock_name, bad = "_elevations", "_elevations_lock", "pending"
+        elif name == "gateway":
+            module = getattr(self, "_gateway_module", None)
+            table, lock_name, bad = "_receipts", "_receipts_lock", "held"
+        else:
+            return False
+        if module is None:
+            return False
+        rows = getattr(module, table, None) or {}
+        lk = getattr(module, lock_name, None)
+
+        def busy():
+            return any(isinstance(v, dict) and v.get("state") == bad for v in rows.values())
+
+        if lk is None:
+            return busy()
+        with lk:
+            return busy()
+
     def _note_health(self, name, ok):
         """Feed one liveness result into a service's self-heal machine."""
         health = self._health.get(name)
@@ -554,6 +604,11 @@ class RelayApp:
             return
         action = health.note(bool(ok))
         if action == "restart":
+            if self._skip_restart(name):
+                self.log_line(
+                    f"self-heal: not restarting {name} — it holds live receipts or a pending elevation"
+                )
+                return
             # Only ever restart a service WE started. A service that
             # was "already running elsewhere" is not in self.servers,
             # so it is never touched here.
@@ -576,6 +631,11 @@ class RelayApp:
             )
 
     def _poll(self):
+        if getattr(self, "_poll_running", False):
+            self.root.after(POLL_MS, self._poll)
+            return
+        self._poll_running = True
+
         def work():
             gateway_answered = False
             try:
@@ -617,7 +677,13 @@ class RelayApp:
                     else "Parser (:5011): running, not answering",
                 )
 
-        threading.Thread(target=work, daemon=True).start()
+        def _run_poll():
+            try:
+                work()
+            finally:
+                self._poll_running = False
+
+        threading.Thread(target=_run_poll, daemon=True).start()
         self.root.after(POLL_MS, self._poll)
 
     def stop(self):
