@@ -82,6 +82,10 @@ The parser answers /parse only once OmniParser v2 weights are in its
 models directory (`python services/parser/fetch_weights.py`, heavy deps in
 `services/parser/requirements-model.txt`). Until then it returns 501 —
 deliberately: a driver must never mistake "no model" for "empty screen".
+The parser has no auth of its own, so it listens on loopback by default —
+standalone and in the packaged app alike; the Docker deployment sets
+`PARSER_HOST=0.0.0.0` (in docker-compose.yml) for its internal network,
+where the published port is already bound to 127.0.0.1 on the host.
 
 ## Coordination: hands claim + queued act
 
@@ -318,7 +322,10 @@ elevated launch without ever being able to cause one:
 
 The hands run **inside the packaged app** (above) — same Flask routes from
 `hands/muse_relay_hands.py`, served headless on 127.0.0.1:5000 by the app
-process, with the app-owned persistent secret described above.
+process, with the app-owned persistent secret described above. The
+standalone hands window's Cloudflare quick tunnel is opt-in
+(`HANDS_ENABLE_TUNNEL=1`) and off by default — a public tunnel is a
+fallback, never the design.
 
 For a split deployment (services run separately, e.g. under Docker), the
 standalone hands app is still available:

@@ -91,14 +91,6 @@ _reserved_for = None  # queue head holder with an exclusive claim window
 _reserved_until = 0.0
 
 
-def _clamp_number(value, default, lo, hi):
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return float(default)
-    return max(float(lo), min(float(hi), number))
-
-
 def _active_reservation_locked(now):
     """Reserved holder if the grace window is still open, else None."""
     global _reserved_for, _reserved_until
@@ -803,7 +795,11 @@ def _store_receipt(receipt, payload):
         _pending_payloads[receipt["id"]] = payload
         while len(_receipts) > RECEIPT_MAX:
             oldest = next(iter(_receipts))
-            del _receipts[oldest]
+            evicted = _receipts.pop(oldest)
+            # Mark it BEFORE dropping it: the retry loop may already hold
+            # a reference to this dict, and _pump_receipt only forwards
+            # receipts whose state is still "held".
+            evicted["state"] = "expired"
             _pending_payloads.pop(oldest, None)
 
 
@@ -822,7 +818,15 @@ def _pump_receipt(receipt, now):
     with _receipts_lock:
         if receipt.get("state") != "held":
             return receipt
-        payload = dict(_pending_payloads.get(receipt["id"]) or {})
+        if receipt["id"] not in _pending_payloads:
+            # The payload is gone (evicted or settled elsewhere). NEVER
+            # forward an op with an empty body in its place: an empty
+            # break fires a real Ctrl+C at the desktop, an empty scroll
+            # scrolls by the hands' defaults. Settle honestly instead.
+            receipt["state"] = "expired"
+            receipt["updated_at"] = now
+            return receipt
+        payload = dict(_pending_payloads[receipt["id"]])
         op = receipt["op"]
     try:
         status, result = _forward_act(op, payload)

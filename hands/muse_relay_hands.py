@@ -6,7 +6,8 @@ One small window. No terminals.
 WHAT IT DOES
   - Starts the relay server on 127.0.0.1:5000 (localhost only -- nothing on
     your network can reach it directly).
-  - Opens a Cloudflare quick tunnel and shows the URL in the window.
+  - Opens a Cloudflare quick tunnel only on opt-in (HANDS_ENABLE_TUNNEL=1);
+    off by default — a public tunnel is a fallback, never the design.
   - Generates a FRESH strong secret on every launch. The old workflow (one
     fixed secret, reused across sessions) is gone: when you close the app,
     that secret stops existing.
@@ -209,6 +210,11 @@ def _record_failure() -> None:
 
 @app.before_request
 def gate():
+    if request.path == "/health":
+        return  # liveness only, per this file's contract: a lockout or a
+        # secret-less probe must never read as "down" (the gateway probes
+        # /health to decide reachability, and a supervisor restart on a
+        # false "down" would wipe the very lockout that is protecting us)
     if _auth_locked_out():
         return jsonify({"ok": False, "error": "locked out"}), 429
     provided = request.headers.get("X-Secret") or ""
@@ -1465,7 +1471,16 @@ class RelayApp:
         log_line(f"session secret generated ({len(SHARED_SECRET)} chars)")
 
         threading.Thread(target=self._run_server, daemon=True).start()
-        threading.Thread(target=self._run_tunnel, daemon=True).start()
+        # A public tunnel is a fallback, never the default (ROADMAP):
+        # it starts only on an explicit opt-in.
+        if (os.environ.get("HANDS_ENABLE_TUNNEL") or "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+        ):
+            threading.Thread(target=self._run_tunnel, daemon=True).start()
+        else:
+            log_line("public tunnel disabled (set HANDS_ENABLE_TUNNEL=1 to opt in)")
         self._poll()
 
     def _set_icon(self):

@@ -56,7 +56,7 @@ SERVICE_FILES = {
     "gateway": "services/gateway/app.py",
 }
 SERVICE_PORTS = {"hands": HANDS_PORT, "parser": PARSER_PORT, "gateway": GATEWAY_PORT}
-SERVICE_HOSTS = {"hands": "127.0.0.1", "parser": "0.0.0.0", "gateway": "0.0.0.0"}
+SERVICE_HOSTS = {"hands": "127.0.0.1", "parser": "127.0.0.1", "gateway": "0.0.0.0"}
 SERVICE_LABELS = {"hands": "Hands", "parser": "Parser", "gateway": "Gateway"}
 
 AUTOSTART_RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"

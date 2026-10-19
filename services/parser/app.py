@@ -143,8 +143,11 @@ def _caption(crop):
 
 
 def _model_status():
-    _get_detector()
-    _get_captioner()
+    # Pure read of the state globals — deliberately NO _get_detector() /
+    # _get_captioner() here: those lazy-load model weights under
+    # _state_lock, and /health (polled by the gateway every few seconds
+    # and by supervisor health checks) must never trigger a load or
+    # block behind one. Loading happens on the parse path only.
     return {
         "detector": _detector_state,
         "captioner": _captioner_state,
@@ -287,4 +290,7 @@ def find():
 if __name__ == "__main__":
     from waitress import serve
 
-    serve(app, host="0.0.0.0", port=5011, threads=4)
+    # Loopback by default: the parser has no auth of its own and is an
+    # internal service. Docker deployments set PARSER_HOST=0.0.0.0
+    # (docker-compose.yml) so the gateway container can reach it.
+    serve(app, host=os.environ.get("PARSER_HOST", "127.0.0.1"), port=5011, threads=4)
