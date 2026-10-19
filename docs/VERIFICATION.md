@@ -167,3 +167,66 @@ logic only.
   solved.
 - `/hotkey {"keys": ["alt", "f4"]}` closes a window (use a sacrificial
   one).
+# Live verification — steps that need the real Windows desktop
+
+The unit tests (`hands/test_capture_realism.py`,
+`services/gateway/test_screen_params.py`,
+`services/gateway/test_screen_hash.py`) stub the Windows layer and
+prove the logic: validation, rect selection, delay/path planning, and
+parameter forwarding. The items below cannot be proven that way — they
+need the packaged app (or a split deployment) running on the owner's
+multi-monitor PC, with the operator watching the screen. None of them
+were verified live by the P5 build; each is written so a pass/fail can
+be recorded next to it.
+
+Setup for all items: start the relay, note the gateway token from the
+app window, and use `http://127.0.0.1:5010` as the gateway base with
+header `X-Relay-Token: <token>`.
+
+## Capture
+
+1. **Three-monitor geometry.** On a 3-monitor setup, `GET /v1/monitors`
+   returns 3 rectangles whose x/y/w/h match the Windows display
+   settings layout (sizes and relative positions), exactly one marked
+   `primary`.
+   - [ ] pass / fail — notes:
+2. **Per-monitor capture.** For each N in 0..2,
+   `GET /v1/screen?monitor=N` returns a PNG of only that monitor, and
+   the image dimensions equal that monitor's rectangle. Content check:
+   put a distinctive window on each monitor first.
+   - [ ] pass / fail — notes:
+3. **Region across a negative-origin monitor.** With a monitor arranged
+   left of the primary (negative x), request
+   `GET /v1/screen?region=<x>,0,200,200` with x inside that monitor and
+   confirm the PNG shows that monitor's content (not the primary's,
+   not black). Repeat with a region that straddles the boundary
+   between the two monitors.
+   - [ ] pass / fail — notes:
+4. **Legacy frame unchanged.** `GET /v1/screen` with no parameters
+   returns the full primary display, as before P5.
+   - [ ] pass / fail — notes:
+
+## Input realism
+
+5. **Keystroke jitter feel.** Focus a text editor and
+   `POST /v1/act {"op": "type", "text": "<a few sentences>"}`.
+   The text should arrive character by character at a human-ish,
+   uneven pace (short pauses at spaces, longer after periods), and
+   the full text should take noticeably less than runaway time on a
+   long paragraph (the budget cap). Compare with
+   `{"op": "type", "text": "...", "jitter": false}` — that one should
+   appear instantly, as before. Watch a site with bot heuristics only
+   if the operator chooses to; no claim is made either way.
+   - [ ] pass / fail — notes:
+6. **Mouse dynamics feel.** `POST /v1/act {"op": "move", "x": ..., "y": ...}`
+   across a long distance: the cursor should travel in a slight curve,
+   ease in and out, overshoot by a few pixels and settle exactly on
+   the target (hover a small button to judge the landing point). A
+   human click (`{"op": "click", ...}`) should hover briefly before
+   clicking. Compare with `{"human": false}` — an instant straight
+   move, as before.
+   - [ ] pass / fail — notes:
+7. **Failsafe still wins.** During a long human move/type, slam the
+   mouse into a screen corner: pyautogui's FAILSAFE must abort the
+   action, exactly as before P5.
+   - [ ] pass / fail — notes:

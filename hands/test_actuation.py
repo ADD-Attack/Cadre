@@ -65,6 +65,12 @@ spec = importlib.util.spec_from_file_location("muse_relay_hands", HANDS_PATH)
 hands = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(hands)
 
+# Integration (V3-P4 + V3-P5 merged /type): the keystroke path now applies
+# jittered per-char delays by default, so real sleeps would make the
+# 200-char keystroke cases take ~20s each. Sleeps are timing, not logic —
+# stub them out for this test process.
+hands.time.sleep = lambda _seconds: None
+
 AUTH = {"X-Secret": hands.SHARED_SECRET}
 
 
@@ -169,7 +175,7 @@ def run():
     check("type short text -> keys path (write, method_used keys)",
           r.status_code == 200 and body["method_used"] == "keys"
           and body["chars"] == 5
-          and calls == [("write", ("hello",), {"interval": 0.02})])
+          and calls == [("write", (ch,), {}) for ch in "hello"])
 
     # ------------------------------------------------ type: paste (#9)
     clip = FakeClipboard("PREVIOUS")
@@ -192,7 +198,7 @@ def run():
                     headers=AUTH)
     check("type method=keys forces keystrokes even for long text",
           r.status_code == 200 and r.get_json()["method_used"] == "keys"
-          and names() == ["write"] and clip.store == "PREVIOUS")
+          and set(names()) == {"write"} and clip.store == "PREVIOUS")
 
     # Paste requested but no backend -> keys fallback, and it says so.
     hands._clipboard_backend = lambda: None
@@ -202,7 +208,7 @@ def run():
     body = r.get_json()
     check("type method=paste without backend -> keys fallback + note",
           r.status_code == 200 and body["method_used"] == "keys"
-          and bool(body.get("note")) and names() == ["write"])
+          and bool(body.get("note")) and set(names()) == {"write"})
 
     # Paste path whose clipboard blows up -> keys fallback, not a 500.
     class BoomClipboard:
@@ -217,7 +223,7 @@ def run():
     r = client.post("/type", json={"text": "y" * 200}, headers=AUTH)
     check("type paste failure falls back to keys (no 500)",
           r.status_code == 200 and r.get_json()["method_used"] == "keys"
-          and names() == ["write"])
+          and set(names()) == {"write"})
     hands._clipboard_backend = orig_backend
 
     # ------------------------------------------------ windows + focus (#3)

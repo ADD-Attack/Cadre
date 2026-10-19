@@ -11,6 +11,7 @@ into the gateway's environment). Agent calls are translated:
 
   GET  /v1/screen            -> GET  {HANDS_URL}/screenshot  (PNG bytes back)
   GET  /v1/screen/hash       -> screenshot hash (see screen_hash below)
+  GET  /v1/monitors          -> GET  {HANDS_URL}/monitors
   GET  /v1/windows           -> GET  {HANDS_URL}/windows
   GET  /v1/clipboard         -> GET  {HANDS_URL}/clipboard/get
   POST /v1/act {"op": ...}   -> POST {HANDS_URL}/<op>        (move/click/
@@ -450,22 +451,77 @@ def parse():
         return jsonify({"ok": False, "error": f"parser unreachable: {exc}"}), 502
 
 
-def _fetch_screenshot():
+def _region_ok(region):
+    """Gateway-side check of a region string: 'x,y,w,h', ints, w,h > 0."""
+    try:
+        parts = [int(p) for p in str(region).split(",")]
+    except ValueError:
+        return False
+    return len(parts) == 4 and parts[2] > 0 and parts[3] > 0
+
+
+def _screen_fetch_kwargs():
+    """(kwargs, error) for a screen fetch, from the request's query args.
+
+    monitor/region are only included when actually present, so a
+    no-param call still invokes _fetch_screenshot() with zero arguments
+    (existing stubs rely on that). Region format is validated here so a
+    bad region is a 400 without the hands being called at all.
+    """
+    kwargs = {}
+    region = request.args.get("region")
+    if region is not None:
+        if not _region_ok(region):
+            return None, (
+                jsonify(
+                    {"ok": False, "error": "region must be 'x,y,w,h' (ints, w and h > 0)"}
+                ),
+                400,
+            )
+        kwargs["region"] = region
+    monitor = request.args.get("monitor")
+    if monitor is not None:
+        try:
+            kwargs["monitor"] = int(monitor)
+        except ValueError:
+            return None, (
+                jsonify({"ok": False, "error": "monitor must be an integer"}),
+                400,
+            )
+    return kwargs, None
+
+
+def _fetch_screenshot(monitor=None, region=None):
     """One screenshot from the hands.
+
+    With monitor=N appends ?monitor=N; with region="x,y,w,h" (validated
+    here, in the same format the hands expect) appends ?region=... .
+    With neither, the hands URL is exactly the historical one.
 
     Returns (png_bytes, content_type, None) on success, or
     (None, None, error_response) with the same failures /v1/screen has
     always surfaced.
     """
+    if region is not None and not _region_ok(region):
+        return None, None, (
+            jsonify({"ok": False, "error": "region must be 'x,y,w,h' (ints, w and h > 0)"}),
+            400,
+        )
+    url = f"{HANDS_URL}/screenshot"
+    params = []
+    if monitor is not None:
+        params.append(f"monitor={int(monitor)}")
+    if region is not None:
+        params.append(f"region={region}")
+    if params:
+        url += "?" + "&".join(params)
     if not HANDS_SECRET:
         return None, None, (
             jsonify({"ok": False, "error": "HANDS_SECRET not configured on gateway"}),
             503,
         )
     try:
-        r = requests.get(
-            f"{HANDS_URL}/screenshot", headers=_hands_headers(), timeout=HANDS_TIMEOUT
-        )
+        r = requests.get(url, headers=_hands_headers(), timeout=HANDS_TIMEOUT)
     except requests.RequestException as exc:
         return None, None, (jsonify({"ok": False, "error": f"hands unreachable: {exc}"}), 502)
     if r.status_code == 401:
@@ -546,15 +602,26 @@ def _region_hash(png_bytes, region):
     return hashlib.sha256(cropped.tobytes()).hexdigest(), cropped.width, cropped.height
 
 
+@app.get("/v1/monitors")
+def monitors():
+    """Monitor list from the hands, proxied (rectangles + count)."""
+    return _proxy_hands_get("/monitors")
+
+
 @app.get("/v1/screen")
 def screen():
     """Current screenshot from the hands, proxied as PNG bytes.
 
-    Carries an ETag (the masked-frame hash, as in /v1/screen/hash) when
+    ?monitor=N / ?region=x,y,w,h select a capture variant on the hands;
+    the ETag below then describes that variant. Carries an ETag (the
+    masked-frame hash, as in /v1/screen/hash) when
     the gateway can decode images; a matching If-None-Match gets a 304
     so pollers can skip re-downloading unchanged frames.
     """
-    png, content_type, err = _fetch_screenshot()
+    kwargs, err = _screen_fetch_kwargs()
+    if err is not None:
+        return err
+    png, content_type, err = _fetch_screenshot(**kwargs)
     if err is not None:
         return err
     resp = Response(png, content_type=content_type)
@@ -579,7 +646,8 @@ def screen_hash():
     fetches /v1/screen when the hash changes. The bottom mask_bottom px
     (default 80, the taskbar) are excluded. With ?stable=1 the gateway
     samples two frames ~0.65s apart and hashes only the pixels that
-    agree, so a blinking caret cannot flip the result.
+    agree, so a blinking caret cannot flip the result. ?monitor=N /
+    ?region=x,y,w,h select the capture variant being hashed.
     """
     stable = (request.args.get("stable") or "").lower() in ("1", "true", "yes")
     try:
@@ -588,13 +656,16 @@ def screen_hash():
         return jsonify({"ok": False, "error": "mask_bottom must be an integer"}), 400
     mask_bottom = max(0, min(mask_bottom, 2000))
 
-    png_a, _, err = _fetch_screenshot()
+    kwargs, err = _screen_fetch_kwargs()
+    if err is not None:
+        return err
+    png_a, _, err = _fetch_screenshot(**kwargs)
     if err is not None:
         return err
     png_b = None
     if stable:
         time.sleep(STABLE_SAMPLE_GAP)
-        png_b, _, err = _fetch_screenshot()
+        png_b, _, err = _fetch_screenshot(**kwargs)
         if err is not None:
             return err
     try:

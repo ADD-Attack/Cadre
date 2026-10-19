@@ -37,6 +37,7 @@ SECURITY NOTES
 WHAT MUSE CAN DO WITH IT (unchanged from cursor_relay.py)
   GET  /health              liveness only, no secret needed
   GET  /screenshot          PNG of your screen
+  GET  /monitors            monitor rectangles (virtual-desktop coords)
   POST /move    {x, y}      move the cursor
   POST /click   {x, y, button}  click
   POST /type    {text}      type text
@@ -59,6 +60,16 @@ ADDED IN V3-P4 (wishlist #3, #4, #6, #9, #19) — same X-Secret gate:
                                         reads in the app window.
   POST /type also accepts {method: "auto"|"paste"|"keys"}: long text can
   go through the clipboard (paste) instead of slow keystrokes.
+CAPTURE + INPUT REALISM (v3)
+  GET /screenshot?monitor=N   capture monitor N (0-based) only
+  GET /screenshot?region=x,y,w,h
+                               capture that rect in virtual-desktop coords
+                               (monitor and region are mutually exclusive)
+  /type types with per-keystroke jitter by default ({jitter: false}
+  restores the old single fast write). /move and /click travel a curved,
+  human-like path by default ({human: false} restores the old direct
+  move). Both planners are pure functions (_plan_key_delays, _plan_path)
+  so the timing/shape logic is testable without a desktop.
 """
 
 import base64
@@ -69,8 +80,10 @@ import hashlib
 import hmac
 import io
 import json
+import math
 import os
 import queue
+import random
 import re
 import secrets as secrets_mod
 import shutil
@@ -216,32 +229,384 @@ def health():
     return {"ok": True}
 
 
+# ---- capture seams ---------------------------------------------------------
+# Kept as module-level functions so tests can stub the Windows layer and
+# exercise the endpoint logic anywhere.
+
+
+class _RECT(ctypes.Structure):
+    _fields_ = [
+        ("left", ctypes.c_long),
+        ("top", ctypes.c_long),
+        ("right", ctypes.c_long),
+        ("bottom", ctypes.c_long),
+    ]
+
+
+class _MONITORINFO(ctypes.Structure):
+    _fields_ = [
+        ("cbSize", ctypes.c_uint32),
+        ("rcMonitor", _RECT),
+        ("rcWork", _RECT),
+        ("dwFlags", ctypes.c_uint32),
+    ]
+
+
+_MONITORINFOF_PRIMARY = 1
+
+
+def _monitor_rects():
+    """Monitor rectangles in virtual-desktop coordinates.
+
+    Each entry: {"x", "y", "w", "h", "primary"}. Origins can be negative
+    (a monitor left of / above the primary). On Windows the list comes
+    from EnumDisplayMonitors; anywhere else (or on failure) it falls
+    back to a single primary rect from pyautogui.size().
+    """
+    if os.name == "nt":
+        try:
+            rects = []
+            user32 = ctypes.windll.user32
+            enum_proc = ctypes.WINFUNCTYPE(
+                ctypes.c_bool,
+                ctypes.c_void_p,
+                ctypes.c_void_p,
+                ctypes.POINTER(_RECT),
+                ctypes.c_ssize_t,
+            )
+
+            def _cb(hmonitor, _hdc, _clip, _data):
+                info = _MONITORINFO()
+                info.cbSize = ctypes.sizeof(_MONITORINFO)
+                if user32.GetMonitorInfoW(hmonitor, ctypes.byref(info)):
+                    r = info.rcMonitor
+                    rects.append(
+                        {
+                            "x": int(r.left),
+                            "y": int(r.top),
+                            "w": int(r.right - r.left),
+                            "h": int(r.bottom - r.top),
+                            "primary": bool(info.dwFlags & _MONITORINFOF_PRIMARY),
+                        }
+                    )
+                return True
+
+            if user32.EnumDisplayMonitors(None, None, enum_proc(_cb), 0) and rects:
+                return rects
+        except Exception:
+            pass  # fall through to the single-rect fallback
+    w, h = pyautogui.size()
+    return [{"x": 0, "y": 0, "w": int(w), "h": int(h), "primary": True}]
+
+
+def _grab(rect):
+    """Capture rect ({"x","y","w","h"}) or, with None, the full frame.
+
+    pyautogui on Windows captures the virtual desktop, so a region with
+    a negative origin works through the same call.
+    """
+    if rect is None:
+        return pyautogui.screenshot()
+    return pyautogui.screenshot(
+        region=(int(rect["x"]), int(rect["y"]), int(rect["w"]), int(rect["h"]))
+    )
+
+
+def _parse_region(raw):
+    """'x,y,w,h' -> rect dict, or None if malformed / non-positive size."""
+    try:
+        parts = [int(p) for p in str(raw).split(",")]
+    except ValueError:
+        return None
+    if len(parts) != 4 or parts[2] <= 0 or parts[3] <= 0:
+        return None
+    return {"x": parts[0], "y": parts[1], "w": parts[2], "h": parts[3]}
+
+
+@app.get("/monitors")
+def monitors():
+    rects = _monitor_rects()
+    return {"ok": True, "monitors": rects, "count": len(rects)}
+
+
 @app.get("/screenshot")
 def screenshot():
-    img = pyautogui.screenshot()
+    monitor_raw = request.args.get("monitor")
+    region_raw = request.args.get("region")
+    if monitor_raw is not None and region_raw is not None:
+        return jsonify({"ok": False, "error": "pass monitor or region, not both"}), 400
+    rect = None
+    monitor_idx = None
+    region_rect = None
+    if monitor_raw is not None:
+        try:
+            monitor_idx = int(monitor_raw)
+        except ValueError:
+            return jsonify({"ok": False, "error": "monitor must be an integer"}), 400
+        rects = _monitor_rects()
+        if monitor_idx < 0 or monitor_idx >= len(rects):
+            return (
+                jsonify(
+                    {
+                        "ok": False,
+                        "error": f"monitor {monitor_idx} out of range: "
+                        f"{len(rects)} monitor(s) available",
+                    }
+                ),
+                400,
+            )
+        rect = rects[monitor_idx]
+    elif region_raw is not None:
+        region_rect = _parse_region(region_raw)
+        if region_rect is None:
+            return (
+                jsonify(
+                    {
+                        "ok": False,
+                        "error": "region must be 'x,y,w,h' (ints, w and h > 0)",
+                    }
+                ),
+                400,
+            )
+        rect = region_rect
+    img = _grab(rect)
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     buf.seek(0)
     resp = send_file(buf, mimetype="image/png")
     resp.headers["X-Screen-Width"] = str(img.size[0])
     resp.headers["X-Screen-Height"] = str(img.size[1])
+    if monitor_idx is not None:
+        resp.headers["X-Screen-Monitor"] = str(monitor_idx)
+    if region_rect is not None:
+        resp.headers["X-Screen-Region"] = (
+            f"{region_rect['x']},{region_rect['y']},"
+            f"{region_rect['w']},{region_rect['h']}"
+        )
     return resp
+
+
+# ---- input-realism planners (pure; rng is injected) ------------------------
+
+
+def _plan_key_delays(text, rng):
+    """Per-character typing delays (seconds slept AFTER each character).
+
+    Base delay is uniform in [0.04, 0.16]; a character that ends a word
+    (space) adds uniform [0.05, 0.20] and one that ends a sentence
+    (. ! ?) adds uniform [0.10, 0.30]. If the total exceeds the budget
+    max(5.0, len(text) * 0.16) every delay is scaled down proportionally
+    so long pastes stay bounded.
+    """
+    delays = []
+    for ch in text:
+        delay = rng.uniform(0.04, 0.16)
+        if ch == " ":
+            delay += rng.uniform(0.05, 0.20)
+        elif ch in ".!?":
+            delay += rng.uniform(0.10, 0.30)
+        delays.append(delay)
+    budget = max(5.0, len(text) * 0.16)
+    total = sum(delays)
+    if total > budget and total > 0:
+        scale = budget / total
+        delays = [d * scale for d in delays]
+    return delays
+
+
+def _ease_in_out_cubic(t):
+    if t < 0.5:
+        return 4 * t * t * t
+    return 1 - ((-2 * t + 2) ** 3) / 2
+
+
+def _bezier(p0, pc, p1, t):
+    u = 1 - t
+    return (
+        u * u * p0[0] + 2 * u * t * pc[0] + t * t * p1[0],
+        u * u * p0[1] + 2 * u * t * pc[1] + t * t * p1[1],
+    )
+
+
+def _plan_path(x0, y0, x1, y1, rng):
+    """Human-like mouse path: list of (x, y, delay_after) steps.
+
+    Quadratic bezier from start to target, control point pushed off the
+    midpoint perpendicular by up to 8% of the distance, parameter eased
+    with easeInOutCubic. The first ~85% of steps aim at an overshoot
+    point just past the target; the rest settle back to the EXACT
+    target, which is always the final step. Total duration is
+    clamp(0.25 + d/2500, 0.3, 1.1) seconds, spread evenly across steps.
+    A move under 4px is a single step straight to the target.
+    """
+    dx, dy = x1 - x0, y1 - y0
+    dist = math.hypot(dx, dy)
+    total = min(1.1, max(0.3, 0.25 + dist / 2500))
+    if dist < 4:
+        return [(x1, y1, total)]
+    n = max(8, min(60, int(dist / 12)))
+    offset = rng.uniform(-0.08 * dist, 0.08 * dist)
+    ctrl = (
+        (x0 + x1) / 2 + (-dy / dist) * offset,
+        (y0 + y1) / 2 + (dx / dist) * offset,
+    )
+    # Overshoot: extend past the target along the bezier's final
+    # direction (target - control point).
+    fx, fy = x1 - ctrl[0], y1 - ctrl[1]
+    flen = math.hypot(fx, fy)
+    if flen == 0:
+        fx, fy, flen = dx, dy, dist
+    over = min(6.0, 0.02 * dist)
+    over_pt = (x1 + fx / flen * over, y1 + fy / flen * over)
+
+    n_over = max(1, int(round(n * 0.85)))
+    if n_over >= n:
+        n_over = n - 1
+    points = []
+    for i in range(1, n_over + 1):
+        t = _ease_in_out_cubic(i / n_over)
+        points.append(_bezier((x0, y0), ctrl, over_pt, t))
+    n_settle = n - n_over
+    for j in range(1, n_settle + 1):
+        s = j / n_settle
+        points.append(
+            (over_pt[0] + (x1 - over_pt[0]) * s, over_pt[1] + (y1 - over_pt[1]) * s)
+        )
+    points[-1] = (x1, y1)  # exact target, always
+    per = total / n
+    steps = [(px, py, per) for (px, py) in points]
+    # Pin the delay sum to the planned total despite float rounding.
+    steps[-1] = (steps[-1][0], steps[-1][1], total - per * (n - 1))
+    return steps
+
+
+def _move_human(x, y, rng=None):
+    """Move the cursor to (x, y) along a planned human-like path."""
+    rng = rng if rng is not None else random
+    x0, y0 = pyautogui.position()
+    for sx, sy, delay in _plan_path(x0, y0, x, y, rng):
+        pyautogui.moveTo(sx, sy, duration=0)
+        time.sleep(delay)
 
 
 @app.post("/move")
 def move():
     d = request.get_json(force=True)
-    pyautogui.moveTo(int(d["x"]), int(d["y"]), duration=0.2)
+    x, y = int(d["x"]), int(d["y"])
+    if d.get("human", True):
+        _move_human(x, y)
+    else:
+        pyautogui.moveTo(x, y, duration=0.2)
     return {"ok": True}
 
 
 @app.post("/click")
 def click():
     d = request.get_json(force=True)
-    pyautogui.click(x=int(d["x"]), y=int(d["y"]), button=d.get("button", "left"))
+    x, y = int(d["x"]), int(d["y"])
+    button = d.get("button", "left")
+    if d.get("human", True):
+        _move_human(x, y)
+        time.sleep(random.uniform(0.05, 0.15))  # hover before the click
+    else:
+        pyautogui.moveTo(x, y, duration=0.2)
+    pyautogui.click(x=x, y=y, button=button)
     return {"ok": True}
 
 
+@app.post("/type")
+def type_text():
+    """Type text: clipboard paste for long payloads, jittered keys else.
+
+    {text, method?: "auto"|"paste"|"keys", jitter?: bool}
+
+    Method (wishlist #9): "auto" pastes when the text is over 120 chars
+    and a clipboard backend exists — the paste path saves the current
+    clipboard and restores it afterwards; "paste" forces that path;
+    "keys" forces keystrokes. Any clipboard failure falls back to
+    keystrokes instead of failing the request (see "note").
+
+    Jitter (wishlist #16): the keystroke path types per character with
+    human-band delays from _plan_key_delays unless jitter is false —
+    false restores the original single pyautogui.write(interval=0.02).
+
+    Response: {"ok", "method_used", "chars", "elapsed_seconds",
+    "delays_planned", "planned_seconds"} — the delay fields describe the
+    keystroke plan (0 on the paste path).
+    """
+    d = request.get_json(force=True, silent=True) or {}
+    text = d.get("text")
+    if not isinstance(text, str):
+        return jsonify({"ok": False, "error": "text must be a string"}), 400
+    method = d.get("method", "auto")
+    if method not in ("auto", "paste", "keys"):
+        return jsonify({"ok": False, "error": "method must be auto, paste or keys"}), 400
+    jitter = bool(d.get("jitter", True))
+    started = time.monotonic()
+    note = None
+    delays = []
+
+    def _keys():
+        nonlocal delays
+        if jitter:
+            delays = _plan_key_delays(text, random)
+            for ch, delay in zip(text, delays):
+                pyautogui.write(ch)
+                time.sleep(delay)
+        else:
+            pyautogui.write(text, interval=0.02)
+        return "keys"
+
+    def _paste():
+        backend = _clipboard_backend()
+        if backend is None:
+            raise RuntimeError("clipboard unavailable on this host")
+        saved, readable = None, False
+        try:
+            saved = backend.get_text()
+            readable = True
+        except Exception:
+            pass  # unreadable clipboard: paste anyway, skip the restore
+        backend.set_text(text)
+        pyautogui.hotkey("ctrl", "v")
+        if readable and saved is not None:
+            # Give the target app a beat to consume the paste before the
+            # previous clipboard contents go back.
+            time.sleep(0.1)
+            try:
+                backend.set_text(saved)
+            except Exception:
+                pass
+        return "paste"
+
+    if method == "keys":
+        method_used = _keys()
+    elif method == "paste":
+        try:
+            method_used = _paste()
+        except Exception as exc:
+            note = f"paste requested but unavailable ({exc}); used keys"
+            method_used = _keys()
+    else:  # auto
+        if len(text) > 120 and _clipboard_backend() is not None:
+            try:
+                method_used = _paste()
+            except Exception as exc:
+                note = f"paste failed ({exc}); used keys"
+                method_used = _keys()
+        else:
+            method_used = _keys()
+    resp = {
+        "ok": True,
+        "method_used": method_used,
+        "chars": len(text),
+        "elapsed_seconds": round(time.monotonic() - started, 3),
+        "delays_planned": len(delays),
+        "planned_seconds": sum(delays),
+    }
+    if note:
+        resp["note"] = note
+    return jsonify(resp)
 @app.post("/key")
 def key():
     d = request.get_json(force=True)
@@ -583,39 +948,14 @@ def drag():
 
 # ------------------------------------------- V3-P4: windows + focus (#3)
 
-def _monitor_rects():
-    """Monitor rectangles [(x, y, w, h), ...] via ctypes; [] off Windows
-    or on any failure — monitor attribution is best-effort, never fatal."""
-    if os.name != "nt":
-        return []
-    try:
-        user32 = ctypes.windll.user32
-        rects = []
-
-        callback_type = ctypes.WINFUNCTYPE(
-            ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p,
-            ctypes.POINTER(ctypes.c_long), ctypes.c_void_p,
-        )
-
-        def _cb(_hmon, _hdc, lprc, _data):
-            r = lprc.contents
-            rects.append((int(r[0]), int(r[1]), int(r[2]) - int(r[0]), int(r[3]) - int(r[1])))
-            return True
-
-        user32.EnumDisplayMonitors(0, None, callback_type(_cb), 0)
-        return rects
-    except Exception:
-        return []
-
-
 def _monitor_for_bounds(bounds, rects=None):
     """Index of the monitor rect containing the window's centre, else None."""
     if rects is None:
         rects = _monitor_rects()
     cx = bounds["x"] + bounds["w"] / 2
     cy = bounds["y"] + bounds["h"] / 2
-    for i, (mx, my, mw, mh) in enumerate(rects):
-        if mx <= cx < mx + mw and my <= cy < my + mh:
+    for i, r in enumerate(rects):
+        if r["x"] <= cx < r["x"] + r["w"] and r["y"] <= cy < r["y"] + r["h"]:
             return i
     return None
 
@@ -926,83 +1266,6 @@ def clipboard_get():
         return jsonify({"ok": False, "error": f"clipboard read failed: {exc}"}), 502
     log_line("clipboard read via relay")
     return jsonify({"ok": True, "text": text if isinstance(text, str) else ""})
-
-
-# ------------------------------------------------- V3-P4: fast type (#9)
-
-@app.post("/type")
-def type_text():
-    """Type text, optionally via the clipboard for long payloads.
-
-    {text, method?: "auto"|"paste"|"keys"} — with method absent this is
-    the original behaviour for short text (pyautogui.write). "auto"
-    pastes when the text is over 120 chars and a clipboard backend
-    exists; the paste path saves the current clipboard and restores it
-    afterwards. Any clipboard failure falls back to keystrokes instead
-    of failing the request.
-    """
-    d = request.get_json(force=True, silent=True) or {}
-    text = d.get("text")
-    if not isinstance(text, str):
-        return jsonify({"ok": False, "error": "text must be a string"}), 400
-    method = d.get("method", "auto")
-    if method not in ("auto", "paste", "keys"):
-        return jsonify({"ok": False, "error": "method must be auto, paste or keys"}), 400
-    started = time.monotonic()
-    note = None
-
-    def _keys():
-        pyautogui.write(text, interval=0.02)
-        return "keys"
-
-    def _paste():
-        backend = _clipboard_backend()
-        if backend is None:
-            raise RuntimeError("clipboard unavailable on this host")
-        saved, readable = None, False
-        try:
-            saved = backend.get_text()
-            readable = True
-        except Exception:
-            pass  # unreadable clipboard: paste anyway, skip the restore
-        backend.set_text(text)
-        pyautogui.hotkey("ctrl", "v")
-        if readable and saved is not None:
-            # Give the target app a beat to consume the paste before the
-            # previous clipboard contents go back.
-            time.sleep(0.1)
-            try:
-                backend.set_text(saved)
-            except Exception:
-                pass
-        return "paste"
-
-    if method == "keys":
-        method_used = _keys()
-    elif method == "paste":
-        try:
-            method_used = _paste()
-        except Exception as exc:
-            note = f"paste requested but unavailable ({exc}); used keys"
-            method_used = _keys()
-    else:  # auto
-        if len(text) > 120 and _clipboard_backend() is not None:
-            try:
-                method_used = _paste()
-            except Exception as exc:
-                note = f"paste failed ({exc}); used keys"
-                method_used = _keys()
-        else:
-            method_used = _keys()
-    resp = {
-        "ok": True,
-        "method_used": method_used,
-        "chars": len(text),
-        "elapsed_seconds": round(time.monotonic() - started, 3),
-    }
-    if note:
-        resp["note"] = note
-    return jsonify(resp)
 
 
 # ---------------------------------------------------------------- UI glue

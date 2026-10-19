@@ -64,7 +64,7 @@ $env:PARSER_URL   = "http://127.0.0.1:5011"
 python app.py
 ```
 
-- Gateway: http://127.0.0.1:5010/health — agent API under /v1 (screen, screen/hash, act, act/queued, hands/claim, hands/release, parse, info, filedrop, wait)
+- Gateway: http://127.0.0.1:5010/health — agent API under /v1 (screen, screen/hash, monitors, windows, clipboard, act, act/queued, hands/claim, hands/release, parse, info, filedrop, wait)
 - Parser: http://127.0.0.1:5011/health — reports whether the model is loaded
 
 **Change detection without the pixels:** `GET /v1/screen/hash` returns a
@@ -223,6 +223,51 @@ keystrokes rather than failing, and the response reports what happened:
 sized to the payload — `max(30, min(600, 15 + len(text)/6))` seconds,
 since the keystroke path runs at worst ~6 chars/s — while every other
 op keeps the flat 30 s.
+## Capture variants (hands + gateway)
+
+`GET /v1/monitors` lists the monitors as rectangles in virtual-desktop
+coordinates (`{x, y, w, h, primary}` — origins can be negative for a
+monitor left of or above the primary). `GET /v1/screen` and
+`GET /v1/screen/hash` accept two mutually exclusive selectors,
+forwarded to the hands:
+
+- `?monitor=N` — capture monitor N (0-based) only. Out of range is a
+  400 from the hands naming how many monitors exist.
+- `?region=x,y,w,h` — capture that rectangle in virtual-desktop
+  coordinates (a region may span monitors, including negative origins).
+  Malformed regions are a 400 from the gateway without the hands being
+  called.
+
+With no selector the full primary frame is returned exactly as before,
+and the ETag/hash always describe the variant actually requested.
+Responses from the hands carry `X-Screen-Width`/`X-Screen-Height` of the
+returned image, plus `X-Screen-Monitor` or `X-Screen-Region` when a
+selector was used.
+
+## Input realism (hands)
+
+Typing and pointing are human-paced by default, and both behaviors are
+planned by pure functions (`_plan_key_delays`, `_plan_path`) so the
+timing and geometry are unit-tested off-desktop
+(`hands/test_capture_realism.py`):
+
+- **Keystroke jitter** (`POST /type`, default on): each character is
+  written individually with a delay after it — base uniform
+  0.04–0.16 s, plus 0.05–0.20 s after a space and 0.10–0.30 s after
+  sentence-ending punctuation. If a plan would exceed
+  `max(5 s, 0.16 s/char)` it is scaled down proportionally. The
+  response reports `delays_planned` and `planned_seconds`.
+  `{jitter: false}` restores the old single fast write.
+- **Mouse dynamics** (`POST /move`, `POST /click`, default on): the
+  cursor follows a curved quadratic-bezier path with an ease-in-out
+  profile, a slight overshoot past the target, and a settle onto the
+  exact target, over `clamp(0.25 + distance/2500, 0.3, 1.1)` seconds;
+  a human click hovers 0.05–0.15 s before clicking.
+  `{human: false}` restores the old direct move.
+
+Live-only verification steps for these features (real multi-monitor
+geometry, negative-origin regions, jitter/dynamics feel) are listed in
+[docs/VERIFICATION.md](docs/VERIFICATION.md).
 
 ## Hands (Windows)
 
