@@ -104,7 +104,7 @@ the P3 build — no live Windows desktop was available to it.
    flips back to `false`.
 4. Confirm `/v1/info` reports `"pc_state": null` (not an error) while
    the hands is stopped.
-# Live-only verification steps
+## Live-only verification steps
 
 Steps that cannot be proven by the test suite and need a real Windows
 desktop. The unit tests (hands/test_actuation.py,
@@ -167,7 +167,7 @@ logic only.
   solved.
 - `/hotkey {"keys": ["alt", "f4"]}` closes a window (use a sacrificial
   one).
-# Live verification — steps that need the real Windows desktop
+## Live verification — steps that need the real Windows desktop
 
 The unit tests (`hands/test_capture_realism.py`,
 `services/gateway/test_screen_params.py`,
@@ -230,7 +230,7 @@ header `X-Relay-Token: <token>`.
    mouse into a screen corner: pyautogui's FAILSAFE must abort the
    action, exactly as before P5.
    - [ ] pass / fail — notes:
-# Verification — live-only steps
+## Verification — live-only steps
 
 Automated tests cover the state machines and contracts on any OS
 (Windows APIs are stubbed there). The steps below can only be verified
@@ -283,3 +283,33 @@ automated tests.
 6. Confirm there is no way to launch anything whose name is not in the
    allowlist (unknown name → 404) and that removing the allowlist
    returns 501.
+
+
+## Integration notes (coordinator, V3 merge of P2–P6)
+
+The five package branches were built in parallel against the same base
+and merged in order P2 -> P3 -> P4 -> P5 -> P6. Decisions taken at the
+merge, all behavior-level, each covered by the combined test suite:
+
+- **One /type handler (P4 x P5):** the route now unions both packages —
+  method auto/paste/keys with clipboard save/restore and keys fallback
+  (P4), and the keystroke path applies _plan_key_delays jitter unless
+  jitter=false (P5). Response carries both packages' fields
+  (method_used/chars/elapsed_seconds + delays_planned/planned_seconds).
+  Two P4 test assertions were adjusted to the merged semantics: the
+  legacy single-write call shape became per-char writes, `names() ==
+  ["write"]` became `set(names()) == {"write"}`, and the test stubs
+  time.sleep so 200-char keystroke cases do not take ~20 s each.
+- **One _monitor_rects (P4 x P5):** P5's dict shape
+  ({"x","y","w","h","primary"}, pyautogui.size() fallback) is the single
+  implementation; P4's duplicate tuple version was removed and
+  _monitor_for_bounds now reads the dict shape.
+- **One forwarding path (P2 x P4):** _forward_act uses
+  HANDS_OP_PATHS and the payload-sized _act_timeout, so plain acts and
+  queued-act retries share identical routing and timeouts.
+- **/v1/monitors (P5)** is served through _proxy_hands_get (P4) instead
+  of a hand-rolled passthrough — same statuses, one code path.
+- **_reachability (P2 x P3):** returns (hands, parser, pc_state);
+  test_coordination's stub was updated to the 3-tuple.
+- A cherry-pick seam that separated _fetch_screenshot's signature from
+  its body was repaired; py_compile + the full suite verify the result.
