@@ -842,11 +842,56 @@ def window_titles():
 
 # ---- lock / idle state (wishlist #13) --------------------------------------
 
+# ---- probe health (R5, F10) -------------------------------------------
+# The yield trusts the lock/idle probe completely: a (None, None)
+# result reads as "owner inactive", so a silently broken probe (a
+# Windows change, a permissions shift, a bad cast) disables the
+# owner's override with no signal anywhere. Count consecutive FULL
+# failures on Windows; /state reports probe_ok so the degradation is
+# a visible state (it rides to the gateway's /v1/info pc_state), and
+# the third consecutive failure logs a line to the app window — the
+# channel the owner actually sees. Whether the yield should fail
+# CLOSED on a degraded probe is the owner's policy call; silently
+# failing open was the one option that had to go.
+_probe_failures = 0
+_probe_degraded_logged = False
+
+
 def _probe_lock_state():
+    """(locked, idle_seconds) with probe-health accounting (R5, F10).
+
+    Tests monkeypatch THIS function (the seam); the raw Windows probe
+    is _probe_lock_state_raw.
+    """
+    global _probe_failures, _probe_degraded_logged
+    result = _probe_lock_state_raw()
+    if os.name == "nt":
+        locked, idle_seconds = result
+        if locked is None and idle_seconds is None:
+            _probe_failures += 1
+            if _probe_failures >= 3 and not _probe_degraded_logged:
+                _probe_degraded_logged = True
+                log_line(
+                    "YIELD SENSOR DEGRADED: the lock/idle probe has "
+                    "failed 3 times in a row - act yields cannot be "
+                    "trusted until it recovers"
+                )
+                file_log("probe degraded: 3 consecutive lock/idle probe failures")
+        else:
+            _probe_failures = 0
+            _probe_degraded_logged = False
+    return result
+
+
+def _probe_health():
+    return {"probe_failures": _probe_failures, "probe_ok": _probe_failures < 3}
+
+
+def _probe_lock_state_raw():
     """Probe (locked, idle_seconds) on Windows; (None, None) elsewhere.
 
     Never raises: any failure returns None for the affected value. The
-    Windows calls live here so tests can monkeypatch this one function.
+    Windows calls live here so tests can monkeypatch _probe_lock_state.
     """
     if os.name != "nt":
         return (None, None)
@@ -899,7 +944,9 @@ def state():
         locked, idle_seconds = _probe_lock_state()
     except Exception:
         locked, idle_seconds = None, None
-    return {"ok": True, "platform": platform, "locked": locked, "idle_seconds": idle_seconds}
+    body = {"ok": True, "platform": platform, "locked": locked, "idle_seconds": idle_seconds}
+    body.update(_probe_health())
+    return body
 
 
 # ---- file-drop (wishlist #2) ------------------------------------------------
