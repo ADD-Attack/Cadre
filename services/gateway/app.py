@@ -20,6 +20,7 @@ import hmac
 import os
 import threading
 import time
+import uuid
 from io import BytesIO
 
 import requests
@@ -53,6 +54,118 @@ _lockout_until = 0.0
 
 _probe_lock = threading.Lock()
 _probe_cache = {"hands": None, "parser": None, "at": 0.0}
+
+# ---------------------------------------------------------------------------
+# Hands claim coordination (wishlist #15).
+#
+# Advisory only: sessions read the claim before driving the desktop, but
+# /v1/act is deliberately NOT gated on it — the claim coordinates polite
+# agents, it is not an access control (the gateway token is that).
+# State is in-memory and lock-guarded, with LAZY expiry: an expired claim
+# is treated as absent the next time anything looks, via _current_claim.
+# ---------------------------------------------------------------------------
+CLAIM_TTL_DEFAULT = 900
+CLAIM_TTL_MIN = 30
+CLAIM_TTL_MAX = 3600
+RESERVATION_GRACE = 30  # seconds the queue head alone may claim after a free-up
+
+_claim_lock = threading.RLock()
+_claim = None  # {"holder", "purpose", "since", "expires_at"} or None
+_claim_queue = []  # FIFO of {"holder", "purpose", "enqueued_at"}
+_reserved_for = None  # queue head holder with an exclusive claim window
+_reserved_until = 0.0
+
+
+def _clamp_number(value, default, lo, hi):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return float(default)
+    return max(float(lo), min(float(hi), number))
+
+
+def _active_reservation_locked(now):
+    """Reserved holder if the grace window is still open, else None."""
+    global _reserved_for, _reserved_until
+    if _reserved_for is None:
+        return None
+    if now < _reserved_until:
+        return _reserved_for
+    _reserved_for = None
+    _reserved_until = 0.0
+    return None
+
+
+def _reserve_head_locked(now):
+    """Give the queue head an exclusive claim window, if none is active."""
+    global _reserved_for, _reserved_until
+    if _claim_queue and _reserved_for is None:
+        _reserved_for = _claim_queue[0]["holder"]
+        _reserved_until = now + RESERVATION_GRACE
+
+
+def _current_claim_locked(now):
+    global _claim
+    if _claim is not None and now >= float(_claim.get("expires_at", 0.0)):
+        # Lazy expiry: the claim is gone, and the queue head (if any)
+        # earns a reservation from this moment of discovery.
+        _claim = None
+        _reserve_head_locked(now)
+    return _claim
+
+
+def _current_claim(now=None):
+    """Copy of the live claim, or None if free / expired."""
+    if now is None:
+        now = time.time()
+    with _claim_lock:
+        current = _current_claim_locked(now)
+        return dict(current) if current is not None else None
+
+
+def _claim_snapshot(now=None):
+    """(claim copy or None, queue copies, reserved holder or None)."""
+    if now is None:
+        now = time.time()
+    with _claim_lock:
+        current = _current_claim_locked(now)
+        reserved = _active_reservation_locked(now)
+        return (
+            dict(current) if current is not None else None,
+            [dict(entry) for entry in _claim_queue],
+            reserved,
+        )
+
+
+def _enqueue_locked(holder, purpose, now):
+    """Append to the FIFO queue (deduped by holder); returns 1-based position."""
+    for idx, entry in enumerate(_claim_queue):
+        if entry["holder"] == holder:
+            return idx + 1
+    _claim_queue.append({"holder": holder, "purpose": purpose, "enqueued_at": now})
+    return len(_claim_queue)
+
+
+def _dequeue_locked(holder):
+    for idx, entry in enumerate(_claim_queue):
+        if entry["holder"] == holder:
+            del _claim_queue[idx]
+            return True
+    return False
+
+
+def _reset_coordination_state():
+    """Clear claim + receipt state. Test hook / internal use only."""
+    global _claim, _reserved_for, _reserved_until
+    with _claim_lock:
+        _claim = None
+        _claim_queue.clear()
+        _reserved_for = None
+        _reserved_until = 0.0
+    with _receipts_lock:
+        _receipts.clear()
+        _pending_payloads.clear()
+
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 8_000_000  # screenshots travel as responses
@@ -133,8 +246,160 @@ def info():
             "hands_reachable": hands_ok,
             "parser_url": PARSER_URL,
             "parser_reachable": parser_ok,
+            "hands_claim": _current_claim(),
         }
     )
+
+
+@app.get("/v1/hands/claim")
+def hands_claim_status():
+    claim, queue, reserved = _claim_snapshot()
+    return jsonify({"ok": True, "claim": claim, "queue": queue, "reserved_for": reserved})
+
+
+@app.post("/v1/hands/claim")
+def hands_claim():
+    global _claim, _reserved_for, _reserved_until
+    body = request.get_json(force=True, silent=True) or {}
+    holder = str(body.get("holder") or "").strip()
+    if not holder:
+        return jsonify({"ok": False, "error": "holder is required"}), 400
+    purpose = str(body.get("purpose") or "")
+    ttl = _clamp_number(
+        body.get("ttl_seconds", CLAIM_TTL_DEFAULT),
+        CLAIM_TTL_DEFAULT,
+        CLAIM_TTL_MIN,
+        CLAIM_TTL_MAX,
+    )
+    want_queue = bool(body.get("queue"))
+    now = time.time()
+    with _claim_lock:
+        current = _current_claim_locked(now)
+        if current is not None and current["holder"] == holder:
+            # Same holder re-claiming refreshes the lease.
+            current["purpose"] = purpose or current["purpose"]
+            current["expires_at"] = now + ttl
+            return jsonify({"ok": True, "granted": True, "claim": dict(current)})
+        if current is not None:
+            if want_queue:
+                position = _enqueue_locked(holder, purpose, now)
+                return jsonify(
+                    {
+                        "ok": True,
+                        "granted": False,
+                        "queued": True,
+                        "position": position,
+                        "claim": dict(current),
+                    }
+                )
+            return (
+                jsonify(
+                    {
+                        "ok": False,
+                        "error": f"hands already claimed by {current['holder']!r}",
+                        "claim": dict(current),
+                    }
+                ),
+                409,
+            )
+        # Desktop is free. An active reservation (queue head's grace
+        # window after a release/expiry) blocks everyone else.
+        reserved = _active_reservation_locked(now)
+        if reserved is not None and reserved != holder:
+            if want_queue:
+                position = _enqueue_locked(holder, purpose, now)
+                return jsonify(
+                    {
+                        "ok": True,
+                        "granted": False,
+                        "queued": True,
+                        "position": position,
+                        "claim": None,
+                        "reserved_for": reserved,
+                    }
+                )
+            return (
+                jsonify(
+                    {
+                        "ok": False,
+                        "error": f"hands reserved for {reserved!r} (queue head grace window)",
+                        "claim": None,
+                        "reserved_for": reserved,
+                    }
+                ),
+                409,
+            )
+        if reserved == holder:
+            _reserved_for = None
+            _reserved_until = 0.0
+            _dequeue_locked(holder)
+        elif _claim_queue and _claim_queue[0]["holder"] == holder:
+            _dequeue_locked(holder)
+        elif _claim_queue:
+            # A queue outlived its reservation window: the claim is a
+            # free-for-all again, but a queued caller keeps no priority
+            # it did not use — drop its stale entry if it jumps in.
+            _dequeue_locked(holder)
+        _claim = {
+            "holder": holder,
+            "purpose": purpose,
+            "since": now,
+            "expires_at": now + ttl,
+        }
+        return jsonify({"ok": True, "granted": True, "claim": dict(_claim)})
+
+
+@app.post("/v1/hands/release")
+def hands_release():
+    global _claim, _reserved_for, _reserved_until
+    body = request.get_json(force=True, silent=True) or {}
+    holder = str(body.get("holder") or "").strip()
+    if not holder:
+        return jsonify({"ok": False, "error": "holder is required"}), 400
+    now = time.time()
+    with _claim_lock:
+        if body.get("cancel_queue"):
+            removed = _dequeue_locked(holder)
+            if removed and _reserved_for == holder:
+                _reserved_for = None
+                _reserved_until = 0.0
+                if _current_claim_locked(now) is None:
+                    _reserve_head_locked(now)
+            claim, queue, reserved = _claim_snapshot(now)
+            return jsonify(
+                {
+                    "ok": True,
+                    "cancelled_queue": removed,
+                    "claim": claim,
+                    "queue": queue,
+                    "reserved_for": reserved,
+                }
+            )
+        current = _current_claim_locked(now)
+        if current is None:
+            # Already expired (or never held): releasing is a no-op.
+            return jsonify({"ok": True, "released": False, "claim": None})
+        if current["holder"] != holder:
+            return (
+                jsonify(
+                    {
+                        "ok": False,
+                        "error": "only the current holder can release the claim",
+                        "claim": dict(current),
+                    }
+                ),
+                403,
+            )
+        _claim = None
+        _reserve_head_locked(now)
+        return jsonify(
+            {
+                "ok": True,
+                "released": True,
+                "claim": None,
+                "reserved_for": _reserved_for,
+            }
+        )
 
 
 @app.post("/v1/parse")
@@ -296,6 +561,147 @@ def screen_hash():
     )
 
 
+# ---------------------------------------------------------------------------
+# Queued act (wishlist #18): yielded-input accounting.
+#
+# The hands answer 409 when the desktop's owner is actively using it and
+# an act yields. /v1/act surfaces that as-is; /v1/act/queued instead
+# files a receipt and retries until a hold deadline, so the caller can
+# account for the input later instead of guessing whether it landed.
+#
+# Privacy: a receipt records the op and the payload's key NAMES only —
+# never payload values (typed text may be sensitive). The payload itself
+# lives in a separate transient map, only while the receipt is held, and
+# is dropped the moment the receipt reaches a terminal state; it never
+# appears in any receipt response.
+# ---------------------------------------------------------------------------
+RECEIPT_MAX = 200
+RECEIPT_RETRY_INTERVAL = 1.0
+HOLD_DEFAULT = 30
+HOLD_MIN = 1
+HOLD_MAX = 120
+
+_receipts_lock = threading.RLock()
+_receipts = {}  # id -> receipt dict, insertion-ordered (oldest first)
+_pending_payloads = {}  # receipt id -> payload, held receipts only
+_receipt_thread = None
+
+
+def _is_yield_conflict(status, result):
+    if status != 409 or not isinstance(result, dict):
+        return False
+    error = str(result.get("error") or "").lower()
+    return "yield" in error or "user active" in error
+
+
+def _store_receipt(receipt, payload):
+    with _receipts_lock:
+        _receipts[receipt["id"]] = receipt
+        _pending_payloads[receipt["id"]] = payload
+        while len(_receipts) > RECEIPT_MAX:
+            oldest = next(iter(_receipts))
+            del _receipts[oldest]
+            _pending_payloads.pop(oldest, None)
+
+
+def _public_receipt(receipt):
+    return {k: v for k, v in receipt.items() if not k.startswith("_")}
+
+
+def _pump_receipt(receipt, now):
+    """One retry step for a held receipt. Returns the receipt.
+
+    Synchronous and thread-free so tests can drive it directly: attempts
+    the forward once; a non-409 answer settles the receipt (applied, or
+    failed when the hands turned out unreachable), a 409 past the
+    deadline settles it as refused-yielded, otherwise it stays held.
+    """
+    with _receipts_lock:
+        if receipt.get("state") != "held":
+            return receipt
+        payload = dict(_pending_payloads.get(receipt["id"]) or {})
+        op = receipt["op"]
+    try:
+        status, result = _forward_act(op, payload)
+    except Exception as exc:  # a stubbed / broken forward must not kill the pump
+        status, result = None, {"ok": False, "error": f"forward failed: {exc}"}
+        failed = True
+    else:
+        failed = (
+            status == 502
+            and isinstance(result, dict)
+            and "hands unreachable" in str(result.get("error") or "").lower()
+        )
+    with _receipts_lock:
+        receipt["updated_at"] = now
+        if status is not None:
+            receipt["hands_status"] = status
+        if status == 409:
+            if now >= receipt["deadline"]:
+                receipt["state"] = "refused-yielded"
+                _pending_payloads.pop(receipt["id"], None)
+            return receipt
+        if failed or status is None:
+            receipt["state"] = "failed"
+            receipt["result"] = None
+            _pending_payloads.pop(receipt["id"], None)
+            return receipt
+        receipt["state"] = "applied"
+        receipt["result"] = result
+        _pending_payloads.pop(receipt["id"], None)
+        return receipt
+
+
+def _receipt_loop():
+    while True:
+        time.sleep(RECEIPT_RETRY_INTERVAL)
+        with _receipts_lock:
+            held = [r for r in _receipts.values() if r.get("state") == "held"]
+        for receipt in held:
+            try:
+                _pump_receipt(receipt, time.time())
+            except Exception:
+                continue
+
+
+def _ensure_receipt_thread():
+    global _receipt_thread
+    with _receipts_lock:
+        if _receipt_thread is not None and _receipt_thread.is_alive():
+            return
+        _receipt_thread = threading.Thread(
+            target=_receipt_loop, name="queued-act-retry", daemon=True
+        )
+        _receipt_thread.start()
+
+
+def _forward_act(op, payload):
+    """Forward one act to the hands. Returns (status_code, json_dict).
+
+    This is exactly the forwarding /v1/act has always done, factored out
+    so /v1/act/queued (and its retry pump) share the one code path.
+    """
+    if not HANDS_SECRET:
+        return 503, {"ok": False, "error": "HANDS_SECRET not configured on gateway"}
+    if op not in HANDS_OPS:
+        return 400, {"ok": False, "error": f"unknown op: {op!r}"}
+    try:
+        r = requests.post(
+            f"{HANDS_URL}/{op}", json=payload, headers=_hands_headers(), timeout=HANDS_TIMEOUT
+        )
+    except requests.RequestException as exc:
+        return 502, {"ok": False, "error": f"hands unreachable: {exc}"}
+    if r.status_code == 401:
+        return 502, {
+            "ok": False,
+            "error": "hands rejected the gateway's secret — HANDS_SECRET does not match the hands app's current session secret",
+        }
+    try:
+        return r.status_code, r.json()
+    except ValueError:
+        return r.status_code, {"ok": r.ok, "status": r.status_code}
+
+
 @app.post("/v1/act")
 def act():
     """One desktop action, forwarded to the hands.
@@ -304,33 +710,85 @@ def act():
     Op params match the hands API exactly: move/click {x, y}, type {text},
     key {key}, scroll {clicks}.
     """
-    if not HANDS_SECRET:
-        return jsonify({"ok": False, "error": "HANDS_SECRET not configured on gateway"}), 503
     body = request.get_json(force=True, silent=True) or {}
     op = body.get("op") or ""
-    if op not in HANDS_OPS:
-        return jsonify({"ok": False, "error": f"unknown op: {op!r}"}), 400
     payload = {k: v for k, v in body.items() if k != "op"}
-    try:
-        r = requests.post(
-            f"{HANDS_URL}/{op}", json=payload, headers=_hands_headers(), timeout=HANDS_TIMEOUT
-        )
-    except requests.RequestException as exc:
-        return jsonify({"ok": False, "error": f"hands unreachable: {exc}"}), 502
-    if r.status_code == 401:
-        return (
-            jsonify(
-                {
-                    "ok": False,
-                    "error": "hands rejected the gateway's secret — HANDS_SECRET does not match the hands app's current session secret",
-                }
-            ),
-            502,
-        )
-    try:
-        return jsonify(r.json()), r.status_code
-    except ValueError:
-        return jsonify({"ok": r.ok, "status": r.status_code}), r.status_code
+    status, result = _forward_act(op, payload)
+    return jsonify(result), status
+
+
+@app.post("/v1/act/queued")
+def act_queued():
+    """Like /v1/act, but a yield-409 is held and retried (wishlist #18).
+
+    Same body as /v1/act plus optional hold_seconds (default 30, clamp
+    1..120). Any non-yield result is returned exactly as /v1/act would
+    return it. A 409 whose error says the act yielded (the owner is
+    actively using the desktop) files a receipt, starts the retry
+    engine, and answers 202; poll GET /v1/act/queued/<id> for the
+    outcome (applied / refused-yielded / failed).
+    """
+    body = request.get_json(force=True, silent=True) or {}
+    op = body.get("op") or ""
+    hold = _clamp_number(body.get("hold_seconds", HOLD_DEFAULT), HOLD_DEFAULT, HOLD_MIN, HOLD_MAX)
+    payload = {k: v for k, v in body.items() if k not in ("op", "hold_seconds")}
+    status, result = _forward_act(op, payload)
+    if not _is_yield_conflict(status, result):
+        return jsonify(result), status
+    now = time.time()
+    receipt = {
+        "id": uuid.uuid4().hex,
+        "op": op,
+        "param_keys": sorted(payload.keys()),
+        "state": "held",
+        "submitted_at": now,
+        "updated_at": now,
+        "deadline": now + hold,
+        "hold_seconds": hold,
+        "hands_status": status,
+        "result": None,
+    }
+    _store_receipt(receipt, payload)
+    _ensure_receipt_thread()
+    return (
+        jsonify({"ok": True, "queued": True, "id": receipt["id"], "state": "held"}),
+        202,
+    )
+
+
+@app.get("/v1/act/queued")
+def act_queued_list():
+    with _receipts_lock:
+        receipts = [
+            {
+                "id": r["id"],
+                "op": r["op"],
+                "state": r["state"],
+                "submitted_at": r["submitted_at"],
+            }
+            for r in reversed(list(_receipts.values()))
+        ]
+    return jsonify({"ok": True, "receipts": receipts})
+
+
+@app.get("/v1/act/queued/<receipt_id>")
+def act_queued_get(receipt_id):
+    with _receipts_lock:
+        receipt = _receipts.get(receipt_id)
+        if receipt is None:
+            return (
+                jsonify(
+                    {
+                        "ok": False,
+                        "error": "unknown or expired receipt id",
+                        "state": "expired",
+                    }
+                ),
+                404,
+            )
+        body = _public_receipt(receipt)
+    body["ok"] = True
+    return jsonify(body)
 
 
 if __name__ == "__main__":

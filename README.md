@@ -64,7 +64,7 @@ $env:PARSER_URL   = "http://127.0.0.1:5011"
 python app.py
 ```
 
-- Gateway: http://127.0.0.1:5010/health — agent API under /v1 (screen, screen/hash, act, parse, info)
+- Gateway: http://127.0.0.1:5010/health — agent API under /v1 (screen, screen/hash, act, act/queued, hands/claim, hands/release, parse, info)
 - Parser: http://127.0.0.1:5011/health — reports whether the model is loaded
 
 **Change detection without the pixels:** `GET /v1/screen/hash` returns a
@@ -82,6 +82,60 @@ The parser answers /parse only once OmniParser v2 weights are in its
 models directory (`python services/parser/fetch_weights.py`, heavy deps in
 `services/parser/requirements-model.txt`). Until then it returns 501 —
 deliberately: a driver must never mistake "no model" for "empty screen".
+
+## Coordination: hands claim + queued act
+
+Two gateway features keep multiple agent sessions (and the owner) from
+fighting over one desktop. Both are covered by the gateway token, like
+every other /v1 route.
+
+**Hands claim (advisory).** A session that is about to drive takes a
+claim first so other sessions can see who holds the desktop:
+
+- `POST /v1/hands/claim` `{"holder", "purpose", "ttl_seconds"?, "queue"?}` —
+  grants when free (`200 {"granted": true, "claim": {...}}`); the same
+  holder re-claiming refreshes the lease. TTL defaults to 900 s, clamped
+  30–3600 s; expiry is lazy (an expired claim is simply absent). If
+  another holder holds it: `409` with the current claim — or, with
+  `"queue": true`, a FIFO queue slot (`200 {"granted": false, "queued":
+  true, "position": N}`).
+- When a claim is released or expires, the queue head gets a 30 s
+  reservation: only that holder's claim can be granted during the grace
+  window; everyone else still gets `409` / a queue slot.
+- `POST /v1/hands/release` `{"holder"}` — only the current holder can
+  release (`403` otherwise; releasing an expired claim is an ok no-op).
+  `{"holder", "cancel_queue": true}` instead drops that holder's queue
+  entry.
+- `GET /v1/hands/claim` — `{"claim": {...}|null, "queue": [...],
+  "reserved_for": holder|null}`. `GET /v1/info` carries the same claim
+  object as `hands_claim`.
+
+The claim is **advisory coordination only — it does not gate
+`/v1/act`**. A session that skips claiming can still act; well-behaved
+sessions check the claim first and back off politely.
+
+**Queued act (yielded-input accounting).** When the owner is actively
+using the desktop, the hands answer an act with `409` (the act yielded).
+Plain `POST /v1/act` surfaces that as-is and is unchanged.
+`POST /v1/act/queued` takes the same body plus optional `hold_seconds`
+(default 30, clamped 1–120):
+
+- Any result other than a yield-`409` is returned exactly as `/v1/act`
+  would return it — no receipt is filed.
+- A yield-`409` (error mentions "yield" / "user active") files a
+  receipt and answers `202 {"queued": true, "id": ..., "state":
+  "held"}`. A retry thread re-forwards the act about once a second
+  until the deadline: a non-`409` answer settles the receipt `applied`,
+  still-`409` at the deadline settles it `refused-yielded`, and an
+  unreachable hands settles it `failed`.
+- `GET /v1/act/queued/<id>` returns the receipt; an unknown or evicted
+  id answers `404` with `"state": "expired"`. `GET /v1/act/queued`
+  lists receipt summaries (`id`, `op`, `state`, `submitted_at`), newest
+  first. At most 200 receipts are kept.
+- A receipt records the op and the payload's **key names only — never
+  payload values** (typed text may be sensitive). The payload itself is
+  held in memory only while the receipt is held and dropped when it
+  settles.
 
 ## Hands (Windows)
 
