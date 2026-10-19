@@ -213,20 +213,33 @@ def run():
           r.status_code == 200 and r.get_json() == {"ok": True, "plain": True}
           and client.get("/v1/act/queued", headers=TOKEN).get_json()["receipts"] == [])
 
-    # (a) Immediate non-409 -> passthrough, no receipt.
+    # (a) Immediate non-409 -> passthrough + receipt id, and a settled
+    # "applied" receipt is filed (R4, F4: every queued act is
+    # reconcilable afterwards, not only yields).
     gateway._forward_act = ActStub([(200, {"ok": True, "moved": True})])
     r = client.post("/v1/act/queued", json={"op": "move", "x": 1, "y": 2}, headers=TOKEN)
-    check("queued act passes an immediate 200 through untouched",
-          r.status_code == 200 and r.get_json() == {"ok": True, "moved": True})
+    body = r.get_json()
+    direct_id = body.get("id")
+    check("queued act passes an immediate 200 through with its receipt id",
+          r.status_code == 200 and body.get("ok") is True
+          and body.get("moved") is True
+          and isinstance(direct_id, str) and len(direct_id) == 32)
     r = client.get("/v1/act/queued", headers=TOKEN)
-    check("passthrough files no receipt", r.get_json()["receipts"] == [])
+    receipts = r.get_json()["receipts"]
+    check("passthrough files a settled applied receipt",
+          len(receipts) == 1 and receipts[0]["id"] == direct_id
+          and receipts[0]["state"] == "applied")
 
-    # A 409 that is NOT a yield is also passed through.
+    # A 409 that is NOT a yield is also passed through — with a
+    # settled "failed" receipt filed (R4, F4).
     gateway._forward_act = ActStub([(409, {"ok": False, "error": "some other conflict"})])
     r = client.post("/v1/act/queued", json={"op": "click", "x": 1, "y": 2}, headers=TOKEN)
-    check("non-yield 409 passes through with no receipt",
-          r.status_code == 409
-          and client.get("/v1/act/queued", headers=TOKEN).get_json()["receipts"] == [])
+    conflict_id = r.get_json().get("id")
+    check("non-yield 409 passes through with a receipt id",
+          r.status_code == 409 and isinstance(conflict_id, str))
+    receipts = client.get("/v1/act/queued", headers=TOKEN).get_json()["receipts"]
+    check("non-yield 409 files a settled failed receipt",
+          receipts[0]["id"] == conflict_id and receipts[0]["state"] == "failed")
 
     # (b) Yield-409 then success: 202 held, pump -> applied.
     typed_secret = "typed-text-that-must-not-leak"
@@ -310,7 +323,7 @@ def run():
     r = client.get("/v1/act/queued", headers=TOKEN)
     receipts = r.get_json()["receipts"]
     check("receipt list is newest first with summary fields only",
-          [x["id"] for x in receipts] == [receipt_id_3, receipt_id_2, receipt_id]
+          [x["id"] for x in receipts] == [receipt_id_3, receipt_id_2, receipt_id, conflict_id, direct_id]
           and all(set(x) == {"id", "op", "state", "submitted_at"} for x in receipts))
 
     gateway._forward_act = original_forward

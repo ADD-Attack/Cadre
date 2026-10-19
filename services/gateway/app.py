@@ -64,8 +64,6 @@ FAIL_WINDOW = 600
 LOCKOUT_SECONDS = 300
 
 _fail_lock = threading.Lock()
-_fail_times: list = []
-_lockout_until = 0.0
 
 _probe_lock = threading.Lock()
 _probe_cache = {"hands": None, "parser": None, "pc_state": None, "at": 0.0}
@@ -186,28 +184,6 @@ def _peer_key():
         return request.remote_addr or "-"
     except RuntimeError:
         return "-"
-
-
-def _locked_out(peer=None) -> bool:
-    """Per-peer lockout. The global bucket is not consulted."""
-    if peer is None:
-        peer = _peer_key()
-    with _fail_lock:
-        return time.monotonic() < _lockout_by_peer.get(peer, 0.0)
-
-
-def _record_failure() -> None:
-    """Record one bad token for this peer. Valid tokens never call this."""
-    now = time.monotonic()
-    with _fail_lock:
-        peer = _peer_key()
-        times = _fail_by_peer.setdefault(peer, [])
-        times[:] = [t for t in times if now - t < FAIL_WINDOW]
-        times.append(now)
-        if len(times) >= MAX_FAILS:
-            _lockout_by_peer[peer] = now + LOCKOUT_SECONDS
-            times.clear()
-            app.logger.warning("LOCKOUT: too many bad tokens")
 
 
 def _gate_decision(provided):
@@ -487,9 +463,15 @@ def parse():
     """Forward a screenshot (JSON {"image_b64": ...}) to the parser service."""
     try:
         r = requests.post(f"{PARSER_URL}/parse", json=request.get_json(force=True), timeout=120)
-        return jsonify(r.json()), r.status_code
     except requests.RequestException as exc:
         return jsonify({"ok": False, "error": f"parser unreachable: {exc}"}), 502
+    try:
+        return jsonify(r.json()), r.status_code
+    except ValueError:
+        # R4 (F12): a non-JSON parser reply (e.g. a waitress 500 page
+        # during a crash loop) must not escape as Flask's HTML 500 —
+        # drivers of this API parse JSON or nothing.
+        return jsonify({"ok": False, "error": f"parser returned {r.status_code}"}), r.status_code
 
 
 def _region_ok(region):
@@ -543,9 +525,13 @@ def find():
     }
     try:
         r = requests.post(f"{PARSER_URL}/find", json=payload, timeout=120)
-        return jsonify(r.json()), r.status_code
     except requests.RequestException as exc:
         return jsonify({"ok": False, "error": f"parser unreachable: {exc}"}), 502
+    try:
+        return jsonify(r.json()), r.status_code
+    except ValueError:
+        # R4 (F12): same non-JSON guard as /v1/parse.
+        return jsonify({"ok": False, "error": f"parser returned {r.status_code}"}), r.status_code
 
 
 def _hands_forward(method, path, payload=None):
@@ -909,24 +895,48 @@ _receipt_thread = None
 
 
 def _is_yield_conflict(status, result):
+    """Classify a hands 409 as a WP0b yield (hold and retry) or not.
+
+    R4 (F11): the hands' structured error_code is authoritative when
+    present ("yield" = owner active, "locked" = desktop locked; both
+    mean hold and retry). The substring match on the human prose is
+    only a fallback for an older hands that predates the code —
+    rewording an error message must not silently reclassify holds as
+    failures or failures as holds.
+    """
     if status != 409 or not isinstance(result, dict):
         return False
+    code = result.get("error_code")
+    if code is not None:
+        return code in ("yield", "locked")
     error = str(result.get("error") or "").lower()
     return "yield" in error or "user active" in error
 
 
-def _store_receipt(receipt, payload):
+def _store_receipt(receipt, payload=None):
     with _receipts_lock:
         _receipts[receipt["id"]] = receipt
-        _pending_payloads[receipt["id"]] = payload
+        if payload is not None:
+            _pending_payloads[receipt["id"]] = payload
         while len(_receipts) > RECEIPT_MAX:
-            oldest = next(iter(_receipts))
-            evicted = _receipts.pop(oldest)
+            # R4 (F4): evict TERMINAL receipts before held ones —
+            # settled history is expendable, and a burst of direct
+            # applies must not push out a genuinely held receipt. The
+            # just-stored receipt is never its own victim.
+            victim = None
+            for rid, rec in _receipts.items():
+                if rid != receipt["id"] and rec.get("state") != "held":
+                    victim = rid
+                    break
+            if victim is None:
+                victim = next(iter(_receipts))
+            evicted = _receipts.pop(victim)
             # Mark it BEFORE dropping it: the retry loop may already hold
             # a reference to this dict, and _pump_receipt only forwards
             # receipts whose state is still "held".
-            evicted["state"] = "expired"
-            _pending_payloads.pop(oldest, None)
+            if evicted["state"] == "held":
+                evicted["state"] = "expired"
+            _pending_payloads.pop(victim, None)
 
 
 def _public_receipt(receipt):
@@ -961,8 +971,7 @@ def _pump_receipt(receipt, now):
         failed = True
         yielded = False
     else:
-        error = str(result.get("error") or "").lower() if isinstance(result, dict) else ""
-        yielded = status == 409 and ("yield" in error or "user active" in error)
+        yielded = _is_yield_conflict(status, result)
         # 2xx applied. Yield-409 stays held (deadline still -> refused-yielded).
         # Everything else, including 400/500/503/502 and a non-yield 409, fails.
         failed = not (isinstance(status, int) and 200 <= status < 300)
@@ -1124,11 +1133,14 @@ def act_queued():
     """Like /v1/act, but a yield-409 is held and retried (wishlist #18).
 
     Same body as /v1/act plus optional hold_seconds (default 30, clamp
-    1..120). Any non-yield result is returned exactly as /v1/act would
-    return it. A 409 whose error says the act yielded (the owner is
+    1..120). A 409 whose error says the act yielded (the owner is
     actively using the desktop) files a receipt, starts the retry
     engine, and answers 202; poll GET /v1/act/queued/<id> for the
-    outcome (applied / refused-yielded / failed).
+    outcome (applied / refused-yielded / failed). Any non-yield result
+    is returned as /v1/act would return it, plus the receipt id: every
+    submission files a receipt (R4, F4), so the outcome stays
+    reconcilable via GET /v1/act/queued/<id> even after a lost
+    response — a driver never has to guess whether an act landed.
     """
     body = request.get_json(force=True, silent=True) or {}
     op = body.get("op") or ""
@@ -1136,7 +1148,31 @@ def act_queued():
     payload = {k: v for k, v in body.items() if k not in ("op", "hold_seconds")}
     status, result = _forward_act(op, payload)
     if not _is_yield_conflict(status, result):
-        return jsonify(result), status
+        # R4 (F4): settle a receipt for the direct result too — no
+        # payload is retained (nothing is held), and the id rides in
+        # the response body so the caller can reconcile later.
+        now = time.time()
+        applied = isinstance(status, int) and 200 <= status < 300
+        receipt = {
+            "id": uuid.uuid4().hex,
+            "op": op,
+            "param_keys": sorted(payload.keys()),
+            "state": "applied" if applied else "failed",
+            "submitted_at": now,
+            "updated_at": now,
+            "deadline": now,
+            "hold_seconds": hold,
+            "hands_status": status,
+            "result": result,
+        }
+        _store_receipt(receipt)
+        body = (
+            dict(result)
+            if isinstance(result, dict)
+            else {"ok": False, "error": str(result)}
+        )
+        body["id"] = receipt["id"]
+        return jsonify(body), status
     now = time.time()
     receipt = {
         "id": uuid.uuid4().hex,
@@ -1549,4 +1585,8 @@ def wait_for():
 if __name__ == "__main__":
     from waitress import serve
 
-    serve(app, host="0.0.0.0", port=5010, threads=8)
+    # R4 (F9): 8 threads starved act traffic whenever long-poll
+    # endpoints (wait_for up to 300 s, screen/wait 25 s, a long type
+    # forward up to 600 s) overlapped — every route, /v1/info
+    # included, queued behind them. 32 costs nothing at this scale.
+    serve(app, host="0.0.0.0", port=5010, threads=32)

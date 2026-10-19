@@ -107,7 +107,13 @@ PORT = 5000
 SHARED_SECRET = secrets_mod.token_urlsafe(24)
 
 pyautogui.FAILSAFE = True
-pyautogui.PAUSE = 0.15
+# R4 (F2): PAUSE stays 0. pyautogui's PAUSE sleeps after EVERY call, and
+# the v3 input-realism planners (_plan_path, _plan_key_delays) already
+# own the deliberate delay budget — a global 0.15 s tax per call made a
+# ~50-step mouse path pay ~7.5 s on top of its planned 0.3-1.1 s and
+# capped typing at ~3-5 chars/s regardless of the jitter plan. FAILSAFE
+# above is the independent emergency stop and is unaffected.
+pyautogui.PAUSE = 0
 
 # ---------------------------------------------------------------- server
 
@@ -116,8 +122,6 @@ app.config["MAX_CONTENT_LENGTH"] = 1_000_000  # requests are tiny JSON
 
 # ---- failed-guess lockout ------------------------------------------------
 _fail_lock = threading.Lock()
-_fail_times: list = []
-_lockout_until = 0.0
 MAX_FAILS = 10        # bad secrets allowed inside the window...
 FAIL_WINDOW = 600     # ...of 10 minutes, then auth pauses for...
 LOCKOUT_SECONDS = 300  # ...5 minutes (restart the app to clear early)
@@ -193,39 +197,6 @@ def _peer_key():
         return "-"
 
 
-def _auth_locked_out(peer=None) -> bool:
-    if peer is None:
-        peer = _peer_key()
-    with _fail_lock:
-        return time.monotonic() < _lockout_by_peer.get(peer, 0.0)
-
-
-def _record_failure() -> None:
-    now = time.monotonic()
-    file_log("bad secret attempt")
-    tripped = False
-    with _fail_lock:
-        peer = _peer_key()
-        times = _fail_by_peer.setdefault(peer, [])
-        times[:] = [t for t in times if now - t < FAIL_WINDOW]
-        times.append(now)
-        if len(times) >= MAX_FAILS:
-            _lockout_by_peer[peer] = now + LOCKOUT_SECONDS
-            times.clear()
-            tripped = True
-    if tripped:
-        log_line(
-            "LOCKOUT: too many bad secrets -- authentication paused "
-            "for 5 minutes"
-        )
-        file_log("LOCKOUT triggered (10 bad secrets inside 10 minutes)")
-        alert_phone(
-            "Muse Relay LOCKOUT",
-            "Someone just made 10 bad secret guesses at your relay. "
-            "Authentication is paused for 5 minutes.",
-        )
-
-
 _ACT_PATHS = {
     "/move",
     "/click",
@@ -235,6 +206,11 @@ _ACT_PATHS = {
     "/hotkey",
     "/drag",
     "/focus",
+    # R4 (F5): /break injects real Ctrl+C chords and /clipboard/set
+    # overwrites the owner's clipboard — both are input/state the owner
+    # can collide with, so both sit behind the same WP0b yield.
+    "/break",
+    "/clipboard/set",
 }
 
 
@@ -244,15 +220,105 @@ def _yield_if_active():
     _probe_lock_state is the only seam: (locked, idle_seconds), or
     (None, None) off Windows / on failure. None idle means inactive.
     Yield only when idle_seconds < HANDS_YIELD_IDLE_SECONDS (default 5).
+
+    R4 (F6): a LOCKED desktop also yields — acts injected at the
+    Winlogon desktop go nowhere yet reported success, so queued
+    receipts settled "applied" for input that never landed. The 409
+    carries error_code "locked" so the gateway holds and retries the
+    act until unlock instead of settling it (F11: the code, not the
+    prose, is the contract; the prose keeps the word "yielded" so an
+    older gateway still classifies it by substring).
     """
     try:
         threshold = float(os.environ.get("HANDS_YIELD_IDLE_SECONDS", "5"))
     except (TypeError, ValueError):
         threshold = 5.0
-    _locked, idle_seconds = _probe_lock_state()
+    locked, idle_seconds = _probe_lock_state()
+    if locked is True:
+        return (
+            jsonify(
+                {
+                    "ok": False,
+                    "error": "desktop locked — control yielded",
+                    "error_code": "locked",
+                }
+            ),
+            409,
+        )
     if idle_seconds is not None and idle_seconds < threshold:
-        return jsonify({"ok": False, "error": "user active — control yielded"}), 409
+        return (
+            jsonify(
+                {
+                    "ok": False,
+                    "error": "user active — control yielded",
+                    "error_code": "yield",
+                }
+            ),
+            409,
+        )
     return None
+
+
+def _foreground_window():
+    """The focused window dict from _enum_windows(), or None."""
+    for win in _enum_windows():
+        if win.get("focused"):
+            return win
+    return None
+
+
+def _focus_matches(expect, win):
+    """True when the foreground window satisfies an expect_focus spec.
+
+    expect is a title substring (str) or {"title": ..., "process": ...};
+    each field given must appear (case-insensitive substring) in the
+    foreground window's matching field. An empty spec never matches.
+    """
+    if isinstance(expect, str):
+        expect = {"title": expect}
+    if not isinstance(expect, dict) or win is None:
+        return False
+    want_title = expect.get("title")
+    want_process = expect.get("process")
+    if not want_title and not want_process:
+        return False
+    if want_title and str(want_title).lower() not in (win.get("title") or "").lower():
+        return False
+    if want_process and str(want_process).lower() not in (win.get("process") or "").lower():
+        return False
+    return True
+
+
+def _focus_guard():
+    """Refuse an act whose payload names its target window
+    (expect_focus) when that window is not the foreground one.
+
+    R4 (F3): a queued act can sit held for up to 120 s while the owner
+    switches windows; without a guard it fires into whatever is in
+    front when the yield clears (2026-10-19: a Reset click aimed at a
+    chess page landed in a chat window). The refusal is a NON-yield
+    409 (error_code "foreground_changed") so the queued-act pump
+    settles the receipt failed instead of retrying the act into the
+    wrong window for the rest of the hold. Fails closed: when the
+    foreground window cannot be determined, an act that asked for
+    verification is refused rather than fired blind.
+    """
+    body = request.get_json(force=True, silent=True) or {}
+    expect = body.get("expect_focus")
+    if expect is None:
+        return None
+    if _focus_matches(expect, _foreground_window()):
+        return None
+    return (
+        jsonify(
+            {
+                "ok": False,
+                "error": "foreground changed — act refused",
+                "error_code": "foreground_changed",
+            }
+        ),
+        409,
+    )
 
 
 def _auth_decide(provided):
@@ -310,6 +376,9 @@ def gate():
         return jsonify({"ok": False, "error": "bad secret"}), 401
     if request.path in _ACT_PATHS:
         refused = _yield_if_active()
+        if refused is not None:
+            return refused
+        refused = _focus_guard()
         if refused is not None:
             return refused
 
@@ -645,15 +714,27 @@ def type_text():
     note = None
     delays = []
 
+    typed = 0
+
     def _keys():
-        nonlocal delays
+        nonlocal delays, typed
         if jitter:
             delays = _plan_key_delays(text, random)
             for ch, delay in zip(text, delays):
+                # R4 (F7): re-check the yield every 12 chars — a long
+                # type gated only at the door lets relay keystrokes
+                # and the owner's interleave for the op's whole
+                # duration. On yield, stop and let type_text report
+                # the partial honestly; the caller re-submits the
+                # remainder.
+                if typed and typed % 12 == 0 and _yield_if_active() is not None:
+                    break
                 pyautogui.write(ch)
                 time.sleep(delay)
+                typed += 1
         else:
             pyautogui.write(text, interval=0.02)
+            typed = len(text)
         return "keys"
 
     def _paste():
@@ -698,6 +779,31 @@ def type_text():
                 method_used = _keys()
         else:
             method_used = _keys()
+    if method_used == "keys" and typed < len(text):
+        return (
+            jsonify(
+                {
+                    "ok": False,
+                    # Deliberately NOT yield-classified (error_code is
+                    # not "yield"/"locked", and the prose avoids the
+                    # legacy substrings): some chars already landed, so
+                    # a queued retry of the whole payload would
+                    # double-type the prefix. The receipt settles
+                    # failed with chars_typed; the caller re-submits
+                    # text[chars_typed:].
+                    "error": f"owner became active — typing aborted at char {typed}",
+                    "error_code": "type_aborted",
+                    "aborted": True,
+                    "chars_typed": typed,
+                    "chars": len(text),
+                    "method_used": "keys",
+                    "elapsed_seconds": round(time.monotonic() - started, 3),
+                    "delays_planned": len(delays),
+                    "planned_seconds": sum(delays[:typed]),
+                }
+            ),
+            409,
+        )
     resp = {
         "ok": True,
         "method_used": method_used,
@@ -1024,6 +1130,9 @@ def break_():
     /hotkey) use pyautogui.hotkey(), which presses the keys together,
     so the interrupt actually lands.
     """
+    refused = _yield_if_active()
+    if refused is not None:
+        return refused
     d = request.get_json(force=True, silent=True) or {}
     times = d.get("times", 1)
     if isinstance(times, bool) or not isinstance(times, int) or not 1 <= times <= 3:

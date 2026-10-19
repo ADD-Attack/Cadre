@@ -608,7 +608,9 @@ class RelayApp:
             module.PARSER_URL = f"http://127.0.0.1:{PARSER_PORT}"
             self._gateway_module = module
         try:
-            server = waitress.create_server(module.app, host=host, port=port, threads=8)
+            # R4 (F9): match the gateway module's 32 — long-poll
+            # endpoints must not starve act traffic of threads.
+            server = waitress.create_server(module.app, host=host, port=port, threads=32)
         except OSError as exc:
             self.log_line(
                 f"ERROR: port {port} is already in use — the {name} service is "
