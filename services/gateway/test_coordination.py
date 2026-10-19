@@ -68,7 +68,7 @@ def run():
 
     original_forward = gateway._forward_act
     original_reachability = gateway._reachability
-    gateway._reachability = lambda: (True, True)  # /v1/info without backends
+    gateway._reachability = lambda: (True, True, None)  # /v1/info without backends
 
     # ------------------------------------------------------------------
     # Claim: grant, conflict, queue, release rules, reservation grace.
