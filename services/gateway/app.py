@@ -491,6 +491,78 @@ def _screen_fetch_kwargs():
     return kwargs, None
 
 
+@app.post("/v1/find")
+def find():
+    """Forward a find-text request to the parser service's /find."""
+    body = request.get_json(force=True, silent=True) or {}
+    payload = {
+        "image_b64": body.get("image_b64") or "",
+        "text": body.get("text") or "",
+        "case_sensitive": bool(body.get("case_sensitive")),
+    }
+    try:
+        r = requests.post(f"{PARSER_URL}/find", json=payload, timeout=120)
+        return jsonify(r.json()), r.status_code
+    except requests.RequestException as exc:
+        return jsonify({"ok": False, "error": f"parser unreachable: {exc}"}), 502
+
+
+def _hands_forward(method, path, payload=None):
+    """Forward one call to the hands, act()-style error passthrough.
+
+    503 when no HANDS_SECRET is configured, 502 when the hands are
+    unreachable or reject the gateway's secret.
+    """
+    if not HANDS_SECRET:
+        return jsonify({"ok": False, "error": "HANDS_SECRET not configured on gateway"}), 503
+    try:
+        if method == "GET":
+            r = requests.get(
+                f"{HANDS_URL}{path}", headers=_hands_headers(), timeout=HANDS_TIMEOUT
+            )
+        else:
+            r = requests.post(
+                f"{HANDS_URL}{path}",
+                json=payload,
+                headers=_hands_headers(),
+                timeout=HANDS_TIMEOUT,
+            )
+    except requests.RequestException as exc:
+        return jsonify({"ok": False, "error": f"hands unreachable: {exc}"}), 502
+    if r.status_code == 401:
+        return (
+            jsonify(
+                {
+                    "ok": False,
+                    "error": "hands rejected the gateway's secret — HANDS_SECRET does not match the hands app's current session secret",
+                }
+            ),
+            502,
+        )
+    try:
+        return jsonify(r.json()), r.status_code
+    except ValueError:
+        return jsonify({"ok": r.ok, "status": r.status_code}), r.status_code
+
+
+@app.post("/v1/elevate")
+def elevate():
+    """Request an elevated launch on the host.
+
+    Body: {"name": "<allowlisted name>"}. The gateway supplies only a
+    name; what runs is fixed by the operator's hands config, and the
+    launch happens only if the person at the PC approves it there.
+    """
+    body = request.get_json(force=True, silent=True) or {}
+    return _hands_forward("POST", "/elevate", {"name": body.get("name") or ""})
+
+
+@app.get("/v1/elevate/<eid>")
+def elevate_status(eid):
+    """Poll the state of an elevation request by id."""
+    return _hands_forward("GET", f"/elevate/{eid}")
+
+
 def _fetch_screenshot(monitor=None, region=None):
     """One screenshot from the hands.
 

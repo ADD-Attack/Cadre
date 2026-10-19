@@ -8,6 +8,10 @@ Contract:
   POST /parse {"image_b64": "<png base64>"}
     -> {"ok": true, "elements": [{"id": 0, "label": "...", "bbox": [x0,y0,x1,y1],
         "center": [x, y], "interactable": true}], "width": W, "height": H}
+  POST /find {"image_b64": "<png base64>", "text": "...",
+              "case_sensitive": false}
+    -> {"ok": true, "matches": [<elements whose label contains text>],
+        "count": N, "width": W, "height": H}
 
 Model: OmniParser v2 weights (icon detector + optional Florence captioner),
 expected under the models directory (PARSER_MODELS_DIR, default /models in
@@ -157,37 +161,37 @@ def health():
     )
 
 
-@app.post("/parse")
-def parse():
-    body = request.get_json(force=True, silent=True) or {}
-    image_b64 = body.get("image_b64") or ""
-    if not image_b64:
-        return jsonify({"ok": False, "error": "image_b64 required"}), 400
-    try:
-        raw = base64.b64decode(image_b64, validate=True)
-    except binascii.Error:
-        return jsonify({"ok": False, "error": "image_b64 is not valid base64"}), 400
+def _model_not_loaded_response():
+    return (
+        jsonify(
+            {
+                "ok": False,
+                "error": "parser model not loaded",
+                "model": _model_status(),
+                "hint": "run fetch_weights.py and install requirements-model.txt",
+            }
+        ),
+        501,
+    )
 
+
+def _run_parse(raw_bytes):
+    """Detection + caption core shared by /parse and /find.
+
+    Returns (elements, width, height) on success, or None when the
+    image bytes are not a readable image (the caller turns that into a
+    400). Callers check the detector first so the 501 honesty rule
+    keeps its original precedence over a bad-image 400.
+    """
     detector = _get_detector()
     if detector is None:
-        return (
-            jsonify(
-                {
-                    "ok": False,
-                    "error": "parser model not loaded",
-                    "model": _model_status(),
-                    "hint": "run fetch_weights.py and install requirements-model.txt",
-                }
-            ),
-            501,
-        )
-
+        return None
     try:
         from PIL import Image
 
-        image = Image.open(io.BytesIO(raw)).convert("RGB")
+        image = Image.open(io.BytesIO(raw_bytes)).convert("RGB")
     except Exception:
-        return jsonify({"ok": False, "error": "image bytes are not a readable image"}), 400
+        return None
 
     width, height = image.size
     results = detector.predict(image, conf=CONF, verbose=False)
@@ -215,7 +219,69 @@ def parse():
                 "interactable": True,
             }
         )
+    return elements, width, height
+
+
+def _find_matches(elements, text, case_sensitive=False):
+    """Pure filter: elements whose label contains text."""
+    if case_sensitive:
+        return [e for e in elements if text in (e.get("label") or "")]
+    needle = text.lower()
+    return [e for e in elements if needle in (e.get("label") or "").lower()]
+
+
+def _decode_image_b64(body):
+    """(raw_bytes, error_response) — exactly one of the two is None."""
+    image_b64 = body.get("image_b64") or ""
+    if not image_b64:
+        return None, (jsonify({"ok": False, "error": "image_b64 required"}), 400)
+    try:
+        return base64.b64decode(image_b64, validate=True), None
+    except binascii.Error:
+        return None, (
+            jsonify({"ok": False, "error": "image_b64 is not valid base64"}),
+            400,
+        )
+
+
+@app.post("/parse")
+def parse():
+    body = request.get_json(force=True, silent=True) or {}
+    raw, err = _decode_image_b64(body)
+    if err is not None:
+        return err
+
+    if _get_detector() is None:
+        return _model_not_loaded_response()
+
+    result = _run_parse(raw)
+    if result is None:
+        return jsonify({"ok": False, "error": "image bytes are not a readable image"}), 400
+    elements, width, height = result
     return jsonify({"ok": True, "elements": elements, "width": width, "height": height})
+
+
+@app.post("/find")
+def find():
+    body = request.get_json(force=True, silent=True) or {}
+    text = body.get("text") or ""
+    if not text:
+        return jsonify({"ok": False, "error": "text required"}), 400
+    raw, err = _decode_image_b64(body)
+    if err is not None:
+        return err
+
+    if _get_detector() is None:
+        return _model_not_loaded_response()
+
+    result = _run_parse(raw)
+    if result is None:
+        return jsonify({"ok": False, "error": "image bytes are not a readable image"}), 400
+    elements, width, height = result
+    matches = _find_matches(elements, text, bool(body.get("case_sensitive")))
+    return jsonify(
+        {"ok": True, "matches": matches, "count": len(matches), "width": width, "height": height}
+    )
 
 
 if __name__ == "__main__":

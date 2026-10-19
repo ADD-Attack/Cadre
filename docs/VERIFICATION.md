@@ -230,3 +230,56 @@ header `X-Relay-Token: <token>`.
    mouse into a screen corner: pyautogui's FAILSAFE must abort the
    action, exactly as before P5.
    - [ ] pass / fail — notes:
+# Verification — live-only steps
+
+Automated tests cover the state machines and contracts on any OS
+(Windows APIs are stubbed there). The steps below can only be verified
+on a real Windows PC with the packaged app, and were **not** run by the
+automated tests.
+
+## P6: find-text, autostart + self-heal, elevation bridge
+
+### Run-key autostart on real login
+
+1. Build/run the packaged app, tick **Start on login**.
+2. Confirm the value `Muse Relay v2` exists under
+   `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` (regedit or
+   `reg query`) and points at the app.
+3. Sign out and back in: the app window should appear on login.
+4. Untick **Start on login**, confirm the value is gone, and confirm a
+   fresh login no longer starts the app.
+
+### Self-heal kill drill
+
+1. Start all services from the packaged app.
+2. Kill one app-started service's work out from under it (or otherwise
+   make it stop answering) and leave it down.
+3. Watch the app log across several self-check cycles: after repeated
+   failures the log should show
+   `self-heal: restarting <name> after repeated failures` and the
+   service should come back.
+4. Repeat the kill until the restart budget (3) is used: the log should
+   then show the giving-up line once, and no further restarts.
+5. Separately: start a copy of a service outside the app first (so the
+   app reports "already running elsewhere"), make it fail, and confirm
+   the app never restarts it.
+
+### Elevation end-to-end (operator click + UAC)
+
+1. Add an entry to the hands config file's `elevate_allowlist`
+   (a harmless program first), start the packaged app.
+2. Send `POST /v1/elevate {"name": "<entry name>"}` with the gateway
+   token. Confirm a modal **Elevation request** dialog appears in the
+   app window naming the request and the exact configured exe/args.
+3. Click **No** (Deny): nothing must launch, and
+   `GET /v1/elevate/<id>` should report `denied`.
+4. Send the request again and click **Yes** (Approve): the Windows UAC
+   prompt should appear; confirming it should launch the program
+   elevated, and the status should report `launched`. Cancelling UAC
+   should report `launch_failed`.
+5. Send a request and leave the dialog unanswered past the app's
+   handling, then check that an unanswered pending request older than
+   120 s reports `expired` and cannot be approved afterwards.
+6. Confirm there is no way to launch anything whose name is not in the
+   allowlist (unknown name → 404) and that removing the allowlist
+   returns 501.

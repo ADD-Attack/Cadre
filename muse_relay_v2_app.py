@@ -59,6 +59,109 @@ SERVICE_PORTS = {"hands": HANDS_PORT, "parser": PARSER_PORT, "gateway": GATEWAY_
 SERVICE_HOSTS = {"hands": "127.0.0.1", "parser": "0.0.0.0", "gateway": "0.0.0.0"}
 SERVICE_LABELS = {"hands": "Hands", "parser": "Parser", "gateway": "Gateway"}
 
+AUTOSTART_RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+AUTOSTART_VALUE_NAME = "Muse Relay v2"
+
+
+def _winreg():
+    """Seam: the winreg module on Windows, None anywhere else."""
+    try:
+        import winreg
+
+        return winreg
+    except Exception:
+        return None
+
+
+def _autostart_command():
+    """Command string written to the Run key."""
+    if getattr(sys, "frozen", False):
+        return f'"{sys.executable}"'
+    script = os.path.abspath(__file__)
+    return f'"{sys.executable}" "{script}"'
+
+
+def _autostart_enabled():
+    wr = _winreg()
+    if wr is None:
+        return False
+    key = None
+    try:
+        key = wr.OpenKey(wr.HKEY_CURRENT_USER, AUTOSTART_RUN_KEY)
+        value, _kind = wr.QueryValueEx(key, AUTOSTART_VALUE_NAME)
+        return bool(value)
+    except Exception:
+        return False
+    finally:
+        if key is not None:
+            try:
+                wr.CloseKey(key)
+            except Exception:
+                pass
+
+
+def _set_autostart(enabled):
+    """Write/remove the Run-key value. False (no raise) off-Windows."""
+    wr = _winreg()
+    if wr is None:
+        return False
+    key = None
+    try:
+        key = wr.CreateKey(wr.HKEY_CURRENT_USER, AUTOSTART_RUN_KEY)
+        if enabled:
+            wr.SetValueEx(
+                key, AUTOSTART_VALUE_NAME, 0, wr.REG_SZ, _autostart_command()
+            )
+        else:
+            try:
+                wr.DeleteValue(key, AUTOSTART_VALUE_NAME)
+            except Exception:
+                pass  # already absent — disabled is the goal state
+        return True
+    except Exception:
+        return False
+    finally:
+        if key is not None:
+            try:
+                wr.CloseKey(key)
+            except Exception:
+                pass
+
+
+class ServiceHealth:
+    """Self-heal state machine for one service (pure; no I/O).
+
+    note(ok) -> "none" | "restart" | "give_up". Consecutive failures
+    are counted; at 3 in a row it returns "restart" (counter resets,
+    restart budget decrements). The budget is 3 restarts; once it is
+    exhausted the next 3-failure streak returns "give_up" exactly once
+    and then "none". A success resets the consecutive-failure count
+    (not the restart budget).
+    """
+
+    def __init__(self, max_consecutive=3, max_restarts=3):
+        self.max_consecutive = max_consecutive
+        self.max_restarts = max_restarts
+        self._consecutive = 0
+        self._restarts = 0
+        self._gave_up = False
+
+    def note(self, ok):
+        if ok:
+            self._consecutive = 0
+            return "none"
+        self._consecutive += 1
+        if self._consecutive < self.max_consecutive:
+            return "none"
+        self._consecutive = 0
+        if self._restarts < self.max_restarts:
+            self._restarts += 1
+            return "restart"
+        if not self._gave_up:
+            self._gave_up = True
+            return "give_up"
+        return "none"
+
 
 def _app_dir():
     """Folder that holds services/ and (when frozen) sits next to the exe."""
@@ -140,6 +243,7 @@ class RelayApp:
         self._started = False
         self._poll_logged = False
         self.servers = {}
+        self._health = {name: ServiceHealth() for name in SERVICE_FILES}
         self.ui_queue = queue.Queue()
         self._build_ui()
         icon = _icon_path()
@@ -201,6 +305,16 @@ class RelayApp:
             side="left", padx=(8, 0)
         )
 
+        autostart_row = tk.Frame(root, padx=12)
+        autostart_row.pack(fill="x", pady=(4, 0))
+        self.autostart_var = tk.BooleanVar(value=_autostart_enabled())
+        tk.Checkbutton(
+            autostart_row,
+            text="Start on login",
+            variable=self.autostart_var,
+            command=self._toggle_autostart,
+        ).pack(side="left")
+
         self.log = scrolledtext.ScrolledText(root, height=12, state="disabled", wrap="word")
         self.log.pack(fill="both", expand=True, padx=12, pady=10)
 
@@ -208,6 +322,20 @@ class RelayApp:
         if self.token:
             self.root.clipboard_clear()
             self.root.clipboard_append(self.token)
+
+    def _toggle_autostart(self):
+        enabled = bool(self.autostart_var.get())
+        ok = _set_autostart(enabled)
+        if ok:
+            self.log_line(
+                f"Start on login {'enabled' if enabled else 'disabled'} "
+                f"({AUTOSTART_VALUE_NAME} in HKCU Run key)."
+            )
+        else:
+            self.log_line(
+                "Start on login could not be changed "
+                "(autostart is only available on Windows)."
+            )
 
     # ---------- helpers ----------
     def _stamp(self):
@@ -218,6 +346,44 @@ class RelayApp:
 
     def set_status(self, which, text):
         self.ui_queue.put(("status", (which, text)))
+
+    def _handle_elevation_request(self, hands, req):
+        """Show one elevation request to the person at the PC.
+
+        The dialog is the ONLY approval path: it names the request and
+        the exact configured exe/args, Yes approves (runs ELEVATED),
+        No denies (does nothing). The dialog result — and nothing
+        else — is passed to the hands module's resolver.
+        """
+        if not isinstance(req, dict):
+            return
+        eid = req.get("id")
+        name = req.get("name") or ""
+        exe = req.get("exe") or ""
+        args = req.get("args") or ""
+        try:
+            from tkinter import messagebox
+
+            approved = bool(
+                messagebox.askyesno(
+                    "Elevation request",
+                    f"Elevation request: {name}\n\n"
+                    f"Would run ELEVATED:\n{exe} {args}\n\n"
+                    "Approve (Yes) runs it ELEVATED. Deny (No) does nothing.",
+                )
+            )
+        except Exception:
+            approved = False  # no dialog, no approval — deny by default
+        try:
+            resolved = hands._resolve_elevation(eid, approved)
+        except Exception as exc:
+            self.log_line(f"Elevation request '{name}': resolver failed ({exc})")
+            return
+        self.log_line(
+            f"Elevation request '{name}': "
+            f"{'approved by the operator' if approved else 'denied by the operator'} "
+            f"(resolved={resolved})"
+        )
 
     def _drain_queue(self):
         # Forward anything the in-process hands logged (bad-secret
@@ -231,6 +397,16 @@ class RelayApp:
                     )
             except queue.Empty:
                 pass
+            # Elevation requests from the hands: each one is shown to
+            # the person at the PC for an explicit Approve/Deny click.
+            elevate_queue = getattr(hands, "elevate_queue", None)
+            if elevate_queue is not None:
+                try:
+                    while True:
+                        req = elevate_queue.get_nowait()
+                        self._handle_elevation_request(hands, req)
+                except queue.Empty:
+                    pass
         try:
             while True:
                 kind, payload = self.ui_queue.get_nowait()
@@ -282,6 +458,7 @@ class RelayApp:
         os.environ["PARSER_URL"] = f"http://127.0.0.1:{PARSER_PORT}"
         self.token_var.set(self.token)
 
+        self._health = {name: ServiceHealth() for name in SERVICE_FILES}
         self._start_one("hands")
         self._start_one("parser")
         self._start_one("gateway")
@@ -370,14 +547,44 @@ class RelayApp:
         self.log_line(f"{label} service started on port {port}.")
         self.set_status(name, f"{label} (:{port}): running")
 
+    def _note_health(self, name, ok):
+        """Feed one liveness result into a service's self-heal machine."""
+        health = self._health.get(name)
+        if health is None:
+            return
+        action = health.note(bool(ok))
+        if action == "restart":
+            # Only ever restart a service WE started. A service that
+            # was "already running elsewhere" is not in self.servers,
+            # so it is never touched here.
+            if name in self.servers:
+                self.log_line(
+                    f"self-heal: restarting {name} after repeated failures"
+                )
+                server = self.servers.pop(name, None)
+                if server is not None:
+                    try:
+                        server.close()
+                    except Exception:
+                        pass
+                self._start_one(name)
+        elif action == "give_up":
+            self.log_line(
+                f"self-heal: giving up on {name} — repeated failures "
+                "continued after the restart budget was used; it will "
+                "not be restarted automatically again."
+            )
+
     def _poll(self):
         def work():
+            gateway_answered = False
             try:
                 r = requests.get(
                     f"http://127.0.0.1:{GATEWAY_PORT}/v1/info",
                     headers={"X-Relay-Token": self.token or ""},
                     timeout=2,
                 )
+                gateway_answered = True
                 if not self._poll_logged:
                     self._poll_logged = True
                     self.log_line(f"Gateway self-check: HTTP {r.status_code}.")
@@ -388,6 +595,14 @@ class RelayApp:
             except Exception:
                 hands = None
                 parser = None
+            # Self-heal: gateway liveness is "HTTP answered at all".
+            # If the gateway itself is down, hands/parser health is
+            # unknown — note a failure only for the gateway then, so
+            # one outage does not cascade-restart everything.
+            self._note_health("gateway", gateway_answered)
+            if gateway_answered and hands is not None:
+                self._note_health("hands", hands)
+                self._note_health("parser", parser)
             if hands is None:
                 self.set_status("hands", "Hands (:5000): no answer from gateway")
             else:

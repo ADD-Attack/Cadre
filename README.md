@@ -64,7 +64,7 @@ $env:PARSER_URL   = "http://127.0.0.1:5011"
 python app.py
 ```
 
-- Gateway: http://127.0.0.1:5010/health — agent API under /v1 (screen, screen/hash, monitors, windows, clipboard, act, act/queued, hands/claim, hands/release, parse, info, filedrop, wait)
+- Gateway: http://127.0.0.1:5010/health — agent API under /v1 (screen, screen/hash, monitors, windows, clipboard, act, act/queued, hands/claim, hands/release, parse, find, elevate, info, filedrop, wait)
 - Parser: http://127.0.0.1:5011/health — reports whether the model is loaded
 
 **Change detection without the pixels:** `GET /v1/screen/hash` returns a
@@ -268,6 +268,51 @@ timing and geometry are unit-tested off-desktop
 Live-only verification steps for these features (real multi-monitor
 geometry, negative-origin regions, jitter/dynamics feel) are listed in
 [docs/VERIFICATION.md](docs/VERIFICATION.md).
+**Find text on screen:** `POST /v1/find` (parser: `POST /find`) with
+`{"image_b64": "...", "text": "...", "case_sensitive": false}` runs the
+same parse pipeline and returns only the elements whose label contains
+the text — `{"ok": true, "matches": [...], "count": N, "width": W,
+"height": H}`, with each match keeping the full set-of-marks shape
+(`id`, `label`, `bbox`, `center`, `interactable`). Empty text is a 400;
+with no model loaded, /find returns the same 501 as /parse.
+
+## Packaged app: autostart + self-heal
+
+- **Start on login** (opt-in, off by default): the checkbox under the
+  Start/Stop row in the packaged app writes/removes the value
+  `Muse Relay v2` under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`,
+  pointing at the app (the quoted executable when frozen, quoted Python
+  plus the quoted script when run from source). Nothing is written until
+  the owner toggles it.
+- **Self-heal:** the app's periodic self-check feeds each service's
+  liveness into a failure counter. Three consecutive failures restart a
+  service the app itself started (at most 3 restarts per service), then
+  the app logs that it is giving up and stops restarting it. A service
+  that was already running elsewhere is never restarted, and if the
+  gateway itself is down the other services' health is treated as
+  unknown rather than failed, so one outage does not restart everything.
+
+## Elevation bridge
+
+Some programs only run elevated. The bridge lets an agent *request* an
+elevated launch without ever being able to cause one:
+
+- The operator pre-configures an allowlist in the hands config file
+  (`hands/muse_relay_config.json`), key `elevate_allowlist`, mapping a
+  request name to static `exe`/`args` strings, e.g.
+  `{"notepad-elevated": {"exe": "notepad.exe", "args": ""}}`. The agent
+  supplies only a name — never command text.
+- `POST /v1/elevate {"name": "..."}` (hands: `POST /elevate`) creates a
+  pending request and returns its id; an unconfigured allowlist is a
+  501 and an unknown name is a 404. `GET /v1/elevate/<id>` reports the
+  state: `pending`, `denied`, `expired` (pending for over 120 s),
+  `launched`, or `launch_failed`.
+- The request is shown in the packaged app window as a modal dialog
+  naming the request and the exact configured exe/args. **Only the
+  person at the PC clicking Approve (Yes) runs it** — elevated, via the
+  Windows UAC `runas` verb, so the UAC prompt still appears too. Deny
+  (No) does nothing. There is no auto-approve path, no timeout-approve,
+  and no config flag that approves.
 
 ## Hands (Windows)
 

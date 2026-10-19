@@ -1266,6 +1266,120 @@ def clipboard_get():
         return jsonify({"ok": False, "error": f"clipboard read failed: {exc}"}), 502
     log_line("clipboard read via relay")
     return jsonify({"ok": True, "text": text if isinstance(text, str) else ""})
+# ---- elevation bridge ----------------------------------------------------
+# The agent may only NAME a request from the operator's pre-configured
+# allowlist (hands config file key "elevate_allowlist":
+# {name: {"exe": "...", "args": "..."}} — static strings from the
+# operator's config, never from the request). Nothing runs from here:
+# the request is queued for the app window, and only the person at the
+# PC clicking Approve there resolves it (via _resolve_elevation). There
+# is deliberately no auto-approve path, no timeout-approve, and no
+# config flag that approves.
+
+ELEVATE_TTL_SECONDS = 120
+
+elevate_queue: "queue.Queue[dict]" = queue.Queue()
+_elevations: dict = {}
+_elevations_lock = threading.Lock()
+
+
+def _elevate_allowlist() -> dict:
+    """The operator-configured elevation allowlist (name -> exe/args)."""
+    try:
+        allow = _cfg.get("elevate_allowlist") if isinstance(_cfg, dict) else None
+    except Exception:
+        return {}
+    return allow if isinstance(allow, dict) else {}
+
+
+def _run_elevated(entry) -> bool:
+    """Windows seam: launch entry's exe/args elevated via UAC (runas).
+
+    Returns True only when ShellExecuteW reports success (> 32).
+    Off-Windows or on any error, returns False.
+    """
+    if os.name != "nt":
+        return False
+    try:
+        result = ctypes.windll.shell32.ShellExecuteW(
+            None, "runas", entry.get("exe") or "", entry.get("args") or None, None, 1
+        )
+        return bool(result and result > 32)
+    except Exception:
+        return False
+
+
+def _expire_if_stale(entry) -> None:
+    if entry.get("state") == "pending" and (
+        time.time() - float(entry.get("created_at") or 0) > ELEVATE_TTL_SECONDS
+    ):
+        entry["state"] = "expired"
+
+
+def _resolve_elevation(eid, approved) -> bool:
+    """Resolve a pending request. Called only by the app's dialog.
+
+    Returns True when a pending request was resolved, False for an
+    unknown or already-resolved/expired id (no-op).
+    """
+    with _elevations_lock:
+        entry = _elevations.get(eid)
+        if entry is None or entry.get("state") != "pending":
+            return False
+        _expire_if_stale(entry)
+        if entry.get("state") != "pending":
+            return False
+        if not approved:
+            entry["state"] = "denied"
+            return True
+        try:
+            launched = bool(_run_elevated(entry))
+        except Exception:
+            launched = False
+        entry["state"] = "launched" if launched else "launch_failed"
+        return True
+
+
+@app.post("/elevate")
+def elevate():
+    d = request.get_json(force=True, silent=True) or {}
+    name = d.get("name") or ""
+    allow = _elevate_allowlist()
+    if not allow:
+        return jsonify({"ok": False, "error": "elevation not configured"}), 501
+    spec_entry = allow.get(name)
+    if not isinstance(spec_entry, dict):
+        return jsonify({"ok": False, "error": "unknown elevation name"}), 404
+    eid = uuid.uuid4().hex
+    entry = {
+        "id": eid,
+        "name": name,
+        "exe": str(spec_entry.get("exe") or ""),
+        "args": str(spec_entry.get("args") or ""),
+        "state": "pending",
+        "created_at": time.time(),
+    }
+    with _elevations_lock:
+        _elevations[eid] = entry
+    elevate_queue.put(dict(entry))
+    return jsonify({"ok": True, "id": eid, "state": "pending"})
+
+
+@app.get("/elevate/<eid>")
+def elevate_status(eid):
+    with _elevations_lock:
+        entry = _elevations.get(eid)
+        if entry is None:
+            return jsonify({"ok": False, "error": "unknown elevation id"}), 404
+        _expire_if_stale(entry)
+        return jsonify(
+            {
+                "ok": True,
+                "id": entry["id"],
+                "name": entry["name"],
+                "state": entry["state"],
+            }
+        )
 
 
 # ---------------------------------------------------------------- UI glue
