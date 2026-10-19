@@ -64,8 +64,19 @@ $env:PARSER_URL   = "http://127.0.0.1:5011"
 python app.py
 ```
 
-- Gateway: http://127.0.0.1:5010/health — agent API under /v1 (screen, act, parse, info)
+- Gateway: http://127.0.0.1:5010/health — agent API under /v1 (screen, screen/hash, act, parse, info)
 - Parser: http://127.0.0.1:5011/health — reports whether the model is loaded
+
+**Change detection without the pixels:** `GET /v1/screen/hash` returns a
+SHA-256 of the current frame's pixels with the bottom `mask_bottom` px
+(default 80 — the taskbar) excluded, so a watcher can poll a tiny JSON
+response and only fetch the full PNG when the hash changes. With
+`?stable=1` the gateway samples two frames ~0.65 s apart and hashes
+their per-pixel minimum, so a blinking caret or spinner phase cannot
+flip the result. `/v1/screen` also carries that hash as an `ETag` and
+answers a matching `If-None-Match` with `304`. If the gateway lacks
+Pillow, the hash route returns 501 and `/v1/screen` serves without an
+ETag — never a wrong hash.
 
 The parser answers /parse only once OmniParser v2 weights are in its
 models directory (`python services/parser/fetch_weights.py`, heavy deps in

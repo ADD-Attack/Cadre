@@ -10,14 +10,17 @@ generates a fresh secret every launch and shows it in its window; copy it
 into the gateway's environment). Agent calls are translated:
 
   GET  /v1/screen            -> GET  {HANDS_URL}/screenshot  (PNG bytes back)
+  GET  /v1/screen/hash       -> screenshot hash (see screen_hash below)
   POST /v1/act {"op": ...}   -> POST {HANDS_URL}/<op>        (move/click/
                                                               type/key/scroll)
 """
 
+import hashlib
 import hmac
 import os
 import threading
 import time
+from io import BytesIO
 
 import requests
 from flask import Flask, Response, jsonify, request
@@ -29,6 +32,16 @@ PARSER_URL = os.environ.get("PARSER_URL", "http://parser:5011").rstrip("/")
 
 HANDS_OPS = {"move", "click", "type", "key", "scroll"}
 HANDS_TIMEOUT = 30
+
+# Screen hashing (wishlist #14): the bottom strip of the frame is the
+# taskbar — clock, tray icons, notification churn — and must not change
+# the hash. 80px matches the watcher convention the live walkthrough
+# loop already uses on the client side.
+DEFAULT_MASK_BOTTOM = 80
+# Stable mode samples two frames this far apart and keeps only the
+# pixels that agree, so a blinking caret or spinner phase cannot flip
+# the hash (wishlist #14 addendum, 2026-10-19).
+STABLE_SAMPLE_GAP = 0.65
 
 MAX_FAILS = 10
 FAIL_WINDOW = 600
@@ -134,19 +147,26 @@ def parse():
         return jsonify({"ok": False, "error": f"parser unreachable: {exc}"}), 502
 
 
-@app.get("/v1/screen")
-def screen():
-    """Current screenshot from the hands, proxied as PNG bytes."""
+def _fetch_screenshot():
+    """One screenshot from the hands.
+
+    Returns (png_bytes, content_type, None) on success, or
+    (None, None, error_response) with the same failures /v1/screen has
+    always surfaced.
+    """
     if not HANDS_SECRET:
-        return jsonify({"ok": False, "error": "HANDS_SECRET not configured on gateway"}), 503
+        return None, None, (
+            jsonify({"ok": False, "error": "HANDS_SECRET not configured on gateway"}),
+            503,
+        )
     try:
         r = requests.get(
             f"{HANDS_URL}/screenshot", headers=_hands_headers(), timeout=HANDS_TIMEOUT
         )
     except requests.RequestException as exc:
-        return jsonify({"ok": False, "error": f"hands unreachable: {exc}"}), 502
+        return None, None, (jsonify({"ok": False, "error": f"hands unreachable: {exc}"}), 502)
     if r.status_code == 401:
-        return (
+        return None, None, (
             jsonify(
                 {
                     "ok": False,
@@ -156,8 +176,124 @@ def screen():
             502,
         )
     if r.status_code != 200:
-        return jsonify({"ok": False, "error": f"hands returned {r.status_code}"}), 502
-    return Response(r.content, content_type=r.headers.get("Content-Type", "image/png"))
+        return None, None, (
+            jsonify({"ok": False, "error": f"hands returned {r.status_code}"}),
+            502,
+        )
+    return r.content, r.headers.get("Content-Type", "image/png"), None
+
+
+class _HashUnavailable(Exception):
+    """Pillow is not installed on the gateway, so frames cannot be decoded."""
+
+
+def _decode_masked(png_bytes, mask_bottom):
+    """PNG bytes -> RGB image with the bottom mask_bottom rows removed."""
+    try:
+        from PIL import Image
+    except ImportError as exc:
+        raise _HashUnavailable() from exc
+    img = Image.open(BytesIO(png_bytes)).convert("RGB")
+    mask = max(0, min(int(mask_bottom), img.height - 1))
+    if mask:
+        img = img.crop((0, 0, img.width, img.height - mask))
+    return img
+
+
+def _frame_hash(png_a, png_b, mask_bottom):
+    """SHA-256 of a screenshot's masked pixels.
+
+    With png_b given (stable mode), the two frames are composited first
+    with a per-pixel minimum (ImageChops.darker). The minimum is
+    symmetric, so the result does not depend on which sample caught a
+    blink's bright phase — and a bright transient on a darker ground
+    (a terminal caret) drops out entirely, leaving the untouched
+    frame. Only persistent content moves the hash.
+    Returns (hex_digest, width, height) of the masked frame.
+    """
+    img_a = _decode_masked(png_a, mask_bottom)
+    if png_b is not None:
+        from PIL import ImageChops
+
+        img_b = _decode_masked(png_b, mask_bottom)
+        if img_b.size == img_a.size:
+            img_a = ImageChops.darker(img_a, img_b)
+    return hashlib.sha256(img_a.tobytes()).hexdigest(), img_a.width, img_a.height
+
+
+@app.get("/v1/screen")
+def screen():
+    """Current screenshot from the hands, proxied as PNG bytes.
+
+    Carries an ETag (the masked-frame hash, as in /v1/screen/hash) when
+    the gateway can decode images; a matching If-None-Match gets a 304
+    so pollers can skip re-downloading unchanged frames.
+    """
+    png, content_type, err = _fetch_screenshot()
+    if err is not None:
+        return err
+    resp = Response(png, content_type=content_type)
+    try:
+        digest, _, _ = _frame_hash(png, None, DEFAULT_MASK_BOTTOM)
+    except _HashUnavailable:
+        return resp
+    etag = f'"{digest}"'
+    resp.headers["ETag"] = etag
+    inm = (request.headers.get("If-None-Match") or "").strip()
+    if inm and inm.strip('"') == digest:
+        resp.status_code = 304
+        resp.set_data(b"")
+    return resp
+
+
+@app.get("/v1/screen/hash")
+def screen_hash():
+    """Hash of the current screenshot, without moving the PNG.
+
+    A watcher polls this (tiny JSON) instead of the full frame and only
+    fetches /v1/screen when the hash changes. The bottom mask_bottom px
+    (default 80, the taskbar) are excluded. With ?stable=1 the gateway
+    samples two frames ~0.65s apart and hashes only the pixels that
+    agree, so a blinking caret cannot flip the result.
+    """
+    stable = (request.args.get("stable") or "").lower() in ("1", "true", "yes")
+    try:
+        mask_bottom = int(request.args.get("mask_bottom", DEFAULT_MASK_BOTTOM))
+    except ValueError:
+        return jsonify({"ok": False, "error": "mask_bottom must be an integer"}), 400
+    mask_bottom = max(0, min(mask_bottom, 2000))
+
+    png_a, _, err = _fetch_screenshot()
+    if err is not None:
+        return err
+    png_b = None
+    if stable:
+        time.sleep(STABLE_SAMPLE_GAP)
+        png_b, _, err = _fetch_screenshot()
+        if err is not None:
+            return err
+    try:
+        digest, width, height = _frame_hash(png_a, png_b, mask_bottom)
+    except _HashUnavailable:
+        return (
+            jsonify(
+                {
+                    "ok": False,
+                    "error": "image decoding unavailable on gateway (pillow not installed)",
+                }
+            ),
+            501,
+        )
+    return jsonify(
+        {
+            "ok": True,
+            "hash": digest,
+            "stable": stable,
+            "mask_bottom": mask_bottom,
+            "width": width,
+            "height": height,
+        }
+    )
 
 
 @app.post("/v1/act")
