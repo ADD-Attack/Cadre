@@ -56,3 +56,51 @@ call (`curl.exe -H "X-Relay-Token: $T" ...`).
 5. Sanity: plain `POST /v1/act` with the same body during owner use
    still returns the hands' `409` immediately (unchanged behavior, no
    receipt).
+
+## File-drop, wait-for, lock/sleep state (wishlist #2, #5, #13)
+
+Automated tests (`services/gateway/test_services.py`,
+`services/gateway/test_screen_hash.py`, `hands/test_filedrop_state.py`)
+cover validation, hashing, chunking, and state machines with the Windows
+layer stubbed. The steps below can only be verified live, on the
+operator's Windows PC with the packaged app (or the standalone hands)
+running and a gateway configured against it. They were **not** run by
+the P3 build — no live Windows desktop was available to it.
+
+## File-drop (#2)
+
+1. Configure an allowlist folder on the hands (config key
+   `"filedrop_dirs"` or `HANDS_FILEDROP_DIRS`), restart the hands, and
+   confirm an unconfigured hands (allowlist removed) answers
+   `POST /filedrop/begin` with 501.
+2. Through the gateway, `POST /v1/filedrop` a file larger than 256 KB
+   into the allowlisted folder; confirm the file appears at the
+   returned `path`, its size and SHA-256 match, and it opens intact.
+3. Confirm a drop aimed at a folder outside the allowlist is refused
+   and writes nothing.
+
+## Wait-for (#5)
+
+1. `screen_hash_change`: start a `/v1/wait`, then change something
+   persistent on screen (open a window) and confirm `held: true`
+   arrives promptly; repeat with no change and confirm the timeout
+   shape after the requested deadline.
+2. `screen_region_change`: repeat with a region covering the changed
+   area, and with a region that excludes it (must time out).
+3. `window_title`: start a wait for a distinctive title fragment,
+   open that application, and confirm `held: true`.
+4. `parser_model_loaded`: with the parser running but its weights
+   absent, start a wait, then make the weights available / load the
+   model and confirm the wait resolves `held: true`.
+
+## Lock / sleep state (#13)
+
+1. With the PC unlocked, read the hands' `GET /state` (and the
+   gateway's `GET /v1/info` → `pc_state`): expect `"locked": false`
+   and an `idle_seconds` near 0 while actively using the PC.
+2. Leave the PC idle for a minute and confirm `idle_seconds` grows.
+3. Lock the PC (Win+L) and, from another device on the tailnet, read
+   `GET /state` again: expect `"locked": true`. Unlock and confirm it
+   flips back to `false`.
+4. Confirm `/v1/info` reports `"pc_state": null` (not an error) while
+   the hands is stopped.

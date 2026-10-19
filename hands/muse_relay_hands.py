@@ -45,8 +45,11 @@ WHAT MUSE CAN DO WITH IT (unchanged from cursor_relay.py)
   Every call except /health needs header  X-Secret: <the app's secret>
 """
 
+import base64
+import binascii
 import ctypes
 import datetime
+import hashlib
 import hmac
 import io
 import json
@@ -57,10 +60,12 @@ import secrets as secrets_mod
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import tkinter as tk
 import urllib.request
+import uuid
 
 import pyautogui
 from flask import Flask, request, jsonify, send_file
@@ -240,6 +245,269 @@ def scroll():
     d = request.get_json(force=True)
     pyautogui.scroll(int(d.get("clicks", 3)))
     return {"ok": True}
+
+
+# ---- window titles (wishlist #5) ------------------------------------------
+
+@app.get("/window_titles")
+def window_titles():
+    try:
+        titles = pyautogui.getAllTitles()
+    except Exception:
+        titles = []
+    return {"ok": True, "titles": list(titles) if titles else []}
+
+
+# ---- lock / idle state (wishlist #13) --------------------------------------
+
+def _probe_lock_state():
+    """Probe (locked, idle_seconds) on Windows; (None, None) elsewhere.
+
+    Never raises: any failure returns None for the affected value. The
+    Windows calls live here so tests can monkeypatch this one function.
+    """
+    if os.name != "nt":
+        return (None, None)
+    locked = None
+    idle_seconds = None
+    try:
+        user32 = ctypes.windll.user32  # type: ignore[attr-defined]
+        # Locked check: the input desktop is the Winlogon desktop when locked.
+        try:
+            handle = user32.OpenInputDesktop(0, False, 0x0100)
+            if handle:
+                try:
+                    buf = ctypes.create_unicode_buffer(256)
+                    needed = ctypes.c_ulong(0)
+                    if user32.GetUserObjectInformationW(
+                        handle, 2, buf, ctypes.sizeof(buf), ctypes.byref(needed)
+                    ):
+                        locked = buf.value.lower() == "winlogon"
+                finally:
+                    try:
+                        user32.CloseDesktop(handle)
+                    except Exception:
+                        pass
+        except Exception:
+            locked = None
+        # Idle check: time since last input.
+        try:
+            kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+
+            class _LastInputInfo(ctypes.Structure):
+                _fields_ = [("cbSize", ctypes.c_uint), ("dwTime", ctypes.c_ulong)]
+
+            info = _LastInputInfo()
+            info.cbSize = ctypes.sizeof(_LastInputInfo)
+            if user32.GetLastInputInfo(ctypes.byref(info)):
+                tick = kernel32.GetTickCount()
+                idle_ms = (int(tick) - int(info.dwTime)) & 0xFFFFFFFF
+                idle_seconds = idle_ms / 1000.0
+        except Exception:
+            idle_seconds = None
+    except Exception:
+        return (locked, idle_seconds)
+    return (locked, idle_seconds)
+
+
+@app.get("/state")
+def state():
+    platform = "windows" if os.name == "nt" else "other"
+    try:
+        locked, idle_seconds = _probe_lock_state()
+    except Exception:
+        locked, idle_seconds = None, None
+    return {"ok": True, "platform": platform, "locked": locked, "idle_seconds": idle_seconds}
+
+
+# ---- file-drop (wishlist #2) ------------------------------------------------
+# Allowlist: folders from the hands config file key "filedrop_dirs" (list
+# of absolute paths) OR env HANDS_FILEDROP_DIRS (os.pathsep-separated) —
+# env wins if set. Default empty -> every filedrop endpoint returns 501.
+# File contents are never logged.
+
+_FILEDROP_CHUNK_MAX = 524288
+_FILEDROP_MAX_SIZE = 16 * 1024 * 1024
+_FILEDROP_TTL = 600  # uploads older than 10 minutes are purged lazily
+
+_uploads: dict = {}
+_uploads_lock = threading.Lock()
+
+
+def _filedrop_dirs():
+    env = os.environ.get("HANDS_FILEDROP_DIRS")
+    if env is not None:
+        if not env.strip():
+            return []
+        return [os.path.realpath(p) for p in env.split(os.pathsep) if p]
+    cfg = _load_config()
+    dirs = cfg.get("filedrop_dirs") if isinstance(cfg, dict) else None
+    if not isinstance(dirs, list):
+        return []
+    return [os.path.realpath(str(p)) for p in dirs if str(p)]
+
+
+def _purge_uploads():
+    now = time.time()
+    with _uploads_lock:
+        stale = [uid for uid, up in _uploads.items() if now - up["created_at"] > _FILEDROP_TTL]
+        for uid in stale:
+            del _uploads[uid]
+
+
+def _filedrop_gate():
+    """Shared preamble: purge stale uploads, enforce configuration."""
+    _purge_uploads()
+    if not _filedrop_dirs():
+        return (jsonify({"ok": False, "error": "file-drop not configured on the hands"}), 501)
+    return None
+
+
+@app.post("/filedrop/begin")
+def filedrop_begin():
+    gate_resp = _filedrop_gate()
+    if gate_resp is not None:
+        return gate_resp
+    body = request.get_json(force=True, silent=True) or {}
+    folder = body.get("folder")
+    filename = body.get("filename")
+    size = body.get("size")
+    sha256 = body.get("sha256")
+    if not isinstance(folder, str) or not folder:
+        return jsonify({"ok": False, "error": "folder required"}), 400
+    real_folder = os.path.realpath(folder)
+    if real_folder not in _filedrop_dirs():
+        return jsonify({"ok": False, "error": "folder not in file-drop allowlist"}), 403
+    if (
+        not isinstance(filename, str)
+        or not filename
+        or "/" in filename
+        or "\\" in filename
+        or ".." in filename
+    ):
+        return jsonify({"ok": False, "error": "filename must be a bare name"}), 400
+    if isinstance(size, bool) or not isinstance(size, int) or size < 1 or size > _FILEDROP_MAX_SIZE:
+        return jsonify({"ok": False, "error": "size must be an integer in 1..16MB"}), 400
+    if not isinstance(sha256, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", sha256):
+        return jsonify({"ok": False, "error": "sha256 must be a 64-hex string"}), 400
+    upload_id = uuid.uuid4().hex
+    with _uploads_lock:
+        _uploads[upload_id] = {
+            "id": upload_id,
+            "dir": real_folder,
+            "filename": filename,
+            "size": size,
+            "sha256": sha256.lower(),
+            "buffer": bytearray(),
+            "created_at": time.time(),
+        }
+    return jsonify({"ok": True, "upload_id": upload_id, "chunk_max": _FILEDROP_CHUNK_MAX})
+
+
+@app.post("/filedrop/chunk")
+def filedrop_chunk():
+    gate_resp = _filedrop_gate()
+    if gate_resp is not None:
+        return gate_resp
+    body = request.get_json(force=True, silent=True) or {}
+    upload_id = body.get("upload_id")
+    offset = body.get("offset")
+    data_b64 = body.get("data_b64")
+    with _uploads_lock:
+        upload = _uploads.get(upload_id)
+    if upload is None:
+        return jsonify({"ok": False, "error": "unknown upload_id"}), 404
+    expected = len(upload["buffer"])
+    if isinstance(offset, bool) or not isinstance(offset, int) or offset != expected:
+        return (
+            jsonify(
+                {
+                    "ok": False,
+                    "error": "offset mismatch",
+                    "expected_offset": expected,
+                    "expected": expected,
+                }
+            ),
+            409,
+        )
+    if not isinstance(data_b64, str):
+        return jsonify({"ok": False, "error": "data_b64 required"}), 400
+    try:
+        chunk = base64.b64decode(data_b64, validate=True)
+    except (binascii.Error, ValueError):
+        return jsonify({"ok": False, "error": "data_b64 is not valid base64"}), 400
+    if expected + len(chunk) > upload["size"]:
+        return jsonify({"ok": False, "error": "chunk exceeds declared size"}), 400
+    with _uploads_lock:
+        # Re-check under lock in case a concurrent call appended.
+        if len(upload["buffer"]) != expected:
+            return (
+                jsonify(
+                    {
+                        "ok": False,
+                        "error": "offset mismatch",
+                        "expected_offset": len(upload["buffer"]),
+                        "expected": len(upload["buffer"]),
+                    }
+                ),
+                409,
+            )
+        upload["buffer"].extend(chunk)
+        received = len(upload["buffer"])
+    return jsonify({"ok": True, "received": received, "offset": received})
+
+
+@app.post("/filedrop/commit")
+def filedrop_commit():
+    gate_resp = _filedrop_gate()
+    if gate_resp is not None:
+        return gate_resp
+    body = request.get_json(force=True, silent=True) or {}
+    upload_id = body.get("upload_id")
+    with _uploads_lock:
+        upload = _uploads.get(upload_id)
+    if upload is None:
+        return jsonify({"ok": False, "error": "unknown upload_id"}), 404
+    data = bytes(upload["buffer"])
+    if len(data) != upload["size"]:
+        return jsonify({"ok": False, "error": "incomplete upload: size mismatch"}), 400
+    digest = hashlib.sha256(data).hexdigest()
+    if digest != upload["sha256"]:
+        with _uploads_lock:
+            _uploads.pop(upload_id, None)
+        return jsonify({"ok": False, "error": "sha256 mismatch"}), 400
+    final_path = os.path.join(upload["dir"], upload["filename"])
+    tmp_path = None
+    try:
+        fd, tmp_path = tempfile.mkstemp(dir=upload["dir"], prefix=".filedrop-", suffix=".tmp")
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
+        os.replace(tmp_path, final_path)
+        tmp_path = None
+    except OSError as exc:
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+        return jsonify({"ok": False, "error": f"write failed: {exc}"}), 500
+    with _uploads_lock:
+        _uploads.pop(upload_id, None)
+    return jsonify({"ok": True, "path": final_path, "size": len(data), "sha256": digest})
+
+
+@app.post("/filedrop/abort")
+def filedrop_abort():
+    gate_resp = _filedrop_gate()
+    if gate_resp is not None:
+        return gate_resp
+    body = request.get_json(force=True, silent=True) or {}
+    upload_id = body.get("upload_id")
+    with _uploads_lock:
+        existed = _uploads.pop(upload_id, None) is not None
+    if not existed:
+        return jsonify({"ok": False, "error": "unknown upload_id"}), 404
+    return jsonify({"ok": True})
 
 
 # ---------------------------------------------------------------- UI glue

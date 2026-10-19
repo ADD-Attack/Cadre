@@ -15,6 +15,8 @@ into the gateway's environment). Agent calls are translated:
                                                               type/key/scroll)
 """
 
+import base64
+import binascii
 import hashlib
 import hmac
 import os
@@ -53,7 +55,7 @@ _fail_times: list = []
 _lockout_until = 0.0
 
 _probe_lock = threading.Lock()
-_probe_cache = {"hands": None, "parser": None, "at": 0.0}
+_probe_cache = {"hands": None, "parser": None, "pc_state": None, "at": 0.0}
 
 # ---------------------------------------------------------------------------
 # Hands claim coordination (wishlist #15).
@@ -217,17 +219,40 @@ def _probe(url, headers=None):
         return False
 
 
+def _fetch_pc_state():
+    """Hands GET /state (wishlist #13), or None on any failure."""
+    try:
+        r = requests.get(f"{HANDS_URL}/state", headers=_hands_headers(), timeout=2)
+    except requests.RequestException:
+        return None
+    if r.status_code != 200:
+        return None
+    try:
+        data = r.json()
+    except ValueError:
+        return None
+    if not isinstance(data, dict) or not data.get("ok"):
+        return None
+    return data
+
+
 def _reachability():
-    """Cached (5s) reachability of the two backends, for /v1/info."""
+    """Cached (5s) reachability of the two backends, for /v1/info.
+
+    Returns (hands_ok, parser_ok, pc_state); pc_state is the hands
+    /state payload, or None when the hands is unreachable or /state
+    errors.
+    """
     now = time.monotonic()
     with _probe_lock:
         if now - _probe_cache["at"] < 5 and _probe_cache["hands"] is not None:
-            return _probe_cache["hands"], _probe_cache["parser"]
+            return _probe_cache["hands"], _probe_cache["parser"], _probe_cache.get("pc_state")
     hands = _probe(f"{HANDS_URL}/health", _hands_headers())
     parser = _probe(f"{PARSER_URL}/health")
+    pc_state = _fetch_pc_state() if hands else None
     with _probe_lock:
-        _probe_cache.update({"hands": hands, "parser": parser, "at": now})
-    return hands, parser
+        _probe_cache.update({"hands": hands, "parser": parser, "pc_state": pc_state, "at": now})
+    return hands, parser, pc_state
 
 
 @app.get("/health")
@@ -237,7 +262,7 @@ def health():
 
 @app.get("/v1/info")
 def info():
-    hands_ok, parser_ok = _reachability()
+    hands_ok, parser_ok, pc_state = _reachability()
     return jsonify(
         {
             "ok": True,
@@ -247,6 +272,7 @@ def info():
             "parser_url": PARSER_URL,
             "parser_reachable": parser_ok,
             "hands_claim": _current_claim(),
+            "pc_state": pc_state,
         }
     )
 
@@ -484,6 +510,28 @@ def _frame_hash(png_a, png_b, mask_bottom):
         if img_b.size == img_a.size:
             img_a = ImageChops.darker(img_a, img_b)
     return hashlib.sha256(img_a.tobytes()).hexdigest(), img_a.width, img_a.height
+
+
+def _region_hash(png_bytes, region):
+    """SHA-256 of one region's pixels (wishlist #5).
+
+    region is [x, y, w, h]; it is clamped to the frame. Returns
+    (hex_digest, width, height) of the cropped region.
+    """
+    try:
+        from PIL import Image
+    except ImportError as exc:
+        raise _HashUnavailable() from exc
+    img = Image.open(BytesIO(png_bytes)).convert("RGB")
+    x, y, w, h = (int(v) for v in region)
+    if w <= 0 or h <= 0:
+        raise ValueError("region width/height must be positive")
+    x0 = max(0, min(x, img.width))
+    y0 = max(0, min(y, img.height))
+    x1 = max(x0, min(x + w, img.width))
+    y1 = max(y0, min(y + h, img.height))
+    cropped = img.crop((x0, y0, x1, y1))
+    return hashlib.sha256(cropped.tobytes()).hexdigest(), cropped.width, cropped.height
 
 
 @app.get("/v1/screen")
@@ -789,6 +837,319 @@ def act_queued_get(receipt_id):
         body = _public_receipt(receipt)
     body["ok"] = True
     return jsonify(body)
+
+
+# ---- file-drop (wishlist #2) -------------------------------------------------
+# Gateway one-shot -> hands begin/chunk/commit. Raw chunks are 256KB
+# (hands chunk_max is 512KB). File contents are never logged.
+
+_FILEDROP_RAW_CHUNK = 256 * 1024
+
+
+def _hands_post(path, payload):
+    """POST JSON to the hands; returns (status_code, body_dict)."""
+    try:
+        r = requests.post(
+            f"{HANDS_URL}{path}", json=payload, headers=_hands_headers(), timeout=HANDS_TIMEOUT
+        )
+    except requests.RequestException as exc:
+        return 502, {"ok": False, "error": f"hands unreachable: {exc}"}
+    try:
+        body = r.json()
+    except ValueError:
+        body = {"ok": False, "error": f"hands returned {r.status_code}"}
+    if not isinstance(body, dict):
+        body = {"ok": False, "error": "hands returned a non-object response"}
+    return r.status_code, body
+
+
+def _filedrop_via_hands(folder, filename, data, sha256_hex, post=None):
+    """Run begin/chunk/commit against the hands.
+
+    `post` is a callable seam taking (path, payload) -> (status, dict);
+    tests inject a fake hands through it (or by replacing _hands_post).
+    Returns (body_dict, status_code); any hands error is surfaced as-is.
+    """
+    if post is None:
+        post = _hands_post
+    status, body = post(
+        "/filedrop/begin",
+        {"folder": folder, "filename": filename, "size": len(data), "sha256": sha256_hex},
+    )
+    if status != 200 or not body.get("ok"):
+        return body, status
+    upload_id = body.get("upload_id")
+    if not upload_id:
+        return {"ok": False, "error": "hands begin returned no upload_id"}, 502
+    try:
+        chunk_max = int(body.get("chunk_max") or _FILEDROP_RAW_CHUNK)
+    except (TypeError, ValueError):
+        chunk_max = _FILEDROP_RAW_CHUNK
+    chunk_size = min(_FILEDROP_RAW_CHUNK, chunk_max) if chunk_max > 0 else _FILEDROP_RAW_CHUNK
+    offset = 0
+    while offset < len(data):
+        chunk = data[offset : offset + chunk_size]
+        status, body = post(
+            "/filedrop/chunk",
+            {
+                "upload_id": upload_id,
+                "offset": offset,
+                "data_b64": base64.b64encode(chunk).decode("ascii"),
+            },
+        )
+        if status != 200 or not body.get("ok"):
+            return body, status
+        offset += len(chunk)
+    status, body = post("/filedrop/commit", {"upload_id": upload_id})
+    return body, status
+
+
+@app.post("/v1/filedrop")
+def filedrop():
+    """One-shot file drop: {"folder", "filename", "data_b64", "sha256"?}.
+
+    The gateway computes sha256 itself when not supplied, and verifies
+    it against a supplied one before sending anything to the hands.
+    """
+    if not HANDS_SECRET:
+        return jsonify({"ok": False, "error": "HANDS_SECRET not configured on gateway"}), 503
+    body = request.get_json(force=True, silent=True) or {}
+    folder = body.get("folder")
+    filename = body.get("filename")
+    data_b64 = body.get("data_b64")
+    if not isinstance(folder, str) or not folder:
+        return jsonify({"ok": False, "error": "folder required"}), 400
+    if not isinstance(filename, str) or not filename:
+        return jsonify({"ok": False, "error": "filename required"}), 400
+    if not isinstance(data_b64, str) or not data_b64:
+        return jsonify({"ok": False, "error": "data_b64 required"}), 400
+    try:
+        data = base64.b64decode(data_b64, validate=True)
+    except (binascii.Error, ValueError):
+        return jsonify({"ok": False, "error": "data_b64 is not valid base64"}), 400
+    digest = hashlib.sha256(data).hexdigest()
+    supplied = body.get("sha256")
+    if supplied is not None:
+        if not isinstance(supplied, str) or supplied.lower() != digest:
+            return jsonify({"ok": False, "error": "sha256 mismatch"}), 400
+    result, status = _filedrop_via_hands(folder, filename, data, digest)
+    return jsonify(result), status
+
+
+# ---- wait-for (wishlist #5) ---------------------------------------------------
+
+class _WaitFetchError(Exception):
+    """Carries a ready-made (response, status) error from a fetcher."""
+
+    def __init__(self, response):
+        super().__init__("wait fetch failed")
+        self.response = response
+
+
+class _WaitUnsupported(Exception):
+    """The hands does not support the polled capability."""
+
+
+def _sample_screen_hash(fetch=None, stable=False):
+    if fetch is None:
+        fetch = _fetch_screenshot
+    png_a, _, err = fetch()
+    if err is not None:
+        raise _WaitFetchError(err)
+    png_b = None
+    if stable:
+        time.sleep(STABLE_SAMPLE_GAP)
+        png_b, _, err = fetch()
+        if err is not None:
+            raise _WaitFetchError(err)
+    digest, _, _ = _frame_hash(png_a, png_b, DEFAULT_MASK_BOTTOM)
+    return digest
+
+
+def _sample_region_hash(fetch=None, region=None):
+    if fetch is None:
+        fetch = _fetch_screenshot
+    png, _, err = fetch()
+    if err is not None:
+        raise _WaitFetchError(err)
+    digest, _, _ = _region_hash(png, region)
+    return digest
+
+
+def _check_screen_hash_change(state, fetch=None, stable=False):
+    return _sample_screen_hash(fetch=fetch, stable=stable) != state["initial_hash"]
+
+
+def _check_screen_region_change(state, fetch=None):
+    return _sample_region_hash(fetch=fetch, region=state["region"]) != state["initial_hash"]
+
+
+def _fetch_window_titles():
+    """Hands GET /window_titles -> (titles_or_None, status_code)."""
+    try:
+        r = requests.get(
+            f"{HANDS_URL}/window_titles", headers=_hands_headers(), timeout=5
+        )
+    except requests.RequestException:
+        return None, 502
+    if r.status_code != 200:
+        return None, r.status_code
+    try:
+        data = r.json()
+    except ValueError:
+        return None, r.status_code
+    titles = data.get("titles") if isinstance(data, dict) else None
+    return (list(titles) if isinstance(titles, list) else []), 200
+
+
+def _check_window_title(contains, fetch=None):
+    if fetch is None:
+        fetch = _fetch_window_titles
+    titles, status = fetch()
+    if status in (404, 501):
+        raise _WaitUnsupported()
+    if not titles:
+        return False
+    needle = str(contains).lower()
+    return any(needle in str(t).lower() for t in titles)
+
+
+def _fetch_parser_health():
+    try:
+        r = requests.get(f"{PARSER_URL}/health", timeout=2)
+    except requests.RequestException:
+        return None
+    if r.status_code != 200:
+        return None
+    try:
+        data = r.json()
+    except ValueError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _check_parser_model_loaded(fetch=None):
+    if fetch is None:
+        fetch = _fetch_parser_health
+    data = fetch()
+    return bool(data and data.get("model_loaded"))
+
+
+def _clamp_number(value, default, lo, hi):
+    try:
+        num = float(value)
+    except (TypeError, ValueError):
+        return default
+    return max(lo, min(num, hi))
+
+
+_WAIT_TYPES = {"screen_hash_change", "screen_region_change", "window_title", "parser_model_loaded"}
+
+
+@app.post("/v1/wait")
+def wait_for():
+    """Poll a condition until it holds or the deadline passes.
+
+    Body: {"condition": {...}, "timeout_seconds": 30, "poll_seconds": 1}
+    """
+    body = request.get_json(force=True, silent=True) or {}
+    condition = body.get("condition")
+    if not isinstance(condition, dict):
+        return jsonify({"ok": False, "error": "condition required"}), 400
+    ctype = condition.get("type")
+    if ctype not in _WAIT_TYPES:
+        return jsonify({"ok": False, "error": f"unknown condition type: {ctype!r}"}), 400
+    timeout = _clamp_number(body.get("timeout_seconds", 30), 30, 1, 300)
+    poll = _clamp_number(body.get("poll_seconds", 1), 1, 0.2, 10)
+
+    state = {}
+    stable = False
+    if ctype == "screen_hash_change":
+        stable = bool(condition.get("stable"))
+        try:
+            state["initial_hash"] = _sample_screen_hash(stable=stable)
+        except _WaitFetchError as exc:
+            return exc.response
+        except _HashUnavailable:
+            return (
+                jsonify(
+                    {
+                        "ok": False,
+                        "error": "image decoding unavailable on gateway (pillow not installed)",
+                    }
+                ),
+                501,
+            )
+    elif ctype == "screen_region_change":
+        region = condition.get("region")
+        if (
+            not isinstance(region, (list, tuple))
+            or len(region) != 4
+            or any(isinstance(v, bool) or not isinstance(v, (int, float)) for v in region)
+        ):
+            return jsonify({"ok": False, "error": "region must be [x, y, w, h]"}), 400
+        state["region"] = list(region)
+        try:
+            state["initial_hash"] = _sample_region_hash(region=state["region"])
+        except _WaitFetchError as exc:
+            return exc.response
+        except _HashUnavailable:
+            return (
+                jsonify(
+                    {
+                        "ok": False,
+                        "error": "image decoding unavailable on gateway (pillow not installed)",
+                    }
+                ),
+                501,
+            )
+        except ValueError as exc:
+            return jsonify({"ok": False, "error": str(exc)}), 400
+    elif ctype == "window_title":
+        if not isinstance(condition.get("contains"), str) or not condition.get("contains"):
+            return jsonify({"ok": False, "error": "contains required"}), 400
+
+    start = time.monotonic()
+    while True:
+        try:
+            if ctype == "screen_hash_change":
+                held = _check_screen_hash_change(state, stable=stable)
+            elif ctype == "screen_region_change":
+                held = _check_screen_region_change(state)
+            elif ctype == "window_title":
+                held = _check_window_title(condition.get("contains"))
+            else:  # parser_model_loaded
+                held = _check_parser_model_loaded()
+        except _WaitFetchError as exc:
+            return exc.response
+        except _WaitUnsupported:
+            return jsonify({"ok": False, "error": "hands does not support window titles"}), 501
+        except _HashUnavailable:
+            return (
+                jsonify(
+                    {
+                        "ok": False,
+                        "error": "image decoding unavailable on gateway (pillow not installed)",
+                    }
+                ),
+                501,
+            )
+        waited = time.monotonic() - start
+        if held:
+            return jsonify(
+                {"ok": True, "held": True, "waited_seconds": waited, "condition": condition}
+            )
+        if waited >= timeout:
+            return jsonify(
+                {
+                    "ok": True,
+                    "held": False,
+                    "timeout": True,
+                    "waited_seconds": waited,
+                    "condition": condition,
+                }
+            )
+        time.sleep(min(poll, max(0.0, timeout - waited)))
 
 
 if __name__ == "__main__":

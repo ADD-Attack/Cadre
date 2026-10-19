@@ -64,7 +64,7 @@ $env:PARSER_URL   = "http://127.0.0.1:5011"
 python app.py
 ```
 
-- Gateway: http://127.0.0.1:5010/health — agent API under /v1 (screen, screen/hash, act, act/queued, hands/claim, hands/release, parse, info)
+- Gateway: http://127.0.0.1:5010/health — agent API under /v1 (screen, screen/hash, act, act/queued, hands/claim, hands/release, parse, info, filedrop, wait)
 - Parser: http://127.0.0.1:5011/health — reports whether the model is loaded
 
 **Change detection without the pixels:** `GET /v1/screen/hash` returns a
@@ -136,6 +136,57 @@ Plain `POST /v1/act` surfaces that as-is and is unchanged.
   payload values** (typed text may be sensitive). The payload itself is
   held in memory only while the receipt is held and dropped when it
   settles.
+
+**File-drop (gateway):** `POST /v1/filedrop` with
+`{"folder", "filename", "data_b64", "sha256"?}` drops one file onto the
+PC in a single call. The gateway computes the SHA-256 itself when it is
+not supplied, verifies it against a supplied one before sending anything
+(a mismatch is a 400), then runs the hands' chunked upload protocol
+(256 KB raw chunks) and returns `{"ok", "path", "size", "sha256"}`.
+Any hands error is surfaced with its status. On the hands side the
+protocol is `POST /filedrop/begin` (returns an `upload_id` and
+`chunk_max` 524288), `POST /filedrop/chunk` (strictly sequential
+offsets; a wrong offset is a 409 carrying the expected offset),
+`POST /filedrop/commit` (verifies size and SHA-256, then writes via a
+temp file + atomic replace in the target folder), and
+`POST /filedrop/abort`. Uploads are capped at 16 MB and expire after
+10 minutes. Drops only land in allowlisted folders: the hands config
+file key `"filedrop_dirs"` (a list of absolute paths), or the
+`HANDS_FILEDROP_DIRS` environment variable (`os.pathsep`-separated,
+which wins when set). With no allowlist configured, every filedrop
+endpoint returns 501. Filenames must be bare names — no path separators
+or `..`.
+
+**Wait-for (gateway):** `POST /v1/wait` with
+`{"condition": {...}, "timeout_seconds": 30, "poll_seconds": 1}` polls
+until a condition holds or the deadline passes, returning
+`{"ok": true, "held": true, "waited_seconds": ..., "condition": ...}`
+or, on deadline, `{"ok": true, "held": false, "timeout": true, ...}`.
+`timeout_seconds` clamps to 1–300 and `poll_seconds` to 0.2–10; an
+unknown condition type is a 400 immediately. Condition types:
+`{"type": "screen_hash_change", "stable": bool?}` (the masked frame
+hash — see `/v1/screen/hash` — differs from the starting sample; 501 if
+the gateway lacks Pillow), `{"type": "screen_region_change",
+"region": [x, y, w, h]}` (only that region's pixels, clamped to the
+frame, change), `{"type": "window_title", "contains": "..."}` (a
+window title contains the text, via the hands' `GET /window_titles`;
+if the hands answers 404/501 the wait returns
+`{"ok": false, "error": "hands does not support window titles"}`
+immediately instead of burning the timeout), and
+`{"type": "parser_model_loaded"}` (the parser's `/health` reports
+`model_loaded` true).
+
+**PC lock/sleep state:** the hands' `GET /state` returns
+`{"ok": true, "platform": "windows"|"other", "locked": true|false|null,
+"idle_seconds": number|null}` — on Windows the lock state comes from
+the input desktop (`Winlogon` means locked) and idle time from the
+last-input timestamp; off Windows, or on any probe failure, the values
+are `null` (never a 500). The hands also expose `GET /window_titles`
+(`{"ok": true, "titles": [...]}`). The gateway's `GET /v1/info` now
+carries a `"pc_state"` field with the hands' `/state` payload, fetched
+inside the same 5-second-cached reachability probe as the other info
+fields; it is `null` when the hands is unreachable or `/state` errors,
+and all existing `/v1/info` fields are unchanged.
 
 ## Hands (Windows)
 
