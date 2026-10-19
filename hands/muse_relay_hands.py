@@ -43,6 +43,22 @@ WHAT MUSE CAN DO WITH IT (unchanged from cursor_relay.py)
   POST /key     {key}       press a key ("enter", "tab", "esc", ...)
   POST /scroll  {clicks}    scroll
   Every call except /health needs header  X-Secret: <the app's secret>
+
+ADDED IN V3-P4 (wishlist #3, #4, #6, #9, #19) — same X-Secret gate:
+  POST /hotkey  {keys: ["ctrl", "l"]}   press a true key chord
+  POST /break   {times?: 1..3}          Ctrl+C chord(s) — see its docstring
+  POST /drag    {x1, y1, x2, y2, button?, duration?}
+  GET  /windows                         list open windows
+  POST /focus   {title, exact?}         bring a window to the foreground
+  POST /clipboard/set {text}            set the clipboard
+  GET  /clipboard/get                   read the clipboard — SENSITIVE: it
+                                        stays behind the X-Secret gate and
+                                        every read is written to the log
+                                        area (see log_line call in the
+                                        route), so the operator can see
+                                        reads in the app window.
+  POST /type also accepts {method: "auto"|"paste"|"keys"}: long text can
+  go through the clipboard (paste) instead of slow keystrokes.
 """
 
 import base64
@@ -223,13 +239,6 @@ def move():
 def click():
     d = request.get_json(force=True)
     pyautogui.click(x=int(d["x"]), y=int(d["y"]), button=d.get("button", "left"))
-    return {"ok": True}
-
-
-@app.post("/type")
-def type_text():
-    d = request.get_json(force=True)
-    pyautogui.write(d["text"], interval=0.02)
     return {"ok": True}
 
 
@@ -508,6 +517,492 @@ def filedrop_abort():
     if not existed:
         return jsonify({"ok": False, "error": "unknown upload_id"}), 404
     return jsonify({"ok": True})
+# ------------------------------------------------- V3-P4: chords + break
+
+@app.post("/hotkey")
+def hotkey():
+    """Press a true key chord, e.g. {"keys": ["ctrl", "l"]}."""
+    d = request.get_json(force=True, silent=True) or {}
+    keys = d.get("keys")
+    if (
+        not isinstance(keys, list)
+        or not keys
+        or not all(isinstance(k, str) and k.strip() for k in keys)
+    ):
+        return jsonify({"ok": False, "error": "keys must be a non-empty list of strings"}), 400
+    pyautogui.hotkey(*keys)
+    return {"ok": True}
+
+
+@app.post("/break")
+def break_():
+    """Send Ctrl+C as a true chord, 1..3 times (default 1), 0.15s apart.
+
+    Root cause this fixes: the /key op calls pyautogui.press() with ONE
+    key name, so sending the string "ctrl+c" to /key was never a real
+    chord — press() treats it as a single (nonexistent) key name and
+    nothing was interrupted. A long-running / polling foreground process
+    therefore could not be stopped through the relay. /break (and
+    /hotkey) use pyautogui.hotkey(), which presses the keys together,
+    so the interrupt actually lands.
+    """
+    d = request.get_json(force=True, silent=True) or {}
+    times = d.get("times", 1)
+    if isinstance(times, bool) or not isinstance(times, int) or not 1 <= times <= 3:
+        return jsonify({"ok": False, "error": "times must be an integer 1..3"}), 400
+    for i in range(times):
+        pyautogui.hotkey("ctrl", "c")
+        if i < times - 1:
+            time.sleep(0.15)
+    return {"ok": True, "times": times}
+
+
+# ------------------------------------------------------- V3-P4: dragging
+
+@app.post("/drag")
+def drag():
+    """Press the mouse button at (x1, y1), drag to (x2, y2), release."""
+    d = request.get_json(force=True, silent=True) or {}
+    try:
+        x1, y1, x2, y2 = (int(d[k]) for k in ("x1", "y1", "x2", "y2"))
+    except (KeyError, TypeError, ValueError):
+        return jsonify({"ok": False, "error": "x1, y1, x2, y2 must be integers"}), 400
+    button = d.get("button", "left")
+    if button not in ("left", "middle", "right"):
+        return jsonify({"ok": False, "error": "button must be left, middle or right"}), 400
+    try:
+        duration = float(d["duration"]) if d.get("duration") is not None else 0.4
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "duration must be a number"}), 400
+    pyautogui.moveTo(x1, y1)
+    pyautogui.mouseDown(button=button)
+    pyautogui.moveTo(x2, y2, duration=duration or 0.4)
+    pyautogui.mouseUp(button=button)
+    return {"ok": True}
+
+
+# ------------------------------------------- V3-P4: windows + focus (#3)
+
+def _monitor_rects():
+    """Monitor rectangles [(x, y, w, h), ...] via ctypes; [] off Windows
+    or on any failure — monitor attribution is best-effort, never fatal."""
+    if os.name != "nt":
+        return []
+    try:
+        user32 = ctypes.windll.user32
+        rects = []
+
+        callback_type = ctypes.WINFUNCTYPE(
+            ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p,
+            ctypes.POINTER(ctypes.c_long), ctypes.c_void_p,
+        )
+
+        def _cb(_hmon, _hdc, lprc, _data):
+            r = lprc.contents
+            rects.append((int(r[0]), int(r[1]), int(r[2]) - int(r[0]), int(r[3]) - int(r[1])))
+            return True
+
+        user32.EnumDisplayMonitors(0, None, callback_type(_cb), 0)
+        return rects
+    except Exception:
+        return []
+
+
+def _monitor_for_bounds(bounds, rects=None):
+    """Index of the monitor rect containing the window's centre, else None."""
+    if rects is None:
+        rects = _monitor_rects()
+    cx = bounds["x"] + bounds["w"] / 2
+    cy = bounds["y"] + bounds["h"] / 2
+    for i, (mx, my, mw, mh) in enumerate(rects):
+        if mx <= cx < mx + mw and my <= cy < my + mh:
+            return i
+    return None
+
+
+def _process_name(pid):
+    """Process image basename for a pid, or None — never raises."""
+    if not pid:
+        return None
+    try:
+        import psutil
+
+        return psutil.Process(int(pid)).name() or None
+    except Exception:
+        pass
+    if os.name != "nt":
+        return None
+    try:
+        kernel32 = ctypes.windll.kernel32
+        kernel32.OpenProcess.restype = ctypes.c_void_p
+        kernel32.QueryFullProcessImageNameW.argtypes = [
+            ctypes.c_void_p, ctypes.c_ulong,
+            ctypes.POINTER(ctypes.c_wchar), ctypes.POINTER(ctypes.c_ulong),
+        ]
+        handle = kernel32.OpenProcess(0x1000, False, int(pid))  # QUERY_LIMITED
+        if not handle:
+            return None
+        try:
+            size = ctypes.c_ulong(1024)
+            buf = ctypes.create_unicode_buffer(size.value)
+            if kernel32.QueryFullProcessImageNameW(handle, 0, buf, ctypes.byref(size)):
+                return os.path.basename(buf.value) or None
+            return None
+        finally:
+            kernel32.CloseHandle(handle)
+    except Exception:
+        return None
+
+
+def _enum_windows():
+    """Raw open-window dicts (the seam tests stub).
+
+    Each dict carries title/process/pid/bounds/monitor/visible/focused
+    plus a private "_hwnd" on Windows for _activate_window(). Returns []
+    off Windows. Falls back to pyautogui.getAllWindows() (process/pid
+    null) when pywin32 is unavailable.
+    """
+    if os.name != "nt":
+        return []
+    rects = _monitor_rects()
+    try:
+        import win32gui
+        import win32process
+    except Exception:
+        wins = []
+        try:
+            for w in pyautogui.getAllWindows():
+                title = getattr(w, "title", "") or ""
+                if not title:
+                    continue
+                bounds = {
+                    "x": int(getattr(w, "left", 0) or 0),
+                    "y": int(getattr(w, "top", 0) or 0),
+                    "w": int(getattr(w, "width", 0) or 0),
+                    "h": int(getattr(w, "height", 0) or 0),
+                }
+                wins.append({
+                    "title": title, "process": None, "pid": None,
+                    "bounds": bounds,
+                    "monitor": _monitor_for_bounds(bounds, rects),
+                    "visible": bool(getattr(w, "visible", True)),
+                    "focused": bool(getattr(w, "isActive", False)),
+                    "_window": w,
+                })
+        except Exception:
+            return []
+        return wins
+    wins = []
+    try:
+        foreground = win32gui.GetForegroundWindow()
+    except Exception:
+        foreground = None
+
+    def _cb(hwnd, _extra):
+        try:
+            title = win32gui.GetWindowText(hwnd)
+            if not title:
+                return True
+            x, y, x2, y2 = win32gui.GetWindowRect(hwnd)
+            bounds = {"x": int(x), "y": int(y), "w": int(x2 - x), "h": int(y2 - y)}
+            try:
+                _tid, pid = win32process.GetWindowThreadProcessId(hwnd)
+            except Exception:
+                pid = None
+            wins.append({
+                "title": title,
+                "process": _process_name(pid),
+                "pid": int(pid) if pid else None,
+                "bounds": bounds,
+                "monitor": _monitor_for_bounds(bounds, rects),
+                "visible": bool(win32gui.IsWindowVisible(hwnd)),
+                "focused": hwnd == foreground,
+                "_hwnd": hwnd,
+            })
+        except Exception:
+            pass
+        return True
+
+    try:
+        win32gui.EnumWindows(_cb, None)
+    except Exception:
+        return wins
+    return wins
+
+
+def _shape_window(win):
+    """Raw _enum_windows() dict -> the public window shape."""
+    b = win.get("bounds") or {}
+    return {
+        "title": win.get("title") or "",
+        "process": win.get("process"),
+        "pid": win.get("pid"),
+        "bounds": {
+            "x": int(b.get("x", 0)), "y": int(b.get("y", 0)),
+            "w": int(b.get("w", 0)), "h": int(b.get("h", 0)),
+        },
+        "monitor": win.get("monitor"),
+        "visible": bool(win.get("visible", True)),
+        "focused": bool(win.get("focused", False)),
+    }
+
+
+def _windows_supported():
+    return os.name == "nt"
+
+
+def _activate_window(win):
+    """Bring one raw window dict to the foreground (the seam tests stub).
+
+    On Windows: restore first if minimised, then SetForegroundWindow.
+    The well-known foreground-lock workaround (AttachThreadInput) is
+    deliberately out of scope here — see docs/VERIFICATION.md.
+    """
+    if os.name != "nt":
+        return
+    try:
+        import win32con
+        import win32gui
+
+        hwnd = win.get("_hwnd")
+        if hwnd is None:
+            fallback = win.get("_window")
+            if fallback is not None:
+                try:
+                    if getattr(fallback, "isMinimized", False):
+                        fallback.restore()
+                    fallback.activate()
+                except Exception:
+                    pass
+            return
+        if win32gui.IsIconic(hwnd):
+            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+        win32gui.SetForegroundWindow(hwnd)
+    except Exception:
+        pass  # best effort: foreground lock can refuse; caller still matched
+
+
+@app.get("/windows")
+def windows():
+    raw = _enum_windows()
+    resp = {"ok": True, "windows": [_shape_window(w) for w in raw]}
+    if not _windows_supported() and not raw:
+        resp["supported"] = False
+    return jsonify(resp)
+
+
+@app.post("/focus")
+def focus():
+    """Focus the first window whose title matches {title}.
+
+    Substring, case-insensitive by default; exact=true requires a full
+    (case-insensitive) title match. No match -> 404.
+    """
+    d = request.get_json(force=True, silent=True) or {}
+    title = d.get("title")
+    if not isinstance(title, str) or not title.strip():
+        return jsonify({"ok": False, "error": "title must be a non-empty string"}), 400
+    exact = bool(d.get("exact", False))
+    needle = title.casefold()
+    for win in _enum_windows():
+        candidate = (win.get("title") or "").casefold()
+        matched = candidate == needle if exact else needle in candidate
+        if matched:
+            _activate_window(win)
+            return jsonify({"ok": True, "window": _shape_window(win)})
+    return jsonify({"ok": False, "error": f"no window matching {title!r}"}), 404
+
+
+# ---------------------------------------------- V3-P4: clipboard (#6)
+
+CF_UNICODETEXT = 13
+
+
+class _WindowsClipboardBackend:
+    """Clipboard via ctypes user32/kernel32 (CF_UNICODETEXT)."""
+
+    def _setup(self):
+        user32 = ctypes.windll.user32
+        kernel32 = ctypes.windll.kernel32
+        user32.GetClipboardData.restype = ctypes.c_void_p
+        user32.SetClipboardData.restype = ctypes.c_void_p
+        user32.SetClipboardData.argtypes = [ctypes.c_uint, ctypes.c_void_p]
+        kernel32.GlobalAlloc.restype = ctypes.c_void_p
+        kernel32.GlobalLock.restype = ctypes.c_void_p
+        kernel32.GlobalLock.argtypes = [ctypes.c_void_p]
+        return user32, kernel32
+
+    def get_text(self):
+        user32, kernel32 = self._setup()
+        if not user32.OpenClipboard(None):
+            raise OSError("OpenClipboard failed")
+        try:
+            handle = user32.GetClipboardData(CF_UNICODETEXT)
+            if not handle:
+                return ""
+            ptr = kernel32.GlobalLock(handle)
+            if not ptr:
+                return ""
+            try:
+                return ctypes.wstring_at(ptr)
+            finally:
+                kernel32.GlobalUnlock(handle)
+        finally:
+            user32.CloseClipboard()
+
+    def set_text(self, text):
+        user32, kernel32 = self._setup()
+        data = ctypes.create_unicode_buffer(text)
+        if not user32.OpenClipboard(None):
+            raise OSError("OpenClipboard failed")
+        try:
+            user32.EmptyClipboard()
+            handle = kernel32.GlobalAlloc(0x0002, data.size)  # GMEM_MOVEABLE
+            if not handle:
+                raise OSError("GlobalAlloc failed")
+            ptr = kernel32.GlobalLock(handle)
+            if not ptr:
+                raise OSError("GlobalLock failed")
+            try:
+                ctypes.memmove(ptr, data, data.size)
+            finally:
+                kernel32.GlobalUnlock(handle)
+            if not user32.SetClipboardData(CF_UNICODETEXT, handle):
+                raise OSError("SetClipboardData failed")
+        finally:
+            user32.CloseClipboard()
+
+
+class _PyperclipBackend:
+    def __init__(self, mod):
+        self._mod = mod
+
+    def get_text(self):
+        return self._mod.paste() or ""
+
+    def set_text(self, text):
+        self._mod.copy(text)
+
+
+def _clipboard_backend():
+    """Clipboard backend seam: Windows ctypes, else pyperclip, else None."""
+    if os.name == "nt":
+        return _WindowsClipboardBackend()
+    try:
+        import pyperclip
+
+        return _PyperclipBackend(pyperclip)
+    except Exception:
+        return None
+
+
+@app.post("/clipboard/set")
+def clipboard_set():
+    d = request.get_json(force=True, silent=True) or {}
+    text = d.get("text")
+    if not isinstance(text, str):
+        return jsonify({"ok": False, "error": "text must be a string"}), 400
+    backend = _clipboard_backend()
+    if backend is None:
+        return jsonify({"ok": False, "error": "clipboard unavailable on this host"}), 501
+    try:
+        backend.set_text(text)
+    except Exception as exc:
+        return jsonify({"ok": False, "error": f"clipboard set failed: {exc}"}), 502
+    return {"ok": True}
+
+
+@app.get("/clipboard/get")
+def clipboard_get():
+    """Read the clipboard. Sensitive: same X-Secret gate as every hands
+    route, and every read is logged (below) so the operator sees it in
+    the app window's log area."""
+    backend = _clipboard_backend()
+    if backend is None:
+        return jsonify({"ok": False, "error": "clipboard unavailable on this host"}), 501
+    try:
+        text = backend.get_text()
+    except Exception as exc:
+        return jsonify({"ok": False, "error": f"clipboard read failed: {exc}"}), 502
+    log_line("clipboard read via relay")
+    return jsonify({"ok": True, "text": text if isinstance(text, str) else ""})
+
+
+# ------------------------------------------------- V3-P4: fast type (#9)
+
+@app.post("/type")
+def type_text():
+    """Type text, optionally via the clipboard for long payloads.
+
+    {text, method?: "auto"|"paste"|"keys"} — with method absent this is
+    the original behaviour for short text (pyautogui.write). "auto"
+    pastes when the text is over 120 chars and a clipboard backend
+    exists; the paste path saves the current clipboard and restores it
+    afterwards. Any clipboard failure falls back to keystrokes instead
+    of failing the request.
+    """
+    d = request.get_json(force=True, silent=True) or {}
+    text = d.get("text")
+    if not isinstance(text, str):
+        return jsonify({"ok": False, "error": "text must be a string"}), 400
+    method = d.get("method", "auto")
+    if method not in ("auto", "paste", "keys"):
+        return jsonify({"ok": False, "error": "method must be auto, paste or keys"}), 400
+    started = time.monotonic()
+    note = None
+
+    def _keys():
+        pyautogui.write(text, interval=0.02)
+        return "keys"
+
+    def _paste():
+        backend = _clipboard_backend()
+        if backend is None:
+            raise RuntimeError("clipboard unavailable on this host")
+        saved, readable = None, False
+        try:
+            saved = backend.get_text()
+            readable = True
+        except Exception:
+            pass  # unreadable clipboard: paste anyway, skip the restore
+        backend.set_text(text)
+        pyautogui.hotkey("ctrl", "v")
+        if readable and saved is not None:
+            # Give the target app a beat to consume the paste before the
+            # previous clipboard contents go back.
+            time.sleep(0.1)
+            try:
+                backend.set_text(saved)
+            except Exception:
+                pass
+        return "paste"
+
+    if method == "keys":
+        method_used = _keys()
+    elif method == "paste":
+        try:
+            method_used = _paste()
+        except Exception as exc:
+            note = f"paste requested but unavailable ({exc}); used keys"
+            method_used = _keys()
+    else:  # auto
+        if len(text) > 120 and _clipboard_backend() is not None:
+            try:
+                method_used = _paste()
+            except Exception as exc:
+                note = f"paste failed ({exc}); used keys"
+                method_used = _keys()
+        else:
+            method_used = _keys()
+    resp = {
+        "ok": True,
+        "method_used": method_used,
+        "chars": len(text),
+        "elapsed_seconds": round(time.monotonic() - started, 3),
+    }
+    if note:
+        resp["note"] = note
+    return jsonify(resp)
 
 
 # ---------------------------------------------------------------- UI glue

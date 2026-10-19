@@ -11,8 +11,14 @@ into the gateway's environment). Agent calls are translated:
 
   GET  /v1/screen            -> GET  {HANDS_URL}/screenshot  (PNG bytes back)
   GET  /v1/screen/hash       -> screenshot hash (see screen_hash below)
+  GET  /v1/windows           -> GET  {HANDS_URL}/windows
+  GET  /v1/clipboard         -> GET  {HANDS_URL}/clipboard/get
   POST /v1/act {"op": ...}   -> POST {HANDS_URL}/<op>        (move/click/
-                                                              type/key/scroll)
+                                                              type/key/scroll/
+                                                              hotkey/break/
+                                                              drag/focus;
+                                                              clipboard_set ->
+                                                              /clipboard/set)
 """
 
 import base64
@@ -33,7 +39,13 @@ HANDS_URL = os.environ.get("HANDS_URL", "http://host.docker.internal:5000").rstr
 HANDS_SECRET = os.environ.get("HANDS_SECRET", "")
 PARSER_URL = os.environ.get("PARSER_URL", "http://parser:5011").rstrip("/")
 
-HANDS_OPS = {"move", "click", "type", "key", "scroll"}
+HANDS_OPS = {
+    "move", "click", "type", "key", "scroll",
+    # V3-P4 (wishlist #3, #4, #6, #19):
+    "hotkey", "break", "drag", "focus", "clipboard_set",
+}
+# Op -> hands path, for ops whose hands route is not "/<op>".
+HANDS_OP_PATHS = {"clipboard_set": "clipboard/set"}
 HANDS_TIMEOUT = 30
 
 # Screen hashing (wishlist #14): the bottom strip of the frame is the
@@ -733,9 +745,13 @@ def _forward_act(op, payload):
         return 503, {"ok": False, "error": "HANDS_SECRET not configured on gateway"}
     if op not in HANDS_OPS:
         return 400, {"ok": False, "error": f"unknown op: {op!r}"}
+    path = HANDS_OP_PATHS.get(op, op)
     try:
         r = requests.post(
-            f"{HANDS_URL}/{op}", json=payload, headers=_hands_headers(), timeout=HANDS_TIMEOUT
+            f"{HANDS_URL}/{path}",
+            json=payload,
+            headers=_hands_headers(),
+            timeout=_act_timeout(op, payload),
         )
     except requests.RequestException as exc:
         return 502, {"ok": False, "error": f"hands unreachable: {exc}"}
@@ -748,15 +764,79 @@ def _forward_act(op, payload):
         return r.status_code, r.json()
     except ValueError:
         return r.status_code, {"ok": r.ok, "status": r.status_code}
+def _act_timeout(op, payload):
+    """Per-op timeout for the hands call (wishlist #9).
+
+    A long "type" on the keystroke path runs at worst ~6 chars/s, so a
+    flat 30s would kill legitimate long types at the gateway while the
+    hands kept typing. Size the timeout to the payload instead:
+    15s base + 1s per 6 chars, clamped to [HANDS_TIMEOUT, 600].
+    Every other op keeps the flat HANDS_TIMEOUT.
+    """
+    if op == "type":
+        text = (payload or {}).get("text") or ""
+        try:
+            n = len(text)
+        except TypeError:
+            n = 0
+        return max(HANDS_TIMEOUT, min(600, 15 + n / 6))
+    return HANDS_TIMEOUT
+
+
+def _proxy_hands_get(path):
+    """GET a JSON route on the hands, with _fetch_screenshot's errors:
+    503 when no hands secret is configured, 502 when the hands is
+    unreachable or rejects the gateway's secret."""
+    if not HANDS_SECRET:
+        return jsonify({"ok": False, "error": "HANDS_SECRET not configured on gateway"}), 503
+    try:
+        r = requests.get(
+            f"{HANDS_URL}{path}", headers=_hands_headers(), timeout=HANDS_TIMEOUT
+        )
+    except requests.RequestException as exc:
+        return jsonify({"ok": False, "error": f"hands unreachable: {exc}"}), 502
+    if r.status_code == 401:
+        return (
+            jsonify(
+                {
+                    "ok": False,
+                    "error": "hands rejected the gateway's secret — HANDS_SECRET does not match the hands app's current session secret",
+                }
+            ),
+            502,
+        )
+    try:
+        return jsonify(r.json()), r.status_code
+    except ValueError:
+        return jsonify({"ok": r.ok, "status": r.status_code}), r.status_code
+
+
+@app.get("/v1/windows")
+def windows():
+    """Open windows on the hands host (wishlist #3), proxied."""
+    return _proxy_hands_get("/windows")
+
+
+@app.get("/v1/clipboard")
+def clipboard():
+    """Current clipboard text from the hands (wishlist #6), proxied.
+
+    Clipboard reads are sensitive: this route sits behind the gateway
+    token like every /v1 route, and the hands logs every read.
+    """
+    return _proxy_hands_get("/clipboard/get")
 
 
 @app.post("/v1/act")
 def act():
     """One desktop action, forwarded to the hands.
 
-    Body: {"op": "move"|"click"|"type"|"key"|"scroll", ...op params}
+    Body: {"op": "move"|"click"|"type"|"key"|"scroll"|"hotkey"|"break"|
+           "drag"|"focus"|"clipboard_set", ...op params}
     Op params match the hands API exactly: move/click {x, y}, type {text},
-    key {key}, scroll {clicks}.
+    key {key}, scroll {clicks}, hotkey {keys}, break {times},
+    drag {x1, y1, x2, y2}, focus {title}, clipboard_set {text} (forwarded
+    to the hands' /clipboard/set).
     """
     body = request.get_json(force=True, silent=True) or {}
     op = body.get("op") or ""

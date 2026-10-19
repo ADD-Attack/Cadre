@@ -187,6 +187,42 @@ carries a `"pc_state"` field with the hands' `/state` payload, fetched
 inside the same 5-second-cached reachability probe as the other info
 fields; it is `null` when the hands is unreachable or `/state` errors,
 and all existing `/v1/info` fields are unchanged.
+## Actuation (v3 P4 — wishlist #3, #4, #6, #9, #19)
+
+New hands routes, all behind the same X-Secret gate as the existing
+routes (and, through the gateway, the same X-Relay-Token gate):
+
+| Hands route | Gateway surface | What it does |
+| --- | --- | --- |
+| `POST /hotkey {keys: ["ctrl", "l"]}` | act op `hotkey` | Press a true key chord via `pyautogui.hotkey()`. |
+| `POST /break {times?: 1..3}` | act op `break` | Ctrl+C chord(s), 0.15 s apart. |
+| `POST /drag {x1, y1, x2, y2, button?, duration?}` | act op `drag` | Mouse-down at the start point, move, mouse-up at the end point. |
+| `GET /windows` | `GET /v1/windows` | Open windows: title, process, pid, bounds, monitor index, visible, focused. Off Windows it returns an empty list with `"supported": false`. |
+| `POST /focus {title, exact?}` | act op `focus` | Focus the first window whose title matches (substring, case-insensitive; full-title when `exact` is true); restores a minimised window first. No match → 404. |
+| `POST /clipboard/set {text}` | act op `clipboard_set` | Set the clipboard (Windows: ctypes `CF_UNICODETEXT`; else pyperclip when importable; otherwise 501). |
+| `GET /clipboard/get` | `GET /v1/clipboard` | Read the clipboard (same backends, same 501 when unavailable). |
+
+**Clipboard read is sensitive.** It stays behind the same authentication
+as every other hands/gateway route, and *every read writes a line to the
+hands log queue* (`clipboard read via relay`), so the owner sees reads
+in the app window as they happen.
+
+**Why `/break` exists:** the older `/key` op calls `pyautogui.press()`
+with ONE key name, so a chord string like `"ctrl+c"` sent to `/key` was
+never a real chord — nothing was interrupted. `/break` and `/hotkey`
+send true chords via `pyautogui.hotkey()`, so the interrupt lands.
+
+**Fast `/type`:** `POST /type` now also accepts
+`{method: "auto"|"paste"|"keys"}` (absent = the old behaviour for short
+text). In `auto`, text over 120 chars goes through the clipboard when a
+backend exists: the current clipboard is saved, replaced with the text,
+pasted with Ctrl+V, then restored. Any clipboard failure falls back to
+keystrokes rather than failing, and the response reports what happened:
+`{"ok": true, "method_used": "paste"|"keys", "chars": n,
+"elapsed_seconds": x}`. On the gateway, the act timeout for `type` is
+sized to the payload — `max(30, min(600, 15 + len(text)/6))` seconds,
+since the keystroke path runs at worst ~6 chars/s — while every other
+op keeps the flat 30 s.
 
 ## Hands (Windows)
 

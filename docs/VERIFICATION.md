@@ -104,3 +104,66 @@ the P3 build — no live Windows desktop was available to it.
    flips back to `false`.
 4. Confirm `/v1/info` reports `"pc_state": null` (not an error) while
    the hands is stopped.
+# Live-only verification steps
+
+Steps that cannot be proven by the test suite and need a real Windows
+desktop. The unit tests (hands/test_actuation.py,
+services/gateway/test_act_ops.py) stub the Windows layer and prove the
+logic only.
+
+## P4 — windows / focus (#3)
+
+- `GET /windows` on the real host: titles, process names, pids and
+  `bounds` line up with Task Manager and a screen ruler; multi-monitor:
+  `monitor` indices match the actual display containing each window's
+  centre (verified against Display Settings arrangement).
+- `POST /focus`: a Notepad window titled "Untitled - Notepad" focuses on
+  a substring match and comes out of minimised state (SW_RESTORE path).
+  **Foreground lock:** `SetForegroundWindow` can be refused when the
+  hands has no foreground rights; the classic workaround
+  (AttachThreadInput) is deliberately out of scope for P4. If focus
+  works from a fresh console but stops working after another app takes
+  foreground, that workaround is the next ticket.
+- `GET /windows` fallback path: on a Windows host *without* pywin32,
+  windows still enumerate (process/pid null).
+
+## P4 — drag (#4)
+
+- Drag a file across the desktop / a window across its title bar: the
+  release lands on the target (not just the start point); `duration`
+  stretches the move for flaky remoting links.
+
+## P4 — clipboard (#6)
+
+- `POST /clipboard/set` then read the value in a native app (e.g.
+  Notepad's Paste): unicode round-trips exactly.
+- `GET /clipboard/get` reflects a value copied *in* a Windows app
+  (Chrome's address bar, Explorer's Rename) — proves the ctypes read
+  path against real CF_UNICODETEXT data, not our own writes.
+- Every read visibly logs "clipboard read via relay" in the hands app's
+  log area.
+
+## P4 — fast type (#9)
+
+- 500+ chars with a clipboard backend: pastes via Ctrl+V in a fraction
+  of the keystroke time, and afterwards the *previous* clipboard value
+  is back (Ctrl+V in another app yields the old contents, not the
+  typed text).
+- Paste into a slow target (a terminal): the 0.1 s settle before
+  restore is enough that the pasted text lands complete; if a target
+  app ever pastes a truncated fragment, lengthen the settle.
+- Gateway timeout: a 5,000-char type through `/v1/act` is not cut off
+  by the gateway. The sized formula gives 848 s for it, clamped to the
+  600 s cap; the paste path returns long before either. Note the cap
+  exists: a pure-keystroke type far beyond ~3,500 chars can outrun
+  even the sized timeout — that is accepted P4 behaviour, paste is the
+  route for very long text.
+
+## P4 — break + hotkey (#19)
+
+- `/break` against a *live* polling foreground process (e.g. a
+  `ping -t` in a console, a TUI dashboard): the process actually
+  receives the interrupt — the case `/key` with `"ctrl+c"` never
+  solved.
+- `/hotkey {"keys": ["alt", "f4"]}` closes a window (use a sacrificial
+  one).
