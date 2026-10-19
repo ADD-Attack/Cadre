@@ -1,0 +1,1519 @@
+diff --git a/services/gateway/app.py b/services/gateway/app.py
+--- a/services/gateway/app.py
++++ b/services/gateway/app.py
+@@ -177,2 +177,2 @@
+ app = Flask(__name__)
+-app.config["MAX_CONTENT_LENGTH"] = 8_000_000  # screenshots travel as responses
++app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024  # 16MB file-drop is ~22MB base64; hands still caps the file at 16MB
+@@ -181,29 +181,62 @@
++_fail_by_peer = {}
++_lockout_by_peer = {}
++
++
++def _peer_key():
++    try:
++        return request.remote_addr or "-"
++    except RuntimeError:
++        return "-"
++
++
+-def _locked_out() -> bool:
++def _locked_out(peer=None) -> bool:
+-    return time.monotonic() < _lockout_until
++    """Per-peer lockout. The global bucket is not consulted."""
++    if peer is None:
++        peer = _peer_key()
++    with _fail_lock:
++        return time.monotonic() < _lockout_by_peer.get(peer, 0.0)
+ 
+ 
+ def _record_failure() -> None:
+-    global _lockout_until
++    """Record one bad token for this peer. Valid tokens never call this."""
+     now = time.monotonic()
+     with _fail_lock:
+-        _fail_times[:] = [t for t in _fail_times if now - t < FAIL_WINDOW]
+-        _fail_times.append(now)
+-        if len(_fail_times) >= MAX_FAILS:
+-            _lockout_until = now + LOCKOUT_SECONDS
+-            _fail_times.clear()
++        peer = _peer_key()
++        times = _fail_by_peer.setdefault(peer, [])
++        times[:] = [t for t in times if now - t < FAIL_WINDOW]
++        times.append(now)
++        if len(times) >= MAX_FAILS:
++            _lockout_by_peer[peer] = now + LOCKOUT_SECONDS
++            times.clear()
+             app.logger.warning("LOCKOUT: too many bad tokens")
+ 
+ 
++def _gate_decision(provided):
++    """Decide and record in one critical section.
++
++    A request that already presents the valid token is never locked out,
++    even when this peer is over the failure budget. Empty TOKEN fails closed.
++    """
++    now = time.monotonic()
++    peer = _peer_key()
++    with _fail_lock:
++        if TOKEN and hmac.compare_digest(provided, TOKEN):
++            return "ok"
++        if now < _lockout_by_peer.get(peer, 0.0):
++            return "locked"
++        times = _fail_by_peer.setdefault(peer, [])
++        times[:] = [t for t in times if now - t < FAIL_WINDOW]
++        times.append(now)
++        if len(times) >= MAX_FAILS:
++            _lockout_by_peer[peer] = now + LOCKOUT_SECONDS
++            times.clear()
++            app.logger.warning("LOCKOUT: too many bad tokens")
++        return "bad"
++
++
+ @app.before_request
+ def gate():
+     if request.path == "/health":
+         return
+-    if _locked_out():
+-        return jsonify({"ok": False, "error": "locked out"}), 429
+     provided = request.headers.get("X-Relay-Token") or ""
+-    if not TOKEN or not hmac.compare_digest(provided, TOKEN):
+-        _record_failure()
++    decision = _gate_decision(provided)
++    if decision == "locked":
++        return jsonify({"ok": False, "error": "locked out"}), 429
++    if decision != "ok":
+         return jsonify({"ok": False, "error": "bad token"}), 401
+@@ -384,6 +417,16 @@ def hands_release():
+         current = _current_claim_locked(now)
+         if current is None:
+-            # Already expired (or never held): releasing is a no-op.
+-            return jsonify({"ok": True, "released": False, "claim": None})
++            # Already expired (or never held). Expiry may have just reserved
++            # the queue head; report that same snapshot, including reserved_for.
++            claim, queue, reserved = _claim_snapshot(now)
++            return jsonify(
++                {
++                    "ok": True,
++                    "released": False,
++                    "claim": claim,
++                    "queue": queue,
++                    "reserved_for": reserved,
++                }
++            )
+         if current["holder"] != holder:
+             return (
+@@ -626,16 +669,21 @@ def _frame_hash(png_a, png_b, mask_bottom):
+-def _frame_hash(png_a, png_b, mask_bottom):
++def _frame_hash(png_a, png_b, mask_bottom, size_match_out=None):
+     """SHA-256 of a screenshot's masked pixels.
+ 
+     With png_b given (stable mode), the two frames are composited first
+     with a per-pixel minimum (ImageChops.darker). The minimum is
+     symmetric, so the result does not depend on which sample caught a
+     blink's bright phase — and a bright transient on a darker ground
+     (a terminal caret) drops out entirely, leaving the untouched
+     frame. Only persistent content moves the hash.
+     Returns (hex_digest, width, height) of the masked frame.
++    size_match_out, when a list, receives True/False: False means the two
++    samples differed in size and were NOT composited. Callers that asked
++    for stable=1 must report stable false in that case. The 3-tuple return
++    is unchanged so existing unpackers keep working.
+     """
+     img_a = _decode_masked(png_a, mask_bottom)
++    sizes_match = True
+     if png_b is not None:
+         from PIL import ImageChops
+ 
+         img_b = _decode_masked(png_b, mask_bottom)
+         if img_b.size == img_a.size:
+             img_a = ImageChops.darker(img_a, img_b)
++        else:
++            sizes_match = False
++    if size_match_out is not None:
++        size_match_out.append(sizes_match)
+     return hashlib.sha256(img_a.tobytes()).hexdigest(), img_a.width, img_a.height
+@@ -706,12 +760,14 @@ def screen_hash():
+     png_b = None
+     if stable:
+         time.sleep(STABLE_SAMPLE_GAP)
+         png_b, _, err = _fetch_screenshot(**kwargs)
+         if err is not None:
+             return err
++    size_match = []
+     try:
+-        digest, width, height = _frame_hash(png_a, png_b, mask_bottom)
++        digest, width, height = _frame_hash(png_a, png_b, mask_bottom, size_match)
+     except _HashUnavailable:
+         return (
+             jsonify(
+                 {
+                     "ok": False,
+                     "error": "image decoding unavailable on gateway (pillow not installed)",
+@@ -724,7 +780,7 @@ def screen_hash():
+             "ok": True,
+             "hash": digest,
+-            "stable": stable,
++            "stable": bool(stable and (size_match[0] if size_match else True)),
+             "mask_bottom": mask_bottom,
+             "width": width,
+             "height": height,
+         }
+     )
++
++
++@app.get("/v1/screen/wait")
++def screen_wait():
++    """Long-poll sibling of /v1/screen/hash.
++
++    Holds until the masked frame hash differs from `since` (also accepted
++    as `hash`) or timeout elapses (default 25s, capped at 25). Returns the
++    current hash JSON plus timed_out. Reuses _frame_hash / _fetch_screenshot.
++    Single-sample (not the two-frame stable composite) so a 25s hold is not
++    a chain of 0.65s gaps. Register this the same way as /v1/screen/hash if
++    that route does not use @app.get.
++    """
++    since = request.args.get("since", request.args.get("hash", ""))
++    if not isinstance(since, str):
++        since = ""
++    try:
++        timeout = float(request.args.get("timeout", "25"))
++    except (TypeError, ValueError):
++        return jsonify({"ok": False, "error": "timeout must be a number"}), 400
++    if timeout != timeout or timeout in (float("inf"), float("-inf")):
++        return jsonify({"ok": False, "error": "timeout must be a number"}), 400
++    timeout = min(max(timeout, 0.0), 25.0)
++    try:
++        mask_bottom = int(request.args.get("mask_bottom", DEFAULT_MASK_BOTTOM))
++    except ValueError:
++        return jsonify({"ok": False, "error": "mask_bottom must be an integer"}), 400
++    mask_bottom = max(0, min(mask_bottom, 2000))
++    kwargs, err = _screen_fetch_kwargs()
++    if err is not None:
++        return err
++    deadline = time.monotonic() + timeout
++    timed_out = True
++    digest = width = height = None
++    while True:
++        png, _, err = _fetch_screenshot(**kwargs)
++        if err is not None:
++            return err
++        try:
++            digest, width, height = _frame_hash(png, None, mask_bottom)
++        except _HashUnavailable:
++            return (
++                jsonify(
++                    {
++                        "ok": False,
++                        "error": "image decoding unavailable on gateway (pillow not installed)",
++                    }
++                ),
++                501,
++            )
++        if digest != since:
++            timed_out = False
++            break
++        remaining = deadline - time.monotonic()
++        if remaining <= 0:
++            break
++        time.sleep(min(0.2, remaining))
++    return jsonify(
++        {
++            "ok": True,
++            "hash": digest,
++            "timed_out": timed_out,
++            "stable": False,
++            "mask_bottom": mask_bottom,
++            "width": width,
++            "height": height,
++        }
++    )
+@@ -810,20 +920,24 @@ def _pump_receipt(receipt, now):
+     try:
+         status, result = _forward_act(op, payload)
+     except Exception as exc:  # a stubbed / broken forward must not kill the pump
+         status, result = None, {"ok": False, "error": f"forward failed: {exc}"}
+         failed = True
++        yielded = False
+     else:
+-        failed = (
+-            status == 502
+-            and isinstance(result, dict)
+-            and "hands unreachable" in str(result.get("error") or "").lower()
+-        )
++        error = str(result.get("error") or "").lower() if isinstance(result, dict) else ""
++        yielded = status == 409 and ("yield" in error or "user active" in error)
++        # 2xx applied. Yield-409 stays held (deadline still -> refused-yielded).
++        # Everything else, including 400/500/503/502 and a non-yield 409, fails.
++        failed = not (isinstance(status, int) and 200 <= status < 300)
+     with _receipts_lock:
+         receipt["updated_at"] = now
+         if status is not None:
+             receipt["hands_status"] = status
+-        if status == 409:
++        if yielded:
+             if now >= receipt["deadline"]:
+                 receipt["state"] = "refused-yielded"
+                 _pending_payloads.pop(receipt["id"], None)
+             return receipt
+         if failed or status is None:
+@@ -1076,6 +1190,16 @@ def _hands_post(path, payload):
+     except ValueError:
+         body = {"ok": False, "error": f"hands returned {r.status_code}"}
+     if not isinstance(body, dict):
+         body = {"ok": False, "error": "hands returned a non-object response"}
++    if r.status_code == 401:
++        # Same mapping as _hands_forward / _forward_act / _fetch_screenshot:
++        # a hands secret mismatch must not look like a bad gateway token.
++        return (
++            502,
++            {
++                "ok": False,
++                "error": "hands rejected the gateway's secret — HANDS_SECRET does not match the hands app's current session secret",
++            },
++        )
+     return r.status_code, body
+@@ -1093,39 +1093,51 @@ def _filedrop_via_hands(folder, filename, data, sha256_hex, post=None):
+         if status != 200 or not body.get("ok"):
+-            return body, status
++            try:
++                post("/filedrop/abort", {"upload_id": upload_id})
++            except Exception:
++                pass
++            return body, status
+         offset += len(chunk)
+     status, body = post("/filedrop/commit", {"upload_id": upload_id})
++    if status != 200 or not isinstance(body, dict) or not body.get("ok"):
++        try:
++            post("/filedrop/abort", {"upload_id": upload_id})
++        except Exception:
++            pass
+     return body, status
+@@ -1135,6 +1259,11 @@ def filedrop():
+     if supplied is not None:
+         if not isinstance(supplied, str) or supplied.lower() != digest:
+             return jsonify({"ok": False, "error": "sha256 mismatch"}), 400
++    # Hands filedrop_begin rejects size > 16MB. Enforce the same here so a
++    # raised MAX_CONTENT_LENGTH cannot sneak a larger object through.
++    if len(data) > 16 * 1024 * 1024:
++        return jsonify({"ok": False, "error": "file exceeds 16MB"}), 400
+     result, status = _filedrop_via_hands(folder, filename, data, digest)
+     return jsonify(result), status
+@@ -1232,6 +1232,18 @@ def _check_window_title(contains, fetch=None):
+     titles, status = fetch()
+     if status in (404, 501):
+         raise _WaitUnsupported()
++    if status != 200:
++        # Existing _WaitFetchError carries a ready (response, status) tuple.
++        # wait_for already returns exc.response. 401 is rewritten to 502 so a
++        # hands secret mismatch does not look like a bad gateway token.
++        out = 502 if status == 401 else status
++        raise _WaitFetchError(
++            (
++                jsonify(
++                    {
++                        "ok": False,
++                        "error": f"window title fetch failed ({status})",
++                        "hands_status": status,
++                    }
++                ),
++                out,
++            )
++        )
+     if not titles:
+         return False
+     needle = str(contains).lower()
+     return any(needle in str(t).lower() for t in titles)
+diff --git a/hands/muse_relay_hands.py b/hands/muse_relay_hands.py
+--- a/hands/muse_relay_hands.py
++++ b/hands/muse_relay_hands.py
+@@ -185,40 +185,108 @@
++_fail_by_peer = {}
++_lockout_by_peer = {}
++
++
++def _peer_key():
++    try:
++        return request.remote_addr or "-"
++    except RuntimeError:
++        return "-"
++
++
+-def _auth_locked_out() -> bool:
++def _auth_locked_out(peer=None) -> bool:
+-    return time.monotonic() < _lockout_until
++    if peer is None:
++        peer = _peer_key()
++    with _fail_lock:
++        return time.monotonic() < _lockout_by_peer.get(peer, 0.0)
+ 
+ 
+ def _record_failure() -> None:
+-    global _lockout_until
+     now = time.monotonic()
+     file_log("bad secret attempt")
++    tripped = False
+     with _fail_lock:
+-        _fail_times[:] = [t for t in _fail_times if now - t < FAIL_WINDOW]
+-        _fail_times.append(now)
+-        if len(_fail_times) >= MAX_FAILS:
+-            _lockout_until = now + LOCKOUT_SECONDS
+-            _fail_times.clear()
+-            log_line(
+-                "LOCKOUT: too many bad secrets -- authentication paused "
+-                "for 5 minutes"
+-            )
+-            file_log("LOCKOUT triggered (10 bad secrets inside 10 minutes)")
+-            alert_phone(
+-                "Muse Relay LOCKOUT",
+-                "Someone just made 10 bad secret guesses at your relay. "
+-                "Authentication is paused for 5 minutes.",
+-            )
++        peer = _peer_key()
++        times = _fail_by_peer.setdefault(peer, [])
++        times[:] = [t for t in times if now - t < FAIL_WINDOW]
++        times.append(now)
++        if len(times) >= MAX_FAILS:
++            _lockout_by_peer[peer] = now + LOCKOUT_SECONDS
++            times.clear()
++            tripped = True
++    if tripped:
++        log_line(
++            "LOCKOUT: too many bad secrets -- authentication paused "
++            "for 5 minutes"
++        )
++        file_log("LOCKOUT triggered (10 bad secrets inside 10 minutes)")
++        alert_phone(
++            "Muse Relay LOCKOUT",
++            "Someone just made 10 bad secret guesses at your relay. "
++            "Authentication is paused for 5 minutes.",
++        )
++
++
++_ACT_PATHS = {
++    "/move",
++    "/click",
++    "/type",
++    "/key",
++    "/scroll",
++    "/hotkey",
++    "/drag",
++    "/focus",
++}
++
++
++def _yield_if_active():
++    """409 and do not run the op when the owner was active recently.
++
++    _probe_lock_state is the only seam: (locked, idle_seconds), or
++    (None, None) off Windows / on failure. None idle means inactive.
++    Yield only when idle_seconds < HANDS_YIELD_IDLE_SECONDS (default 5).
++    """
++    try:
++        threshold = float(os.environ.get("HANDS_YIELD_IDLE_SECONDS", "5"))
++    except (TypeError, ValueError):
++        threshold = 5.0
++    _locked, idle_seconds = _probe_lock_state()
++    if idle_seconds is not None and idle_seconds < threshold:
++        return jsonify({"ok": False, "error": "user active — control yielded"}), 409
++    return None
++
++
++def _auth_decide(provided):
++    """One critical section. A valid secret is never locked out.
++
++    An empty SHARED_SECRET does not compare equal to an empty header.
++    Those rejects are not counted: the packaged app assigns the secret
++    after import, and a blank config must not burn the lockout budget.
++    """
++    now = time.monotonic()
++    peer = _peer_key()
++    with _fail_lock:
++        secret = SHARED_SECRET or ""
++        if secret and hmac.compare_digest(provided, secret):
++            return "ok", False
++        if now < _lockout_by_peer.get(peer, 0.0):
++            return "locked", False
++        if not secret:
++            return "bad", False
++        times = _fail_by_peer.setdefault(peer, [])
++        times[:] = [t for t in times if now - t < FAIL_WINDOW]
++        times.append(now)
++        tripped = len(times) >= MAX_FAILS
++        if tripped:
++            _lockout_by_peer[peer] = now + LOCKOUT_SECONDS
++            times.clear()
++        return "bad", tripped
+ 
+ 
+ @app.before_request
+ def gate():
+     if request.path == "/health":
+         return  # liveness only, per this file's contract: a lockout or a
+         # secret-less probe must never read as "down" (the gateway probes
+         # /health to decide reachability, and a supervisor restart on a
+         # false "down" would wipe the very lockout that is protecting us)
+-    if _auth_locked_out():
+-        return jsonify({"ok": False, "error": "locked out"}), 429
+     provided = request.headers.get("X-Secret") or ""
+-    if not hmac.compare_digest(provided, SHARED_SECRET):
+-        _record_failure()
++    decision, tripped = _auth_decide(provided)
++    if decision == "locked":
++        return jsonify({"ok": False, "error": "locked out"}), 429
++    if decision != "ok":
++        file_log("bad secret attempt")
++        if tripped:
++            log_line(
++                "LOCKOUT: too many bad secrets -- authentication paused "
++                "for 5 minutes"
++            )
++            file_log("LOCKOUT triggered (10 bad secrets inside 10 minutes)")
++            alert_phone(
++                "Muse Relay LOCKOUT",
++                "Someone just made 10 bad secret guesses at your relay. "
++                "Authentication is paused for 5 minutes.",
++            )
+         log_line(f"rejected request to {request.path} (bad secret)")
+         return jsonify({"ok": False, "error": "bad secret"}), 401
++    if request.path in _ACT_PATHS:
++        refused = _yield_if_active()
++        if refused is not None:
++            return refused
+@@ -524,6 +592,9 @@ def type_text():
+     keystroke plan (0 on the paste path).
+     """
++    refused = _yield_if_active()
++    if refused is not None:
++        return refused
+     d = request.get_json(force=True, silent=True) or {}
+     text = d.get("text")
+@@ -560,16 +631,19 @@ def type_text():
+         except Exception:
+             pass  # unreadable clipboard: paste anyway, skip the restore
+-        backend.set_text(text)
+-        pyautogui.hotkey("ctrl", "v")
+-        if readable and saved is not None:
+-            # Give the target app a beat to consume the paste before the
+-            # previous clipboard contents go back.
+-            time.sleep(0.1)
+-            try:
+-                backend.set_text(saved)
+-            except Exception:
+-                pass
++        try:
++            backend.set_text(text)
++            pyautogui.hotkey("ctrl", "v")
++            if readable:
++                # Give the target app a beat to consume the paste before the
++                # previous clipboard contents go back.
++                time.sleep(0.1)
++        finally:
++            if readable and saved is not None:
++                try:
++                    backend.set_text(saved)
++                except Exception:
++                    pass
+         return "paste"
+@@ -717,14 +791,26 @@ def _filedrop_dirs():
++def _accept_drop_dir(p):
++    """Absolute allowlist entries only, compared case-insensitively later.
++
++    Relative entries are rejected (not realpath'd against the cwd).
++    Exact path match is unchanged — this is not a prefix match.
++    """
++    text = str(p).strip()
++    if not text or not os.path.isabs(text):
++        return None
++    return os.path.normcase(os.path.realpath(text))
++
++
+ def _filedrop_dirs():
+     env = os.environ.get("HANDS_FILEDROP_DIRS")
+     if env is not None:
+         if not env.strip():
+             return []
+-        return [os.path.realpath(p) for p in env.split(os.pathsep) if p]
++        return [d for d in (_accept_drop_dir(p) for p in env.split(os.pathsep)) if d]
+     cfg = _load_config()
+     dirs = cfg.get("filedrop_dirs") if isinstance(cfg, dict) else None
+     if not isinstance(dirs, list):
+         return []
+-    return [os.path.realpath(str(p)) for p in dirs if str(p)]
++    return [d for d in (_accept_drop_dir(p) for p in dirs) if d]
+@@ -747,7 +833,7 @@ def filedrop_begin():
+         return jsonify({"ok": False, "error": "folder required"}), 400
+-    real_folder = os.path.realpath(folder)
++    real_folder = os.path.normcase(os.path.realpath(folder))
+     if real_folder not in _filedrop_dirs():
+         return jsonify({"ok": False, "error": "folder not in file-drop allowlist"}), 403
+@@ -788,50 +874,41 @@ def filedrop_chunk():
+     upload_id = body.get("upload_id")
+     offset = body.get("offset")
+     data_b64 = body.get("data_b64")
+     with _uploads_lock:
+         upload = _uploads.get(upload_id)
+-    if upload is None:
+-        return jsonify({"ok": False, "error": "unknown upload_id"}), 404
+-    expected = len(upload["buffer"])
+-    if isinstance(offset, bool) or not isinstance(offset, int) or offset != expected:
+-        return (
+-            jsonify(
+-                {
+-                    "ok": False,
+-                    "error": "offset mismatch",
+-                    "expected_offset": expected,
+-                    "expected": expected,
+-                }
+-            ),
+-            409,
+-        )
+-    if not isinstance(data_b64, str):
+-        return jsonify({"ok": False, "error": "data_b64 required"}), 400
+-    try:
+-        chunk = base64.b64decode(data_b64, validate=True)
+-    except (binascii.Error, ValueError):
+-        return jsonify({"ok": False, "error": "data_b64 is not valid base64"}), 400
+-    if expected + len(chunk) > upload["size"]:
+-        return jsonify({"ok": False, "error": "chunk exceeds declared size"}), 400
+-    with _uploads_lock:
+-        # Re-check under lock in case a concurrent call appended.
+-        if len(upload["buffer"]) != expected:
++        if upload is None or upload.get("closed"):
++            return jsonify({"ok": False, "error": "unknown upload_id"}), 404
++        expected = len(upload["buffer"])
++        if isinstance(offset, bool) or not isinstance(offset, int) or offset != expected:
+             return (
+                 jsonify(
+                     {
+                         "ok": False,
+                         "error": "offset mismatch",
+-                        "expected_offset": len(upload["buffer"]),
+-                        "expected": len(upload["buffer"]),
++                        "expected_offset": expected,
++                        "expected": expected,
+                     }
+                 ),
+                 409,
+             )
+-        upload["buffer"].extend(chunk)
+-        received = len(upload["buffer"])
++        if not isinstance(data_b64, str):
++            return jsonify({"ok": False, "error": "data_b64 required"}), 400
++        try:
++            chunk = base64.b64decode(data_b64, validate=True)
++        except (binascii.Error, ValueError):
++            return jsonify({"ok": False, "error": "data_b64 is not valid base64"}), 400
++        if expected + len(chunk) > upload["size"]:
++            return jsonify({"ok": False, "error": "chunk exceeds declared size"}), 400
++        upload["buffer"].extend(chunk)
++        received = len(upload["buffer"])
+     return jsonify({"ok": True, "received": received, "offset": received})
+@@ -841,20 +916,28 @@ def filedrop_commit():
+     upload_id = body.get("upload_id")
+     with _uploads_lock:
+         upload = _uploads.get(upload_id)
+-    if upload is None:
+-        return jsonify({"ok": False, "error": "unknown upload_id"}), 404
+-    data = bytes(upload["buffer"])
++        if upload is None or upload.get("closed"):
++            return jsonify({"ok": False, "error": "unknown upload_id"}), 404
++        # Close under the same lock as chunk append so a concurrent chunk
++        # cannot extend a buffer this commit already copied.
++        data = bytes(upload["buffer"])
++        meta_size = upload["size"]
++        meta_sha = upload["sha256"]
++        meta_dir = upload["dir"]
++        meta_name = upload["filename"]
++        upload["closed"] = True
+     if len(data) != upload["size"]:
++        with _uploads_lock:
++            _uploads.pop(upload_id, None)
+         return jsonify({"ok": False, "error": "incomplete upload: size mismatch"}), 400
+     digest = hashlib.sha256(data).hexdigest()
+-    if digest != upload["sha256"]:
++    if digest != meta_sha:
+         with _uploads_lock:
+             _uploads.pop(upload_id, None)
+         return jsonify({"ok": False, "error": "sha256 mismatch"}), 400
+-    final_path = os.path.join(upload["dir"], upload["filename"])
++    final_path = os.path.join(meta_dir, meta_name)
+     tmp_path = None
+     try:
+-        fd, tmp_path = tempfile.mkstemp(dir=upload["dir"], prefix=".filedrop-", suffix=".tmp")
++        fd, tmp_path = tempfile.mkstemp(dir=meta_dir, prefix=".filedrop-", suffix=".tmp")
+         with os.fdopen(fd, "wb") as fh:
+             fh.write(data)
+         os.replace(tmp_path, final_path)
+         tmp_path = None
+     except OSError as exc:
+         if tmp_path and os.path.exists(tmp_path):
+             try:
+                 os.unlink(tmp_path)
+             except OSError:
+                 pass
++        with _uploads_lock:
++            upload = _uploads.get(upload_id)
++            if upload is not None:
++                upload["closed"] = False
+         return jsonify({"ok": False, "error": f"write failed: {exc}"}), 500
+     with _uploads_lock:
+         _uploads.pop(upload_id, None)
+     return jsonify({"ok": True, "path": final_path, "size": len(data), "sha256": digest})
+@@ -934,6 +1020,9 @@ def drag():
+ def drag():
+     """Press the mouse button at (x1, y1), drag to (x2, y2), release."""
++    refused = _yield_if_active()
++    if refused is not None:
++        return refused
+     d = request.get_json(force=True, silent=True) or {}
+     try:
+         x1, y1, x2, y2 = (int(d[k]) for k in ("x1", "y1", "x2", "y2"))
+@@ -948,10 +1037,16 @@ def drag():
+         return jsonify({"ok": False, "error": "duration must be a number"}), 400
+     pyautogui.moveTo(x1, y1)
+-    pyautogui.mouseDown(button=button)
+-    pyautogui.moveTo(x2, y2, duration=duration or 0.4)
+-    pyautogui.mouseUp(button=button)
++    down = False
++    try:
++        # Mark first so a mouseDown/move failure still releases the button.
++        # duration 0 is real; do not coerce it with `or 0.4`.
++        down = True
++        pyautogui.mouseDown(button=button)
++        pyautogui.moveTo(x2, y2, duration=duration)
++    finally:
++        if down:
++            pyautogui.mouseUp(button=button)
+     return {"ok": True}
+@@ -1100,6 +1195,7 @@ def _activate_window(win):
+     The well-known foreground-lock workaround (AttachThreadInput) is
+     deliberately out of scope here — see docs/VERIFICATION.md.
++    Returns True only when activation was applied.
+     """
+     if os.name != "nt":
+-        return
++        return False
+     try:
+         import win32con
+         import win32gui
+ 
+         hwnd = win.get("_hwnd")
+         if hwnd is None:
+             fallback = win.get("_window")
+             if fallback is not None:
+                     if getattr(fallback, "isMinimized", False):
+                         fallback.restore()
+                     fallback.activate()
++                    return True
+                 except Exception:
+-                    pass
+-            return
++                    return False
++            return False
+         if win32gui.IsIconic(hwnd):
+             win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+         win32gui.SetForegroundWindow(hwnd)
++        return True
+     except Exception:
+-        pass  # best effort: foreground lock can refuse; caller still matched
++        return False  # foreground lock can refuse; caller must not claim ok
+ 
+ 
+@@ -1141,6 +1238,9 @@ def focus():
+     exact = bool(d.get("exact", False))
+     needle = title.casefold()
++    refused = _yield_if_active()
++    if refused is not None:
++        return refused
+     for win in _enum_windows():
+         candidate = (win.get("title") or "").casefold()
+         matched = candidate == needle if exact else needle in candidate
+         if matched:
+-            _activate_window(win)
+-            return jsonify({"ok": True, "window": _shape_window(win)})
++            if not _activate_window(win):
++                return (
++                    jsonify(
++                        {
++                            "ok": False,
++                            "error": "activation failed",
++                            "window": _shape_window(win),
++                        }
++                    ),
++                    409,
++                )
++            return jsonify({"ok": True, "window": _shape_window(win)})
+     return jsonify({"ok": False, "error": f"no window matching {title!r}"}), 404
+@@ -1301,12 +1410,16 @@ def _run_elevated(entry) -> bool:
+     if os.name != "nt":
+         return False
+     try:
+-        result = ctypes.windll.shell32.ShellExecuteW(
++        shell32 = ctypes.windll.shell32
++        # HINSTANCE is pointer-sized. The default c_int restype truncates it
++        # and can record launched vs launch_failed backwards.
++        shell32.ShellExecuteW.restype = ctypes.c_void_p
++        result = shell32.ShellExecuteW(
+             None, "runas", entry.get("exe") or "", entry.get("args") or None, None, 1
+         )
+-        return bool(result and result > 32)
++        code = 0 if result is None else int(result)
++        return code > 32
+     except Exception:
+         return False
+diff --git a/services/parser/app.py b/services/parser/app.py
+--- a/services/parser/app.py
++++ b/services/parser/app.py
+@@ -90,6 +90,12 @@ def _get_captioner():
+     global _captioner, _captioner_state
+     if _captioner is not None or _captioner_state != "not_tried":
+         return _captioner
+@@ -110,8 +116,12 @@ def _get_captioner():
+         try:
+-            model = AutoModelForCausalLM.from_pretrained(
+-                cap_dir, trust_remote_code=True
+-            ).eval()
+-            processor = AutoProcessor.from_pretrained(cap_dir, trust_remote_code=True)
++            # No trust_remote_code. Florence's custom class would execute
++            # whatever is in icon_caption_florence. A pinned local modeling
++            # class is not in this tree, so a stock from_pretrained that
++            # cannot load the folder fails closed: captioner stays unloaded
++            # and labels remain "icon". Do not flip this flag back on.
++            model = AutoModelForCausalLM.from_pretrained(cap_dir).eval()
++            processor = AutoProcessor.from_pretrained(cap_dir)
+             _captioner = (model, processor)
+             _captioner_state = "loaded"
+@@ -123,6 +133,7 @@ def _caption(crop):
+     model, processor = cap
+     try:
+         import torch
+ 
+         task = "<CAPTION>"
+         inputs = processor(text=task, images=crop, return_tensors="pt")
+-        with torch.no_grad():
+-            ids = model.generate(
+-                input_ids=inputs["input_ids"],
+-                pixel_values=inputs["pixel_values"],
+-                max_new_tokens=32,
+-            )
++        with _infer_lock:
++            with torch.no_grad():
++                ids = model.generate(
++                    input_ids=inputs["input_ids"],
++                    pixel_values=inputs["pixel_values"],
++                    max_new_tokens=32,
++                )
+         text = processor.batch_decode(ids, skip_special_tokens=True)[0]
+         return text.strip() or None
+@@ -181,6 +192,10 @@ def _model_status():
++_infer_lock = threading.RLock()
++
++
+ def _run_parse(raw_bytes):
+@@ -200,29 +215,31 @@ def _run_parse(raw_bytes):
+ 
+     width, height = image.size
+-    results = detector.predict(image, conf=CONF, verbose=False)
+-    boxes = []
+-    for r in results:
+-        if r.boxes is None:
+-            continue
+-        for b in r.boxes:
+-            x0, y0, x1, y1 = (int(v) for v in b.xyxy[0].tolist())
+-            boxes.append((x0, y0, x1, y1))
+-    boxes.sort(key=lambda b: (b[1], b[0]))  # reading order: top-to-bottom, left-to-right
+-
+-    elements = []
+-    for i, (x0, y0, x1, y1) in enumerate(boxes):
+-        label = None
+-        if _get_captioner() is not None:
+-            label = _caption(image.crop((x0, y0, x1, y1)))
+-        elements.append(
+-            {
+-                "id": i,
+-                "label": label or "icon",
+-                "label_source": "captioner" if label else "detector",
+-                "bbox": [x0, y0, x1, y1],
+-                "center": [(x0 + x1) // 2, (y0 + y1) // 2],
+-                "interactable": True,
+-            }
+-        )
+-    return elements, width, height
++    captioner = _get_captioner()
++    with _infer_lock:
++        results = detector.predict(image, conf=CONF, verbose=False)
++        boxes = []
++        for r in results:
++            if r.boxes is None:
++                continue
++            for b in r.boxes:
++                x0, y0, x1, y1 = (int(v) for v in b.xyxy[0].tolist())
++                boxes.append((x0, y0, x1, y1))
++        boxes.sort(key=lambda b: (b[1], b[0]))  # reading order: top-to-bottom, left-to-right
++
++        elements = []
++        for i, (x0, y0, x1, y1) in enumerate(boxes):
++            label = None
++            if captioner is not None:
++                label = _caption(image.crop((x0, y0, x1, y1)))
++            elements.append(
++                {
++                    "id": i,
++                    "label": label or "icon",
++                    "label_source": "captioner" if label else "detector",
++                    "bbox": [x0, y0, x1, y1],
++                    "center": [(x0 + x1) // 2, (y0 + y1) // 2],
++                    "interactable": True,
++                }
++            )
++        return elements, width, height
+diff --git a/muse_relay_v2_app.py b/muse_relay_v2_app.py
+--- a/muse_relay_v2_app.py
++++ b/muse_relay_v2_app.py
+@@ -149,16 +149,21 @@
+     def note(self, ok):
+-        if ok:
+-            self._consecutive = 0
+-            return "none"
+-        self._consecutive += 1
+-        if self._consecutive < self.max_consecutive:
+-            return "none"
+-        self._consecutive = 0
+-        if self._restarts < self.max_restarts:
+-            self._restarts += 1
+-            return "restart"
+-        if not self._gave_up:
+-            self._gave_up = True
+-            return "give_up"
+-        return "none"
++        lock = getattr(self, "_note_lock", None)
++        if lock is None:
++            lock = self._note_lock = threading.Lock()
++        with lock:
++            if ok:
++                self._consecutive = 0
++                return "none"
++            self._consecutive += 1
++            if self._consecutive < self.max_consecutive:
++                return "none"
++            self._consecutive = 0
++            if self._restarts < self.max_restarts:
++                self._restarts += 1
++                return "restart"
++            if not self._gave_up:
++                self._gave_up = True
++                return "give_up"
++            return "none"
+@@ -350,37 +360,54 @@ def _handle_elevation_request(self, hands, req):
+         exe = req.get("exe") or ""
+         args = req.get("args") or ""
++        self._elevation_dialog_open = True
+         try:
+             from tkinter import messagebox
+ 
+             approved = bool(
+                 messagebox.askyesno(
+                     "Elevation request",
+                     f"Elevation request: {name}\n\n"
+                     f"Would run ELEVATED:\n{exe} {args}\n\n"
+                     "Approve (Yes) runs it ELEVATED. Deny (No) does nothing.",
+                 )
+             )
+         except Exception:
+             approved = False  # no dialog, no approval — deny by default
++        finally:
++            self._elevation_dialog_open = False
+         try:
+             resolved = hands._resolve_elevation(eid, approved)
+         except Exception as exc:
+             self.log_line(f"Elevation request '{name}': resolver failed ({exc})")
+             return
+-        self.log_line(
+-            f"Elevation request '{name}': "
+-            f"{'approved by the operator' if approved else 'denied by the operator'} "
+-            f"(resolved={resolved})"
+-        )
++        state = "unresolved"
++        try:
++            elevations = getattr(hands, "_elevations", {})
++            lk = getattr(hands, "_elevations_lock", None)
++            if lk is None:
++                found = elevations.get(eid)
++            else:
++                with lk:
++                    found = elevations.get(eid)
++            if isinstance(found, dict) and found.get("state"):
++                state = found["state"]
++        except Exception:
++            pass
++        self.log_line(f"Elevation request '{name}': state={state} (resolved={resolved})")
+@@ -467,6 +500,13 @@ def _start_one(self, name):
+     def _start_one(self, name):
++        locks = getattr(self, "_start_locks", None)
++        if locks is None:
++            locks = self._start_locks = {}
++        lock = locks.setdefault(name, threading.Lock())
++        with lock:
++            return self._start_one_locked(name)
++
++    def _start_one_locked(self, name):
+         label = SERVICE_LABELS[name]
+         port = SERVICE_PORTS[name]
+         host = SERVICE_HOSTS[name]
+@@ -530,6 +570,7 @@ def _start_one(self, name):
+             module.HANDS_URL = HANDS_URL
+             module.HANDS_SECRET = self._hands_secret
+             module.PARSER_URL = f"http://127.0.0.1:{PARSER_PORT}"
++            self._gateway_module = module
+         try:
+             server = waitress.create_server(module.app, host=host, port=port, threads=8)
+@@ -550,6 +591,32 @@ def _note_health(self, name, ok):
+         return
+ 
+ 
++    def _skip_restart(self, name):
++        """Do not restart a process that still holds live coordination."""
++        if name == "hands" and getattr(self, "_elevation_dialog_open", False):
++            return True
++        if name == "hands":
++            module = getattr(self, "_hands_module", None)
++            table, lock_name, bad = "_elevations", "_elevations_lock", "pending"
++        elif name == "gateway":
++            module = getattr(self, "_gateway_module", None)
++            table, lock_name, bad = "_receipts", "_receipts_lock", "held"
++        else:
++            return False
++        if module is None:
++            return False
++        rows = getattr(module, table, None) or {}
++        lk = getattr(module, lock_name, None)
++
++        def busy():
++            return any(isinstance(v, dict) and v.get("state") == bad for v in rows.values())
++
++        if lk is None:
++            return busy()
++        with lk:
++            return busy()
++
++
+     def _note_health(self, name, ok):
+         """Feed one liveness result into a service's self-heal machine."""
+         health = self._health.get(name)
+         if health is None:
+             return
+         action = health.note(bool(ok))
+         if action == "restart":
++            if self._skip_restart(name):
++                self.log_line(
++                    f"self-heal: not restarting {name} — it holds live receipts or a pending elevation"
++                )
++                return
+             # Only ever restart a service WE started. A service that
+             # was "already running elsewhere" is not in self.servers,
+             # so it is never touched here.
+             if name in self.servers:
+@@ -578,6 +578,11 @@ def _poll(self):
+     def _poll(self):
++        if getattr(self, "_poll_running", False):
++            self.root.after(POLL_MS, self._poll)
++            return
++        self._poll_running = True
++
+         def work():
+@@ -615,7 +620,13 @@ def _poll(self):
+-        threading.Thread(target=work, daemon=True).start()
++        def _run_poll():
++            try:
++                work()
++            finally:
++                self._poll_running = False
++
++        threading.Thread(target=_run_poll, daemon=True).start()
+         self.root.after(POLL_MS, self._poll)
+diff --git a/tests/test_v3r2_remaining.py b/tests/test_v3r2_remaining.py
+new file mode 100644
+--- /dev/null
++++ b/tests/test_v3r2_remaining.py
+@@ -0,0 +1,480 @@
++"""Fixes for muse-relay v3 R2. Loads the service modules by path."""
++import importlib.util
++import inspect
++import os
++import threading
++from pathlib import Path
++
++import pytest
++
++ROOT = Path(__file__).resolve().parents[1]
++
++
++def _load(rel):
++    path = ROOT / rel
++    name = "v3r2_" + "_".join(path.with_suffix("").parts[-3:])
++    spec = importlib.util.spec_from_file_location(name, path)
++    mod = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(mod)
++    return mod
++
++
++@pytest.fixture(scope="module")
++def gateway():
++    return _load("services/gateway/app.py")
++
++
++@pytest.fixture(scope="module")
++def hands():
++    return _load("hands/muse_relay_hands.py")
++
++
++@pytest.fixture(scope="module")
++def parser():
++    return _load("services/parser/app.py")
++
++
++@pytest.fixture(scope="module")
++def packaged():
++    return _load("muse_relay_v2_app.py")
++
++
++def _ui_class(mod):
++    for value in vars(mod).values():
++        if isinstance(value, type) and hasattr(value, "_note_health") and hasattr(value, "_poll"):
++            return value
++    raise AssertionError("packaged app class not found")
++
++
++def test_yield_blocks_drag_and_skips_the_button(hands, monkeypatch):
++    monkeypatch.setattr(hands, "_probe_lock_state", lambda: (False, 0.2))
++    monkeypatch.delenv("HANDS_YIELD_IDLE_SECONDS", raising=False)
++    called = {"down": 0}
++    monkeypatch.setattr(hands.pyautogui, "mouseDown", lambda **k: called.__setitem__("down", 1))
++    with hands.app.test_request_context(
++        "/drag", method="POST", json={"x1": 0, "y1": 0, "x2": 1, "y2": 1, "duration": 0.2}
++    ):
++        resp = hands.drag()
++    status = resp[1] if isinstance(resp, tuple) else resp.status_code
++    body = resp[0].get_json() if isinstance(resp, tuple) else resp.get_json()
++    assert status == 409
++    assert "user active" in body["error"]
++    assert called["down"] == 0
++
++
++def test_yield_inactive_when_probe_is_none(hands, monkeypatch):
++    monkeypatch.setattr(hands, "_probe_lock_state", lambda: (None, None))
++    events = []
++    monkeypatch.setattr(hands.pyautogui, "moveTo", lambda *a, **k: events.append(k.get("duration")))
++    monkeypatch.setattr(hands.pyautogui, "mouseDown", lambda **k: None)
++    monkeypatch.setattr(hands.pyautogui, "mouseUp", lambda **k: events.append("up"))
++    with hands.app.test_request_context(
++        "/drag", method="POST", json={"x1": 0, "y1": 0, "x2": 1, "y2": 1, "duration": 0}
++    ):
++        hands.drag()
++    assert 0 in events or 0.0 in events
++    assert events[-1] == "up"
++
++
++def test_drag_releases_button_when_move_raises(hands, monkeypatch):
++    monkeypatch.setattr(hands, "_probe_lock_state", lambda: (None, None))
++    calls = {"n": 0, "up": 0}
++
++    def move_to(*_a, **_k):
++        calls["n"] += 1
++        if calls["n"] == 2:
++            raise RuntimeError("boom")
++
++    monkeypatch.setattr(hands.pyautogui, "moveTo", move_to)
++    monkeypatch.setattr(hands.pyautogui, "mouseDown", lambda **k: None)
++    monkeypatch.setattr(hands.pyautogui, "mouseUp", lambda **k: calls.__setitem__("up", calls["up"] + 1))
++    with hands.app.test_request_context(
++        "/drag", method="POST", json={"x1": 0, "y1": 0, "x2": 3, "y2": 4, "duration": 0.2}
++    ):
++        with pytest.raises(RuntimeError):
++            hands.drag()
++    assert calls["up"] == 1
++
++
++def test_paste_restores_clipboard_when_hotkey_raises(hands, monkeypatch):
++    monkeypatch.setattr(hands, "_probe_lock_state", lambda: (None, None))
++
++    class Clip:
++        def __init__(self):
++            self.text = "ORIGINAL"
++
++        def get_text(self):
++            return self.text
++
++        def set_text(self, value):
++            self.text = value
++
++    clip = Clip()
++    monkeypatch.setattr(hands, "_clipboard_backend", lambda: clip)
++    monkeypatch.setattr(hands.pyautogui, "hotkey", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("nope")))
++    monkeypatch.setattr(hands.pyautogui, "write", lambda *a, **k: None)
++    with hands.app.test_request_context(
++        "/type", method="POST", json={"text": "SECRET", "method": "paste", "jitter": False}
++    ):
++        hands.type_text()
++    assert clip.text == "ORIGINAL"
++
++
++def test_gate_yields_move_without_a_view(hands, monkeypatch):
++    monkeypatch.setattr(hands, "_probe_lock_state", lambda: (False, 1))
++    with hands.app.test_request_context("/move", method="POST", headers={"X-Secret": hands.SHARED_SECRET}):
++        resp = hands.gate()
++    assert resp[1] == 409
++    assert "user active" in resp[0].get_json()["error"]
++
++
++def test_empty_hands_secret_rejected(hands):
++    saved = hands.SHARED_SECRET
++    hands.SHARED_SECRET = ""
++    try:
++        with hands.app.test_request_context("/status", headers={"X-Secret": ""}):
++            resp = hands.gate()
++        assert resp[1] == 401
++    finally:
++        hands.SHARED_SECRET = saved
++
++
++def test_valid_hands_secret_not_locked_out(hands, monkeypatch):
++    hands._lockout_by_peer["10.1.1.1"] = hands.time.monotonic() + 500
++    with hands.app.test_request_context(
++        "/status",
++        headers={"X-Secret": hands.SHARED_SECRET},
++        environ_base={"REMOTE_ADDR": "10.1.1.1"},
++    ):
++        assert hands.gate() is None
++    with hands.app.test_request_context(
++        "/status",
++        headers={"X-Secret": "nope"},
++        environ_base={"REMOTE_ADDR": "10.1.1.1"},
++    ):
++        assert hands.gate()[1] == 429
++    with hands.app.test_request_context(
++        "/status",
++        headers={"X-Secret": "nope"},
++        environ_base={"REMOTE_ADDR": "10.9.9.9"},
++    ):
++        assert hands.gate()[1] == 401
++
++
++def test_gateway_valid_token_not_locked_out(gateway):
++    gateway.TOKEN = "good-token"
++    gateway._lockout_by_peer["10.2.2.2"] = gateway.time.monotonic() + 500
++    with gateway.app.test_request_context(
++        "/v1/info",
++        headers={"X-Relay-Token": "good-token"},
++        environ_base={"REMOTE_ADDR": "10.2.2.2"},
++    ):
++        assert gateway.gate() is None
++    with gateway.app.test_request_context(
++        "/v1/info",
++        headers={"X-Relay-Token": "bad"},
++        environ_base={"REMOTE_ADDR": "10.2.2.2"},
++    ):
++        assert gateway.gate()[1] == 429
++    with gateway.app.test_request_context(
++        "/v1/info",
++        headers={"X-Relay-Token": "bad"},
++        environ_base={"REMOTE_ADDR": "10.8.8.8"},
++    ):
++        assert gateway.gate()[1] == 401
++
++
++def _receipt(gateway, now, status, body, deadline=None):
++    receipt = {
++        "id": "r1",
++        "state": "held",
++        "op": "click",
++        "deadline": now + 100 if deadline is None else deadline,
++        "updated_at": 0,
++    }
++    gateway._pending_payloads["r1"] = {"x": 1}
++    gateway._forward_act = lambda op, payload: (status, body)
++    return gateway._pump_receipt(receipt, now)
++
++
++def test_pump_maps_2xx_yield_and_everything_else(gateway):
++    now = 1_000.0
++    applied = _receipt(gateway, now, 200, {"ok": True})
++    assert applied["state"] == "applied"
++    held = _receipt(gateway, now, 409, {"error": "user active — control yielded"})
++    assert held["state"] == "held"
++    assert "r1" in gateway._pending_payloads or held["state"] == "held"
++    for status in (400, 500, 503, 502):
++        failed = _receipt(gateway, now, status, {"ok": False, "error": "hands unreachable: x"})
++        assert failed["state"] == "failed"
++    other = _receipt(gateway, now, 409, {"error": "offset mismatch"})
++    assert other["state"] == "failed"
++
++
++def test_release_expired_claim_includes_reserved_for(gateway, monkeypatch):
++    monkeypatch.setattr(gateway, "_current_claim_locked", lambda now: None)
++
++    def snapshot(now):
++        return None, [], "bob"
++
++    monkeypatch.setattr(gateway, "_claim_snapshot", snapshot)
++    with gateway.app.test_request_context(
++        "/v1/claim/release", method="POST", json={"holder": "alice"}
++    ):
++        resp = gateway.hands_release()
++    body = resp[0].get_json() if isinstance(resp, tuple) else resp.get_json()
++    assert body["released"] is False
++    assert body["claim"] is None
++    assert body["reserved_for"] == "bob"
++
++
++def test_window_title_non_200_is_a_fetch_error(gateway):
++    with pytest.raises(gateway._WaitFetchError) as exc:
++        gateway._check_window_title("x", fetch=lambda: (None, 500))
++    assert exc.value.response[1] == 500
++    with pytest.raises(gateway._WaitFetchError) as exc:
++        gateway._check_window_title("x", fetch=lambda: (None, 401))
++    assert exc.value.response[1] == 502
++    with pytest.raises(gateway._WaitUnsupported):
++        gateway._check_window_title("x", fetch=lambda: (None, 404))
++    assert gateway._check_window_title("nope", fetch=lambda: ([], 200)) is False
++
++
++def test_filedrop_aborts_when_a_later_chunk_fails(gateway):
++    calls = []
++
++    def post(path, payload):
++        calls.append(path)
++        if path.endswith("/begin"):
++            return 200, {"ok": True, "upload_id": "u", "chunk_max": 4}
++        if path.endswith("/chunk"):
++            return 500, {"ok": False, "error": "disk"}
++        return 200, {"ok": True}
++
++    body, status = gateway._filedrop_via_hands("inbox", "a.bin", b"abcdef", "ab" * 32, post=post)
++    assert status == 500
++    assert body["error"] == "disk"
++    assert calls[-1] == "/filedrop/abort"
++    assert "/filedrop/commit" not in calls
++
++
++def test_content_length_fits_16mb_filedrop(gateway):
++    assert gateway.app.config["MAX_CONTENT_LENGTH"] == 32 * 1024 * 1024
++
++
++def test_hash_stable_false_when_sizes_differ(gateway, monkeypatch):
++    class Img:
++        def __init__(self, w, h):
++            self.size = (w, h)
++            self.width = w
++            self.height = h
++
++        def tobytes(self):
++            return b"px"
++
++    monkeypatch.setattr(gateway, "_decode_masked", lambda png, mask: Img(*png))
++    flag = []
++    gateway._frame_hash((2, 2), (3, 2), 0, flag)
++    assert flag == [False]
++
++
++def test_screen_wait_timeout_and_change(gateway, monkeypatch):
++    monkeypatch.setattr(gateway, "_screen_fetch_kwargs", lambda: ({}, None))
++    monkeypatch.setattr(gateway, "_fetch_screenshot", lambda **k: (b"png", {}, None))
++    monkeypatch.setattr(gateway.time, "sleep", lambda _s: None)
++    hashes = iter(["same", "same"])
++
++    def fake_hash(png, png_b, mask, out=None):
++        if out is not None:
++            out.append(True)
++        return next(hashes), 1, 1
++
++    monkeypatch.setattr(gateway, "_frame_hash", fake_hash)
++    with gateway.app.test_request_context("/v1/screen/wait?since=same&timeout=0"):
++        body = gateway.screen_wait().get_json()
++    assert body["timed_out"] is True
++    assert body["hash"] == "same"
++    monkeypatch.setattr(gateway, "_frame_hash", lambda *a, **k: ("other", 1, 1))
++    with gateway.app.test_request_context("/v1/screen/wait?since=same&timeout=25"):
++        body = gateway.screen_wait().get_json()
++    assert body["timed_out"] is False
++    assert body["hash"] == "other"
++
++
++def test_hands_post_maps_401_to_502(gateway, monkeypatch):
++    class Resp:
++        status_code = 401
++
++        def json(self):
++            return {"ok": False, "error": "bad secret"}
++
++    monkeypatch.setattr(gateway.requests, "post", lambda *a, **k: Resp())
++    status, body = gateway._hands_post("/click", {"x": 1})
++    assert status == 502
++    assert "HANDS_SECRET" in body["error"]
++
++
++def test_relative_allowlist_entry_dropped(hands, monkeypatch, tmp_path):
++    monkeypatch.setenv("HANDS_FILEDROP_DIRS", "relative" + os.pathsep + str(tmp_path))
++    got = hands._filedrop_dirs()
++    assert len(got) == 1
++    assert os.path.isabs(got[0])
++
++
++def test_closed_upload_rejects_chunk(hands, monkeypatch):
++    monkeypatch.setattr(hands, "_filedrop_gate", lambda: None)
++    hands._uploads["u"] = {
++        "buffer": bytearray(),
++        "size": 4,
++        "closed": True,
++        "sha256": "ab" * 32,
++        "dir": ".",
++        "filename": "a",
++    }
++    with hands.app.test_request_context(
++        "/filedrop/chunk",
++        method="POST",
++        json={"upload_id": "u", "offset": 0, "data_b64": "YQ=="},
++    ):
++        resp = hands.filedrop_chunk()
++    status = resp[1] if isinstance(resp, tuple) else resp.status_code
++    assert status == 404
++    hands._uploads.pop("u", None)
++
++
++def test_focus_ok_only_when_activation_returns_true(hands, monkeypatch):
++    monkeypatch.setattr(hands, "_probe_lock_state", lambda: (None, None))
++    monkeypatch.setattr(hands, "_enum_windows", lambda: [{"title": "Notepad"}])
++    monkeypatch.setattr(hands, "_shape_window", lambda win: {"title": win["title"]})
++    monkeypatch.setattr(hands, "_activate_window", lambda win: False)
++    with hands.app.test_request_context("/focus", method="POST", json={"title": "note"}):
++        resp = hands.focus()
++    status = resp[1] if isinstance(resp, tuple) else resp.status_code
++    assert status == 409
++    monkeypatch.setattr(hands, "_activate_window", lambda win: True)
++    with hands.app.test_request_context("/focus", method="POST", json={"title": "note"}):
++        resp = hands.focus()
++    body = resp.get_json() if not isinstance(resp, tuple) else resp[0].get_json()
++    assert body["ok"] is True
++
++
++def test_shellexecute_restype_is_pointer_sized(hands, monkeypatch):
++    class Fn:
++        def __init__(self):
++            self.restype = None
++
++        def __call__(self, *args):
++            self.args = args
++            return 40
++
++    fn = Fn()
++    monkeypatch.setattr(hands.os, "name", "nt")
++    monkeypatch.setattr(
++        hands.ctypes, "windll", type("W", (), {"shell32": type("S", (), {"ShellExecuteW": fn})()})()
++    )
++    assert hands._run_elevated({"exe": "notepad.exe", "args": ""}) is True
++    assert fn.restype is hands.ctypes.c_void_p
++
++
++def test_elevation_log_is_resulting_state(packaged, monkeypatch):
++    import tkinter.messagebox as mb
++
++    logs = []
++    monkeypatch.setattr(mb, "askyesno", lambda *a, **k: True)
++
++    class Hands:
++        def __init__(self):
++            self._elevations = {"1": {"state": "pending"}}
++            self._elevations_lock = threading.Lock()
++
++        def _resolve_elevation(self, eid, approved):
++            self._elevations[eid]["state"] = "expired"
++            return False
++
++    app_obj = type("A", (), {})()
++    app_obj.log_line = logs.append
++    app_obj._elevation_dialog_open = False
++    _ui_class(packaged)._handle_elevation_request(
++        app_obj, Hands(), {"id": "1", "name": "demo", "exe": "cmd.exe", "args": "/c echo"}
++    )
++    assert logs
++    assert "state=expired" in logs[-1]
++    assert "approved by the operator" not in logs[-1]
++
++
++def test_one_poll_in_flight_and_no_restart_while_pending(packaged):
++    cls = _ui_class(packaged)
++    started = []
++
++    class T:
++        def __init__(self, target, daemon=True):
++            started.append(target)
++
++        def start(self):
++            return None
++
++    obj = type("A", (), {})()
++    obj._poll_running = False
++    obj._poll_logged = True
++    obj.token = "t"
++    obj.root = type("R", (), {"after": lambda *a, **k: None})()
++    obj.log_line = lambda *a: None
++    obj.set_status = lambda *a: None
++    real_thread = packaged.threading.Thread
++    packaged.threading.Thread = T
++    try:
++        cls._poll(obj)
++        cls._poll(obj)
++    finally:
++        packaged.threading.Thread = real_thread
++    assert len(started) == 1
++    logs = []
++    obj.log_line = logs.append
++    obj.servers = {"hands": object()}
++    obj._hands_module = type(
++        "M", (), {"_elevations": {"1": {"state": "pending"}}, "_elevations_lock": threading.Lock()}
++    )()
++    obj._elevation_dialog_open = False
++    health = type("H", (), {"note": lambda self, ok: "restart"})()
++    obj._health = {"hands": health}
++    cls._note_health(obj, "hands", False)
++    assert "hands" in obj.servers
++    assert any("not restarting" in line for line in logs)
++
++
++def test_captioner_does_not_trust_remote_code(parser):
++    src = inspect.getsource(parser._get_captioner)
++    assert "trust_remote_code" not in src
++
++
++def test_predict_runs_under_infer_lock(parser, monkeypatch):
++    class Rec:
++        def __init__(self):
++            self.depth = 0
++
++        def __enter__(self):
++            self.depth += 1
++
++        def __exit__(self, *args):
++            self.depth -= 1
++
++    rec = Rec()
++    monkeypatch.setattr(parser, "_infer_lock", rec)
++
++    class Det:
++        def predict(self, *args, **kwargs):
++            assert rec.depth >= 1
++            return []
++
++    class Fake:
++        size = (2, 2)
++
++        def convert(self, mode):
++            return self
++
++    monkeypatch.setattr(parser, "_get_detector", lambda: Det())
++    monkeypatch.setattr(parser, "_get_captioner", lambda: None)
++    from PIL import Image
++
++    monkeypatch.setattr(Image, "open", lambda raw: Fake())
++    assert parser._run_parse(b"x") == ([], 2, 2)
