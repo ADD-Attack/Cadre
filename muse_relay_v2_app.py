@@ -11,8 +11,13 @@ up all three relay services in this one process —
 The status lines show each service; the log shows what happened.
 
 Secrets:
-  * The gateway token is minted fresh for every launch and shown in the
-    window with a Copy button; it is never saved anywhere.
+  * The gateway token persists per machine at
+    %USERPROFILE%\\.muse-relay-v2\\gateway-token.txt — generated on first
+    run, reused after that (delete the file to rotate). It is shown in
+    the window with a Copy button so the operator can hand it to the
+    agent once; after that, the same token keeps working across
+    relaunches, which is what lets the agent keep hands while the
+    owner is away from the PC.
   * The hands secret is owned by this app and persists per machine at
     %USERPROFILE%\\.muse-relay-v2\\hands-secret.txt — generated on first
     run, reused after that (delete the file to rotate). It is never
@@ -217,6 +222,41 @@ def _load_or_create_hands_secret():
         return value, "ephemeral"
 
 
+def _gateway_token_path():
+    return os.path.join(os.path.expanduser("~"), ".muse-relay-v2", "gateway-token.txt")
+
+
+def _load_or_create_gateway_token():
+    """Return (token, origin) for the per-machine gateway token.
+
+    Same load-or-create pattern as the hands secret: origin is "saved"
+    (read back from disk), "created" (first run — a new token was
+    generated and saved), or "ephemeral" (the save failed, so this
+    launch falls back to an unsaved token). The value is shown in the
+    window (the operator copies it to the agent) but never logged.
+    """
+    path = _gateway_token_path()
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            saved = fh.read().strip()
+        if len(saved) >= 16:
+            return saved, "saved"
+    except OSError:
+        pass
+    value = secrets.token_hex(16)
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(value + "\n")
+        try:
+            os.chmod(path, 0o600)
+        except OSError:
+            pass  # best effort (on Windows this only toggles read-only)
+        return value, "created"
+    except OSError:
+        return value, "ephemeral"
+
+
 def _service_path(rel_path):
     """Find a service module: bundled inside the exe first, then beside it."""
     for base in (getattr(sys, "_MEIPASS", None), _app_dir()):
@@ -279,7 +319,7 @@ class RelayApp:
 
         tok = tk.Frame(root, padx=12)
         tok.pack(fill="x", pady=(6, 0))
-        tk.Label(tok, text="Gateway token (this launch only):").pack(anchor="w")
+        tk.Label(tok, text="Gateway token (saved on this machine):").pack(anchor="w")
         row = tk.Frame(tok)
         row.pack(fill="x")
         self.token_var = tk.StringVar(value="")
@@ -464,7 +504,21 @@ class RelayApp:
                 "using a one-launch secret instead."
             )
 
-        self.token = secrets.token_hex(16)
+        gateway_token, token_origin = _load_or_create_gateway_token()
+        token_path = _gateway_token_path()
+        if token_origin == "saved":
+            self.log_line(f"Gateway token loaded from {token_path} (value not shown).")
+        elif token_origin == "created":
+            self.log_line(
+                f"First run: created the gateway token at {token_path} (value not shown)."
+            )
+        else:
+            self.log_line(
+                f"WARNING: could not save the gateway token to {token_path}; "
+                "using a one-launch token instead."
+            )
+
+        self.token = gateway_token
         self._hands_secret = hands_secret
         # The services read their config from the environment at import
         # time, so set it BEFORE importing them.
