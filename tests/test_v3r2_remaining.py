@@ -229,15 +229,19 @@ def test_release_expired_claim_includes_reserved_for(gateway, monkeypatch):
 
 
 def test_window_title_non_200_is_a_fetch_error(gateway):
-    with pytest.raises(gateway._WaitFetchError) as exc:
-        gateway._check_window_title("x", fetch=lambda: (None, 500))
-    assert exc.value.response[1] == 500
-    with pytest.raises(gateway._WaitFetchError) as exc:
-        gateway._check_window_title("x", fetch=lambda: (None, 401))
-    assert exc.value.response[1] == 502
-    with pytest.raises(gateway._WaitUnsupported):
-        gateway._check_window_title("x", fetch=lambda: (None, 404))
-    assert gateway._check_window_title("nope", fetch=lambda: ([], 200)) is False
+    # _check_window_title builds its error tuple with jsonify (the house
+    # pattern for _WaitFetchError payloads), which needs an app context;
+    # in production the wait routes always call it inside one.
+    with gateway.app.app_context():
+        with pytest.raises(gateway._WaitFetchError) as exc:
+            gateway._check_window_title("x", fetch=lambda: (None, 500))
+        assert exc.value.response[1] == 500
+        with pytest.raises(gateway._WaitFetchError) as exc:
+            gateway._check_window_title("x", fetch=lambda: (None, 401))
+        assert exc.value.response[1] == 502
+        with pytest.raises(gateway._WaitUnsupported):
+            gateway._check_window_title("x", fetch=lambda: (None, 404))
+        assert gateway._check_window_title("nope", fetch=lambda: ([], 200)) is False
 
 
 def test_filedrop_aborts_when_a_later_chunk_fails(gateway):
@@ -420,6 +424,10 @@ def test_one_poll_in_flight_and_no_restart_while_pending(packaged):
     obj.root = type("R", (), {"after": lambda *a, **k: None})()
     obj.log_line = lambda *a: None
     obj.set_status = lambda *a: None
+    # _poll re-schedules itself via self.root.after(POLL_MS, self._poll);
+    # the bare fake object needs the attribute the real instance gets
+    # from its class.
+    obj._poll = lambda: None
     real_thread = packaged.threading.Thread
     packaged.threading.Thread = T
     try:
@@ -437,6 +445,9 @@ def test_one_poll_in_flight_and_no_restart_while_pending(packaged):
     obj._elevation_dialog_open = False
     health = type("H", (), {"note": lambda self, ok: "restart"})()
     obj._health = {"hands": health}
+    # _note_health consults the real _skip_restart; bind it to the fake
+    # object the way the class would (its getattr guards handle the rest).
+    obj._skip_restart = lambda name: cls._skip_restart(obj, name)
     cls._note_health(obj, "hands", False)
     assert "hands" in obj.servers
     assert any("not restarting" in line for line in logs)
