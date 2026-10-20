@@ -104,6 +104,12 @@ the P3 build — no live Windows desktop was available to it.
    flips back to `false`.
 4. Confirm `/v1/info` reports `"pc_state": null` (not an error) while
    the hands is stopped.
+5. (R9, display sleep) `GET /state` also carries `screensaver`,
+   `display_off_after_seconds` (the active power plan's display-off
+   timeout for the current AC/DC source; 0 = never) and
+   `display_asleep` (idle_seconds >= that timeout). Confirm the timeout
+   matches Settings → Power → "Turn off my screen after", then let the
+   screen sleep and confirm `display_asleep: true` from another device.
 ## Live-only verification steps
 
 Steps that cannot be proven by the test suite and need a real Windows

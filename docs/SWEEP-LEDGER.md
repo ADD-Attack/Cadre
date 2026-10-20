@@ -8,7 +8,7 @@ Evidence column cites commit, file:line, or test name. Nothing deployed.
 | 1–4 | (text not in WISHLIST-EXTRACT; auditing against code + ROADMAP) | pending | — |
 | 5 | Process-exit wait | done (Astra) | `d562912`; 18 local tests + gateway services suite pass; producer/Windows verification outstanding |
 | 6–12 | (text not in extract; audit pending) | pending | — |
-| 13 | Display-sleep reporting | in-progress | gap identified by Astra, not implemented — first item |
+| 13 | Display-sleep reporting | done | `_probe_display_raw`/`_display_state` in hands; /state adds screensaver, display_off_after_seconds, display_asleep; tests/test_r9_display_state.py 7 passed; v3r4/v3r5/v3r2/filedrop/actuation suites pass; live step VERIFICATION.md #13.5 outstanding |
 | 14 | (text not in extract; audit pending) | pending | — |
 | 15 | Hands claim flag + queue | pending | |
 | 16 | Keystroke jitter (type op) | pending | likely already-done (V3-P4/P5 jittered per-char delays) — verify |

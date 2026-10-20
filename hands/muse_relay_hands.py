@@ -991,6 +991,75 @@ def _probe_lock_state_raw():
     return (locked, idle_seconds)
 
 
+def _probe_display_raw():
+    """Probe display-sleep signals on Windows (wishlist #13); Nones elsewhere.
+
+    screensaver: SPI_GETSCREENSAVERRUNNING. display_off_after_seconds:
+    the active power scheme's display-off timeout for the current power
+    source (AC/DC), so a reader can compare it to idle_seconds. Never
+    raises; any failure returns None for that value.
+    """
+    out = {"screensaver": None, "display_off_after_seconds": None}
+    if os.name != "nt":
+        return out
+    try:
+        user32 = ctypes.windll.user32  # type: ignore[attr-defined]
+        running = ctypes.c_int(0)
+        if user32.SystemParametersInfoW(0x0072, 0, ctypes.byref(running), 0):
+            out["screensaver"] = bool(running.value)
+    except Exception:
+        pass
+    try:
+        powrprof = ctypes.windll.powrprof  # type: ignore[attr-defined]
+        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+
+        class _Guid(ctypes.Structure):
+            _fields_ = [("d1", ctypes.c_ulong), ("d2", ctypes.c_ushort),
+                        ("d3", ctypes.c_ushort), ("d4", ctypes.c_ubyte * 8)]
+
+        def _guid(d1, d2, d3, d4):
+            return _Guid(d1, d2, d3, (ctypes.c_ubyte * 8)(*d4))
+
+        # GUID_VIDEO_SUBGROUP / VIDEOIDLE
+        sub = _guid(0x7516B95F, 0xF776, 0x4464, [0x8C, 0x53, 0x06, 0x16, 0x7F, 0x40, 0xCC, 0x99])
+        idle = _guid(0x3C0BC021, 0xC8A8, 0x4E07, [0xA9, 0x73, 0x6B, 0x14, 0xCB, 0xCB, 0x2B, 0x7E])
+
+        class _Sps(ctypes.Structure):
+            _fields_ = [("ACLineStatus", ctypes.c_ubyte), ("BatteryFlag", ctypes.c_ubyte),
+                        ("BatteryLifePercent", ctypes.c_ubyte), ("SystemStatusFlag", ctypes.c_ubyte),
+                        ("BatteryLifeTime", ctypes.c_ulong), ("BatteryFullLifeTime", ctypes.c_ulong)]
+
+        sps = _Sps()
+        on_dc = bool(kernel32.GetSystemPowerStatus(ctypes.byref(sps))) and sps.ACLineStatus == 0
+        scheme = ctypes.POINTER(_Guid)()
+        if powrprof.PowerGetActiveScheme(None, ctypes.byref(scheme)) == 0:
+            try:
+                value = ctypes.c_ulong(0)
+                read = powrprof.PowerReadDCValueIndex if on_dc else powrprof.PowerReadACValueIndex
+                if read(None, scheme, ctypes.byref(sub), ctypes.byref(idle), ctypes.byref(value)) == 0:
+                    out["display_off_after_seconds"] = int(value.value)  # 0 = never
+            finally:
+                kernel32.LocalFree(scheme)
+    except Exception:
+        pass
+    return out
+
+
+def _display_state(idle_seconds):
+    """Combine the raw display probe with idle time into /state fields."""
+    try:
+        raw = _probe_display_raw()
+    except Exception:
+        raw = {"screensaver": None, "display_off_after_seconds": None}
+    timeout = raw.get("display_off_after_seconds")
+    asleep = None
+    if timeout is not None and idle_seconds is not None:
+        asleep = bool(timeout) and idle_seconds >= timeout
+    return {"screensaver": raw.get("screensaver"),
+            "display_off_after_seconds": timeout,
+            "display_asleep": asleep}
+
+
 @app.get("/state")
 def state():
     platform = "windows" if os.name == "nt" else "other"
@@ -999,6 +1068,7 @@ def state():
     except Exception:
         locked, idle_seconds = None, None
     body = {"ok": True, "platform": platform, "locked": locked, "idle_seconds": idle_seconds}
+    body.update(_display_state(idle_seconds))
     body.update(_probe_health())
     return body
 
