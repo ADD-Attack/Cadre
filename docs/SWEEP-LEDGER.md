@@ -36,3 +36,18 @@ Test runs are per file with `../relay-wishlist/.venv/bin/python` (pytest files v
 | 28 | Idle jiggler, decaying intensity | done | `bf59e50`: `hands._Jiggler` + `motion.plan_jiggle`; owner kill (idle reset, pointer displaced, mid-path fight); `SelfInputLedger` keeps jiggler input out of the yield probe; flag default OFF, `GET/POST /jiggler`; tests/test_r9_motion.py |
 | 29 | Movement-realism reference | done (via #24/#28) | every #29 parameter mapped in docs/R9-MOTION-DESIGN.md; tests/test_r9_motion.py |
 | 30 | Behavioral layer | done (via #24/#28) | attention buffer, idle drift, 15 % structural miss, input mutex + hand travel, no-teleport focus, Fitts size — mapped in docs/R9-MOTION-DESIGN.md; tests/test_r9_motion.py |
+
+## Delivery (sweep complete — 2026-10-20)
+
+- Tally: done this round 10 (#13, #20, #21, #22, #23, #24, #28, #29, #30, plus #4/#17 motion upgrades); already-done 17 (#1–#12, #14–#19, with #5 R9-hardened by Astra); deferred by owner 1 (#25, audit only); routed to the R7.2 fix round 2 (#26, #27a — on their own branch by brief rule).
+- Commits on `v3-r9-20261020` after takeover: `8882abe` docs+ledger, `1adf4e8` #13, `05dafc6` #20/#21/#22, `bf59e50` + `f25c56d` #24/#28–#30, `2f74180` #23, plus this ledger commit.
+- Tests: 26 files, each in its own process, ALL GREEN (17 script files "ALL PASS"; pytest files incl. new test_r9_display_state 7, test_r9_sweep_acts 15, test_r9_motion 41, test_r9_gui 24).
+- GUI screenshots (headless Edge = the WebView2 engine, demo data): docs/r9-gui/running.png, idle.png, elevation.png.
+- Nothing deployed. Windows-live behaviour is stub-tested only; live steps: docs/VERIFICATION.md (#13 step 5, "R9 motion + jiggler", "R9 web GUI").
+
+## Reviewer: attack these first
+1. `SelfInputLedger` (hands/motion.py): owner input inside a jiggler span (+120 ms slack) reads as ours; the mid-path position check and `truncate_last` are the mitigation. Confirm GetTickCount and the dwTime clock agree on the real PC.
+2. #20 auto-pin uses the foreground hwnd at the FIRST (yielded) attempt — if the owner's activity already switched windows before that attempt, the pin records the owner's window and the held act fails rather than fires (fail-safe, but a false refusal).
+3. #24 budget reading: "current per-click time" = the pre-R9 human click at its fastest (path clamp + 0.05 s hover); +0.5 s is enforced on top of that, per click.
+4. UI server: the per-launch key rides the URL fragment; any local process that can read the pywebview window URL could drive the API (parity with Tk, where a local process could click the dialog). The elevation card stays the only approval path.
+5. `/click` behaviour change: human mode now uses mouseDown/hold/mouseUp instead of pyautogui.click, and drag/scroll default to human motion (flag `HANDS_HUMAN_MOTION=0` or per-act `"human": false` restores legacy). Legacy tests were pinned to `human:false` where they test legacy semantics.
