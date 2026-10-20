@@ -39,7 +39,7 @@ Test runs are per file with `../relay-wishlist/.venv/bin/python` (pytest files v
 
 ## Delivery (sweep complete — 2026-10-20)
 
-- Tally: done this round 10 (#13, #20, #21, #22, #23, #24, #28, #29, #30, plus #4/#17 motion upgrades); already-done 17 (#1–#12, #14–#19, with #5 R9-hardened by Astra); deferred by owner 1 (#25, audit only); routed to the R7.2 fix round 2 (#26, #27a — on their own branch by brief rule).
+- Tally (30 rows): done this round 9 (#13, #20, #21, #22, #23, #24, #28, #29, #30); already-done 18 (#1–#12, #14–#19 — #4 and #17 additionally upgraded by #24, #5 R9-hardened by Astra); deferred by owner 1 (#25, audit only); routed to the R7.2 fix round 2 (#26, #27 — on their own branch per the brief; #27b partly closed by #20).
 - Commits on `v3-r9-20261020` after takeover: `8882abe` docs+ledger, `1adf4e8` #13, `05dafc6` #20/#21/#22, `bf59e50` + `f25c56d` #24/#28–#30, `2f74180` #23, plus this ledger commit.
 - Tests: 26 files, each in its own process, ALL GREEN (17 script files "ALL PASS"; pytest files incl. new test_r9_display_state 7, test_r9_sweep_acts 15, test_r9_motion 41, test_r9_gui 24).
 - GUI screenshots (headless Edge = the WebView2 engine, demo data): docs/r9-gui/running.png, idle.png, elevation.png.
