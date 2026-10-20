@@ -720,16 +720,37 @@ def type_text():
         nonlocal delays, typed
         if jitter:
             delays = _plan_key_delays(text, random)
+            # R4 (F7) re-checked the yield every 12 chars so a long
+            # type gated only at the door cannot interleave relay
+            # keystrokes with the owner's for the op's whole duration.
+            # R7.2 (wishlist #27): that re-check consulted
+            # _yield_if_active(), whose idle probe counts this type's
+            # OWN injected keystrokes as session input — after 12 of
+            # our own chars the idle read ~0 and the type aborted on
+            # itself, owner or no owner. Track dwTime instead: sample
+            # it after each keystroke (that stamp is ours by
+            # construction) and flag owner input when a later sample
+            # is strictly newer than the stamp our last keystroke
+            # explains. The abort still lands on the same 12-char
+            # boundaries and reports the same partial, so the response
+            # contract is unchanged. Accepted blind spot: an owner
+            # event inside the same tick as one of our keystrokes is
+            # indistinguishable from that keystroke. Off Windows / on
+            # probe failure dwTime is None and the re-check is inert,
+            # like the door's.
+            self_dw = _probe_dwtime()
+            owner_seen = False
             for ch, delay in zip(text, delays):
-                # R4 (F7): re-check the yield every 12 chars — a long
-                # type gated only at the door lets relay keystrokes
-                # and the owner's interleave for the op's whole
-                # duration. On yield, stop and let type_text report
-                # the partial honestly; the caller re-submits the
-                # remainder.
-                if typed and typed % 12 == 0 and _yield_if_active() is not None:
+                if typed and typed % 12 == 0 and owner_seen:
                     break
+                if self_dw is not None:
+                    dw_now = _probe_dwtime()
+                    if dw_now is not None and _dw_advanced(dw_now, self_dw):
+                        owner_seen = True
                 pyautogui.write(ch)
+                dw_after = _probe_dwtime()
+                if dw_after is not None:
+                    self_dw = dw_after
                 time.sleep(delay)
                 typed += 1
         else:
@@ -841,6 +862,44 @@ def window_titles():
 
 
 # ---- lock / idle state (wishlist #13) --------------------------------------
+
+def _probe_dwtime():
+    """The session's last-input timestamp (ms tick), or None.
+
+    Tests monkeypatch THIS function (the seam, mirroring
+    _probe_lock_state); the raw Windows call is _probe_dwtime_raw.
+    """
+    return _probe_dwtime_raw()
+
+
+def _probe_dwtime_raw():
+    """dwTime from GetLastInputInfo on Windows; None elsewhere/failure."""
+    if os.name != "nt":
+        return None
+    try:
+        user32 = ctypes.windll.user32  # type: ignore[attr-defined]
+
+        class _LastInputInfo(ctypes.Structure):
+            _fields_ = [("cbSize", ctypes.c_uint), ("dwTime", ctypes.c_ulong)]
+
+        info = _LastInputInfo()
+        info.cbSize = ctypes.sizeof(_LastInputInfo)
+        if user32.GetLastInputInfo(ctypes.byref(info)):
+            return int(info.dwTime)
+    except Exception:
+        pass
+    return None
+
+
+def _dw_advanced(dw, baseline):
+    """True when last-input tick `dw` is strictly newer than `baseline`.
+
+    dwTime is a 32-bit millisecond tick (wraps ~49.7 days); the
+    modular difference reads advances under half the range as newer
+    and anything else as older / wrapped noise.
+    """
+    return 0 < ((int(dw) - int(baseline)) & 0xFFFFFFFF) < 0x80000000
+
 
 # ---- probe health (R5, F10) -------------------------------------------
 # The yield trusts the lock/idle probe completely: a (None, None)
@@ -1488,18 +1547,25 @@ class _WindowsClipboardBackend:
     def set_text(self, text):
         user32, kernel32 = self._setup()
         data = ctypes.create_unicode_buffer(text)
+        # R7.2 (wishlist #26): a c_wchar array has no .size attribute —
+        # the byte count is ctypes.sizeof(data). The old data.size read
+        # raised AttributeError on every real Windows call, so
+        # /clipboard/set (and the /type paste path) could never set the
+        # clipboard on the PC; it shipped because this backend never
+        # runs off Windows and no test faked _setup.
+        nbytes = ctypes.sizeof(data)
         if not user32.OpenClipboard(None):
             raise OSError("OpenClipboard failed")
         try:
             user32.EmptyClipboard()
-            handle = kernel32.GlobalAlloc(0x0002, data.size)  # GMEM_MOVEABLE
+            handle = kernel32.GlobalAlloc(0x0002, nbytes)  # GMEM_MOVEABLE
             if not handle:
                 raise OSError("GlobalAlloc failed")
             ptr = kernel32.GlobalLock(handle)
             if not ptr:
                 raise OSError("GlobalLock failed")
             try:
-                ctypes.memmove(ptr, data, data.size)
+                ctypes.memmove(ptr, data, nbytes)
             finally:
                 kernel32.GlobalUnlock(handle)
             if not user32.SetClipboardData(CF_UNICODETEXT, handle):

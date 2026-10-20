@@ -11,10 +11,13 @@ routes are exercised through Flask's test client.
 
 Covers: hotkey validation + chord; break chords (and times); drag call
 order; type keys/paste paths incl. clipboard save/restore and forced
-keys; focus substring / exact / 404; windows route shape; clipboard
-get/set, the read being logged, and 501 when unavailable.
+keys; the mid-type owner-abort re-check against a fake last-input tick
+(R7.2); focus substring / exact / 404; windows route shape; clipboard
+get/set, the read being logged, and 501 when unavailable; the Windows
+clipboard backend's call shape against faked dlls (R7.2).
 """
 
+import ctypes
 import importlib.util
 import os
 import sys
@@ -226,6 +229,93 @@ def run():
           and set(names()) == {"write"})
     hands._clipboard_backend = orig_backend
 
+    # ------------------------------------------ type re-check (R7.2, #27)
+    # The F7 mid-type abort must tell owner input from the type's own
+    # keystrokes. A virtual last-input tick models the session: our
+    # writes stamp it, a scripted owner event stamps it during a chosen
+    # inter-char sleep, and _probe_dwtime reads it back.
+    check("_dw_advanced: strictly newer tick reads advanced",
+          hands._dw_advanced(200, 100) is True
+          and hands._dw_advanced(100, 200) is False
+          and hands._dw_advanced(100, 100) is False)
+    check("_dw_advanced: wrap-safe across the 32-bit tick boundary",
+          hands._dw_advanced(5, 0xFFFFFFF8) is True
+          and hands._dw_advanced(0xFFFFFFF8, 5) is False)
+
+    # jitter=False stays the single pyautogui.write, untouched by the
+    # re-check machinery.
+    calls.clear()
+    hands._clipboard_backend = lambda: None
+    r = client.post("/type", json={"text": "hello", "method": "keys",
+                                   "jitter": False}, headers=AUTH)
+    check("type jitter=false -> one write(text, interval=0.02)",
+          r.status_code == 200
+          and calls == [("write", ("hello",), {"interval": 0.02})])
+
+    class _InputClock:
+        def __init__(self, owner_on_sleep=None):
+            self.tick = 100000
+            self.dw = self.tick - 5001  # last input ~5 s before the door
+            self.sleeps = 0
+            self.owner_on_sleep = owner_on_sleep
+
+        def probe(self):
+            return self.dw
+
+        def write(self, ch):
+            calls.append(("write", (ch,), {}))
+            self.tick += 10
+            self.dw = self.tick  # our keystroke is the freshest input
+
+        def sleep(self, _seconds):
+            self.sleeps += 1
+            if self.sleeps == self.owner_on_sleep:
+                self.tick += 10
+                self.dw = self.tick  # the owner's key lands in this pause
+
+    orig_write = fake_pag.write
+    orig_sleep_stub = hands.time.sleep
+    orig_probe_dwtime = hands._probe_dwtime
+    url40 = "https://www.spotify.com/account/privacy/"
+    try:
+        # (a) Only our own keystrokes move dwTime: all 40 chars land.
+        clock = _InputClock()
+        fake_pag.write = clock.write
+        hands.time.sleep = clock.sleep
+        hands._probe_dwtime = clock.probe
+        calls.clear()
+        r = client.post("/type", json={"text": url40, "method": "keys"},
+                        headers=AUTH)
+        body = r.get_json()
+        written = "".join(c[1][0] for c in calls if c[0] == "write")
+        check("type 40 chars, own keystrokes only -> completes, no abort",
+              r.status_code == 200 and body["ok"] is True
+              and body["method_used"] == "keys" and body["chars"] == 40
+              and written == url40)
+
+        # (b) Owner input during the pause after char 18: the type
+        # aborts at the next 12-char boundary (24) with the honest
+        # partial, and nothing past the boundary is typed.
+        clock = _InputClock(owner_on_sleep=18)
+        fake_pag.write = clock.write
+        hands.time.sleep = clock.sleep
+        hands._probe_dwtime = clock.probe
+        calls.clear()
+        r = client.post("/type", json={"text": url40, "method": "keys"},
+                        headers=AUTH)
+        body = r.get_json()
+        written = "".join(c[1][0] for c in calls if c[0] == "write")
+        check("type owner input mid-type -> 409 type_aborted at char 24",
+              r.status_code == 409 and body["ok"] is False
+              and body["error_code"] == "type_aborted"
+              and body["aborted"] is True and body["chars_typed"] == 24
+              and body["chars"] == 40 and written == url40[:24])
+    finally:
+        fake_pag.write = orig_write
+        hands.time.sleep = orig_sleep_stub
+        hands._probe_dwtime = orig_probe_dwtime
+        hands._clipboard_backend = orig_backend
+
     # ------------------------------------------------ windows + focus (#3)
     wins = [win("Alpha Editor"), win("Beta - alpha notes"), win("Gamma")]
     hands._enum_windows = lambda: wins
@@ -302,6 +392,73 @@ def run():
     r = client.post("/clipboard/set", json={"text": "x"}, headers=AUTH)
     check("clipboard set unavailable -> 501", r.status_code == 501)
     hands._clipboard_backend = orig_backend
+
+    # --------------------------------- windows clipboard backend (R7.2)
+    # _WindowsClipboardBackend never runs off Windows, which is how
+    # the data.size AttributeError shipped (#26). Fake the _setup dll
+    # pair + ctypes.memmove and pin the exact call shape.
+    clip_log = []
+
+    class _FakeUser32:
+        def OpenClipboard(self, arg):
+            clip_log.append(("OpenClipboard", (arg,)))
+            return 1
+
+        def EmptyClipboard(self):
+            clip_log.append(("EmptyClipboard", ()))
+            return 1
+
+        def SetClipboardData(self, fmt, handle):
+            clip_log.append(("SetClipboardData", (fmt, handle)))
+            return handle
+
+        def CloseClipboard(self):
+            clip_log.append(("CloseClipboard", ()))
+            return 1
+
+    class _FakeKernel32:
+        def GlobalAlloc(self, flags, nbytes):
+            clip_log.append(("GlobalAlloc", (flags, nbytes)))
+            return 4242
+
+        def GlobalLock(self, handle):
+            clip_log.append(("GlobalLock", (handle,)))
+            return 8192
+
+        def GlobalUnlock(self, handle):
+            clip_log.append(("GlobalUnlock", (handle,)))
+            return 1
+
+    def _fake_memmove(ptr, data, nbytes):
+        clip_log.append(("memmove", (ptr, len(data), nbytes)))
+
+    win_clip = hands._WindowsClipboardBackend()
+    win_clip._setup = lambda: (_FakeUser32(), _FakeKernel32())
+    clip_text = "https://www.spotify.com/account/privacy/"
+    expect_nbytes = ctypes.sizeof(ctypes.create_unicode_buffer(clip_text))
+    orig_memmove = ctypes.memmove
+    ctypes.memmove = _fake_memmove
+    try:
+        win_clip.set_text(clip_text)
+        clip_error = None
+    except Exception as exc:  # the pre-fix AttributeError lands here
+        clip_error = exc
+    finally:
+        ctypes.memmove = orig_memmove
+    check("windows clipboard set_text runs clean against the faked dlls",
+          clip_error is None)
+    check("windows clipboard order open->empty->alloc->lock->move->unlock->set->close",
+          [entry[0] for entry in clip_log] == [
+              "OpenClipboard", "EmptyClipboard", "GlobalAlloc",
+              "GlobalLock", "memmove", "GlobalUnlock",
+              "SetClipboardData", "CloseClipboard"])
+    by_name = {entry[0]: entry[1] for entry in clip_log}
+    check("windows clipboard GlobalAlloc gets GMEM_MOVEABLE + sizeof bytes",
+          by_name.get("GlobalAlloc") == (0x0002, expect_nbytes))
+    check("windows clipboard memmove moves the whole buffer, byte count sizeof",
+          by_name.get("memmove") == (8192, len(clip_text) + 1, expect_nbytes))
+    check("windows clipboard SetClipboardData gets CF_UNICODETEXT + the handle",
+          by_name.get("SetClipboardData") == (13, 4242))
 
     print("FAILED: " + ", ".join(failures) if failures else "ALL PASS")
     return 1 if failures else 0

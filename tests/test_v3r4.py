@@ -173,21 +173,35 @@ def test_focus_matches_units(hands):
 # ------------------------------------------------------------------ F7
 
 def test_type_aborts_midway_when_owner_activates(hands, monkeypatch):
-    calls = {"n": 0}
+    # R7.2 (wishlist #27): the re-check no longer consults the idle
+    # probe — GetLastInputInfo counts the type's own keystrokes, so
+    # the old fake (idle drops at the 24-char re-check) scripted the
+    # type aborting on ITSELF. The scenario is unchanged (the owner
+    # sits down mid-type; the type aborts at the next 12-char
+    # boundary with the honest partial), but it is driven through the
+    # dwTime seam: our writes stamp the tick, and the owner's key
+    # stamps it during the pause after char 18.
+    state = {"tick": 100000, "dw": 94999, "sleeps": 0}
 
-    def probe():
-        calls["n"] += 1
-        # Call 1: the route's own door check. Call 2: the 12-char
-        # re-check (still quiet). Call 3: the 24-char re-check — the
-        # owner just sat down.
-        return (False, 0.1) if calls["n"] >= 3 else (None, None)
+    def probe_dwtime():
+        return state["dw"]
 
-    monkeypatch.setattr(hands, "_probe_lock_state", probe)
-    monkeypatch.setattr(hands.time, "sleep", lambda s: None)
+    def write(*a, **k):
+        writes.append(1)
+        state["tick"] += 10
+        state["dw"] = state["tick"]  # our keystroke is the freshest input
+
+    def sleep(_s):
+        state["sleeps"] += 1
+        if state["sleeps"] == 18:
+            state["tick"] += 10
+            state["dw"] = state["tick"]  # the owner just sat down
+
+    monkeypatch.setattr(hands, "_probe_lock_state", lambda: (None, None))
+    monkeypatch.setattr(hands, "_probe_dwtime", probe_dwtime)
+    monkeypatch.setattr(hands.time, "sleep", sleep)
     writes = []
-    monkeypatch.setattr(
-        hands.pyautogui, "write", lambda *a, **k: writes.append(1)
-    )
+    monkeypatch.setattr(hands.pyautogui, "write", write)
     with hands.app.test_request_context(
         "/type",
         method="POST",
