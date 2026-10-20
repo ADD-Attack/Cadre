@@ -710,11 +710,13 @@ def type_text():
     if method not in ("auto", "paste", "keys"):
         return jsonify({"ok": False, "error": "method must be auto, paste or keys"}), 400
     jitter = bool(d.get("jitter", True))
+    _owner_monitor.ensure_started()  # no-op off Windows / once running
     started = time.monotonic()
     note = None
     delays = []
 
     typed = 0
+    state = {"guard": None, "reason": None}
 
     def _keys():
         nonlocal delays, typed
@@ -738,21 +740,26 @@ def type_text():
             # indistinguishable from that keystroke. Off Windows / on
             # probe failure dwTime is None and the re-check is inert,
             # like the door's.
-            self_dw = _probe_dwtime()
-            owner_seen = False
+            guard = _TypeOwnerGuard()
+            state["guard"] = guard.mode
             for ch, delay in zip(text, delays):
-                if typed and typed % 12 == 0 and owner_seen:
-                    break
-                if self_dw is not None:
-                    dw_now = _probe_dwtime()
-                    if dw_now is not None and _dw_advanced(dw_now, self_dw):
-                        owner_seen = True
+                # R7.2 fix (Finding 3): sample FIRST, so owner input
+                # during the sleep after char 12 stops char 13.
+                guard.sample()
+                if typed and typed % 12 == 0:
+                    if guard.owner_seen:
+                        state["reason"] = "owner"
+                        break
+                    # Finding 2: a lock with no new input moves no
+                    # timestamp — check the lock itself, lock-only.
+                    if _probe_locked() is True:
+                        state["reason"] = "locked"
+                        break
                 pyautogui.write(ch)
-                dw_after = _probe_dwtime()
-                if dw_after is not None:
-                    self_dw = dw_after
+                guard.after_write()
                 time.sleep(delay)
                 typed += 1
+            state["guard"] = guard.mode
         else:
             pyautogui.write(text, interval=0.02)
             typed = len(text)
@@ -812,8 +819,14 @@ def type_text():
                     # double-type the prefix. The receipt settles
                     # failed with chars_typed; the caller re-submits
                     # text[chars_typed:].
-                    "error": f"owner became active — typing aborted at char {typed}",
+                    "error": (
+                        f"desktop locked — typing aborted at char {typed}"
+                        if state["reason"] == "locked"
+                        else f"owner became active — typing aborted at char {typed}"
+                    ),
                     "error_code": "type_aborted",
+                    "abort_reason": state["reason"],
+                    "owner_guard": state["guard"],
                     "aborted": True,
                     "chars_typed": typed,
                     "chars": len(text),
@@ -828,6 +841,7 @@ def type_text():
     resp = {
         "ok": True,
         "method_used": method_used,
+        "owner_guard": state["guard"],
         "chars": len(text),
         "elapsed_seconds": round(time.monotonic() - started, 3),
         "delays_planned": len(delays),
@@ -874,21 +888,212 @@ def _probe_dwtime():
 
 def _probe_dwtime_raw():
     """dwTime from GetLastInputInfo on Windows; None elsewhere/failure."""
+    return _last_input_raw()[0]
+
+
+def _tick_ms():
+    """GetTickCount (the clock dwTime lives on), or None off Windows.
+    Seam: tests drive it with the same virtual clock as _probe_dwtime."""
     if os.name != "nt":
         return None
     try:
-        user32 = ctypes.windll.user32  # type: ignore[attr-defined]
-
-        class _LastInputInfo(ctypes.Structure):
-            _fields_ = [("cbSize", ctypes.c_uint), ("dwTime", ctypes.c_ulong)]
-
-        info = _LastInputInfo()
-        info.cbSize = ctypes.sizeof(_LastInputInfo)
-        if user32.GetLastInputInfo(ctypes.byref(info)):
-            return int(info.dwTime)
+        return int(ctypes.windll.kernel32.GetTickCount()) & 0xFFFFFFFF  # type: ignore[attr-defined]
     except Exception:
-        pass
-    return None
+        return None
+
+
+# ---- owner-input provenance (R7.2 fix, Finding 1) --------------------------
+# Timestamps cannot say WHO produced an input (Microsoft: dwTime need not
+# even increase, and injected input moves it too). Low-level keyboard and
+# mouse hooks can: every event carries an INJECTED flag, and all relay
+# input goes through SendInput (pyautogui), so it is flagged. The monitor
+# counts non-injected (owner) events and injected (ours) events; the type
+# guard compares counters, so an owner event that lands INSIDE one of our
+# write() calls is still the owner's. The hook thread runs its own
+# message loop; callbacks only bump counters (Windows drops slow hooks).
+
+WH_KEYBOARD_LL = 13
+WH_MOUSE_LL = 14
+LLKHF_INJECTED = 0x10
+LLMHF_INJECTED = 0x01
+
+
+class _OwnerInputMonitor:
+    def __init__(self):
+        self.owner = 0
+        self.injected = 0
+        self.running = False
+        self._thread = None
+        self._ready = threading.Event()
+        self._start_lock = threading.Lock()
+
+    def snapshot(self):
+        """(owner_events, injected_events), or None when not running."""
+        if not self.running:
+            return None
+        return (self.owner, self.injected)
+
+    def ensure_started(self, wait=0.5):
+        if os.name != "nt":
+            return False
+        with self._start_lock:
+            if self._thread is None:
+                self._thread = threading.Thread(
+                    target=self._run, name="hands-input-hooks", daemon=True
+                )
+                self._thread.start()
+        self._ready.wait(wait)
+        return self.running
+
+    def _run(self):
+        try:
+            from ctypes import wintypes
+
+            user32 = ctypes.windll.user32  # type: ignore[attr-defined]
+            kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+            LRESULT = ctypes.c_ssize_t
+            HOOKPROC = ctypes.WINFUNCTYPE(LRESULT, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
+            user32.SetWindowsHookExW.restype = wintypes.HHOOK
+            user32.SetWindowsHookExW.argtypes = [ctypes.c_int, HOOKPROC, wintypes.HINSTANCE, wintypes.DWORD]
+            user32.CallNextHookEx.restype = LRESULT
+            user32.CallNextHookEx.argtypes = [wintypes.HHOOK, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM]
+            kernel32.GetModuleHandleW.restype = wintypes.HMODULE
+
+            class KBD(ctypes.Structure):
+                _fields_ = [("vkCode", wintypes.DWORD), ("scanCode", wintypes.DWORD),
+                            ("flags", wintypes.DWORD), ("time", wintypes.DWORD),
+                            ("dwExtraInfo", ctypes.c_size_t)]
+
+            class MSL(ctypes.Structure):
+                _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long),
+                            ("mouseData", wintypes.DWORD), ("flags", wintypes.DWORD),
+                            ("time", wintypes.DWORD), ("dwExtraInfo", ctypes.c_size_t)]
+
+            def _kbd(code, wparam, lparam):
+                if code >= 0:
+                    flags = ctypes.cast(lparam, ctypes.POINTER(KBD)).contents.flags
+                    if flags & LLKHF_INJECTED:
+                        self.injected += 1
+                    else:
+                        self.owner += 1
+                return user32.CallNextHookEx(None, code, wparam, lparam)
+
+            def _mouse(code, wparam, lparam):
+                if code >= 0:
+                    flags = ctypes.cast(lparam, ctypes.POINTER(MSL)).contents.flags
+                    if flags & LLMHF_INJECTED:
+                        self.injected += 1
+                    else:
+                        self.owner += 1
+                return user32.CallNextHookEx(None, code, wparam, lparam)
+
+            self._procs = (HOOKPROC(_kbd), HOOKPROC(_mouse))  # keep alive
+            hmod = kernel32.GetModuleHandleW(None)
+            hk = user32.SetWindowsHookExW(WH_KEYBOARD_LL, self._procs[0], hmod, 0)
+            hm = user32.SetWindowsHookExW(WH_MOUSE_LL, self._procs[1], hmod, 0)
+            if not hk or not hm:
+                file_log("owner-input hooks unavailable; type guard uses dwTime")
+                self._ready.set()
+                return
+            self.running = True
+            self._ready.set()
+            msg = wintypes.MSG()
+            while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
+                user32.TranslateMessage(ctypes.byref(msg))
+                user32.DispatchMessageW(ctypes.byref(msg))
+        except Exception as exc:
+            file_log(f"owner-input hooks failed: {exc}")
+        finally:
+            self.running = False
+            self._ready.set()
+
+
+_owner_monitor = _OwnerInputMonitor()
+
+
+def _owner_input_snapshot():
+    """(owner_events, injected_events) from the hooks, or None. Seam."""
+    return _owner_monitor.snapshot()
+
+
+# Our own keystroke may publish its dwTime AFTER the post-write probe
+# (Finding 5). In the dwTime fallback, an advance stamped no later than
+# this many ms after our write returned is attributed to that write.
+_DW_PUBLISH_GRACE_MS = 30
+
+
+class _TypeOwnerGuard:
+    """Owner detection for one keystroke type (R7.2 fix).
+
+    mode "hook": counts non-injected events since the type began —
+      provenance, not timestamps (Finding 1). If the hooks see none of
+      our own injected keystrokes after two writes, they are presumed
+      dead (Windows silently removes slow LL hooks) and the guard drops
+      to "dwtime" for the rest of the op.
+    mode "dwtime": the R7.2 timestamp mechanism, kept only as the
+      fallback, with three fixes: a failed post-write probe INVALIDATES
+      the baseline instead of leaving it stale (Grok: a stale baseline
+      read our next keystroke as the owner -> self-abort at char 12);
+      an advance stamped within the publish grace of our write is ours
+      (Finding 5, delayed publication); backward stamps never count.
+      Residual blind window (documented, Finding 1): owner input inside
+      a write or its grace is indistinguishable from it.
+    mode "none": no probe at all (off Windows) — inert, like the door.
+    """
+
+    def __init__(self):
+        self.owner_seen = False
+        self.writes = 0
+        snap = _owner_input_snapshot()
+        if snap is not None:
+            self.mode = "hook"
+            self.base_owner, self.base_injected = snap
+        else:
+            self._init_dwtime()
+
+    def _init_dwtime(self):
+        self.self_dw = _probe_dwtime()
+        self.write_end_tick = None
+        self.mode = "dwtime" if self.self_dw is not None else "none"
+
+    def sample(self):
+        """Fresh owner sample — call BEFORE any boundary decision (F3)."""
+        if self.owner_seen:
+            return True
+        if self.mode == "hook":
+            snap = _owner_input_snapshot()
+            if snap is None:  # hook thread died mid-op
+                self._init_dwtime()
+                return self.owner_seen
+            if snap[0] != self.base_owner:
+                self.owner_seen = True
+            elif self.writes >= 2 and snap[1] == self.base_injected:
+                self._init_dwtime()  # hooks deaf to our own input: degrade
+            return self.owner_seen
+        if self.mode == "dwtime" and self.self_dw is not None:
+            dw = _probe_dwtime()
+            if dw is not None and _dw_advanced(dw, self.self_dw):
+                ours = (
+                    self.write_end_tick is not None
+                    and not _dw_advanced(dw, (self.write_end_tick + _DW_PUBLISH_GRACE_MS) & 0xFFFFFFFF)
+                )
+                if ours:
+                    self.self_dw = dw  # late-published stamp of our write
+                else:
+                    self.owner_seen = True
+        return self.owner_seen
+
+    def after_write(self):
+        self.writes += 1
+        if self.mode in ("dwtime", "none"):
+            dw = _probe_dwtime()
+            self.write_end_tick = _tick_ms()
+            if dw is None:
+                self.self_dw = None  # unknown baseline never reads as owner
+            else:
+                if self.mode == "none":
+                    self.mode = "dwtime"
+                self.self_dw = dw
 
 
 def _dw_advanced(dw, baseline):
@@ -946,6 +1151,57 @@ def _probe_health():
     return {"probe_failures": _probe_failures, "probe_ok": _probe_failures < 3}
 
 
+def _last_input_raw():
+    """(dwTime, now_tick) from GetLastInputInfo + GetTickCount, the ONE
+    low-level last-input acquisition (R7.2 fix, Finding 6). Either value
+    is None off Windows or on failure; never raises."""
+    if os.name != "nt":
+        return (None, None)
+    dw = tick = None
+    try:
+        user32 = ctypes.windll.user32  # type: ignore[attr-defined]
+        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+
+        class _LastInputInfo(ctypes.Structure):
+            _fields_ = [("cbSize", ctypes.c_uint), ("dwTime", ctypes.c_ulong)]
+
+        info = _LastInputInfo()
+        info.cbSize = ctypes.sizeof(_LastInputInfo)
+        if user32.GetLastInputInfo(ctypes.byref(info)):
+            dw = int(info.dwTime) & 0xFFFFFFFF
+            tick = int(kernel32.GetTickCount()) & 0xFFFFFFFF
+    except Exception:
+        pass
+    return (dw, tick)
+
+
+def _probe_locked_raw():
+    """True when the input desktop is Winlogon (locked); None off
+    Windows / on failure. Independent of the last-input probe."""
+    if os.name != "nt":
+        return None
+    try:
+        user32 = ctypes.windll.user32  # type: ignore[attr-defined]
+        handle = user32.OpenInputDesktop(0, False, 0x0100)
+        if not handle:
+            return None
+        try:
+            buf = ctypes.create_unicode_buffer(256)
+            needed = ctypes.c_ulong(0)
+            if user32.GetUserObjectInformationW(
+                handle, 2, buf, ctypes.sizeof(buf), ctypes.byref(needed)
+            ):
+                return buf.value.lower() == "winlogon"
+        finally:
+            try:
+                user32.CloseDesktop(handle)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return None
+
+
 def _probe_lock_state_raw():
     """Probe (locked, idle_seconds) on Windows; (None, None) elsewhere.
 
@@ -954,46 +1210,21 @@ def _probe_lock_state_raw():
     """
     if os.name != "nt":
         return (None, None)
-    locked = None
+    locked = _probe_locked_raw()
+    dw, tick = _last_input_raw()
     idle_seconds = None
-    try:
-        user32 = ctypes.windll.user32  # type: ignore[attr-defined]
-        # Locked check: the input desktop is the Winlogon desktop when locked.
-        try:
-            handle = user32.OpenInputDesktop(0, False, 0x0100)
-            if handle:
-                try:
-                    buf = ctypes.create_unicode_buffer(256)
-                    needed = ctypes.c_ulong(0)
-                    if user32.GetUserObjectInformationW(
-                        handle, 2, buf, ctypes.sizeof(buf), ctypes.byref(needed)
-                    ):
-                        locked = buf.value.lower() == "winlogon"
-                finally:
-                    try:
-                        user32.CloseDesktop(handle)
-                    except Exception:
-                        pass
-        except Exception:
-            locked = None
-        # Idle check: time since last input.
-        try:
-            kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
-
-            class _LastInputInfo(ctypes.Structure):
-                _fields_ = [("cbSize", ctypes.c_uint), ("dwTime", ctypes.c_ulong)]
-
-            info = _LastInputInfo()
-            info.cbSize = ctypes.sizeof(_LastInputInfo)
-            if user32.GetLastInputInfo(ctypes.byref(info)):
-                tick = kernel32.GetTickCount()
-                idle_ms = (int(tick) - int(info.dwTime)) & 0xFFFFFFFF
-                idle_seconds = idle_ms / 1000.0
-        except Exception:
-            idle_seconds = None
-    except Exception:
-        return (locked, idle_seconds)
+    if dw is not None and tick is not None:
+        idle_seconds = ((tick - dw) & 0xFFFFFFFF) / 1000.0
     return (locked, idle_seconds)
+
+
+def _probe_locked():
+    """Lock-only check for the mid-type boundary (R7.2 fix, Finding 2).
+
+    The seam tests monkeypatch. Deliberately NOT the idle half of the
+    yield probe: idle counts our own keystrokes (the #27 self-abort).
+    """
+    return _probe_locked_raw()
 
 
 @app.get("/state")
@@ -1524,6 +1755,16 @@ class _WindowsClipboardBackend:
         kernel32.GlobalAlloc.restype = ctypes.c_void_p
         kernel32.GlobalLock.restype = ctypes.c_void_p
         kernel32.GlobalLock.argtypes = [ctypes.c_void_p]
+        # R7.2 fix (Finding 4): every call that takes a handle declares
+        # it pointer-sized. Without argtypes ctypes passes a 64-bit
+        # handle as a C int and raises ArgumentError for handles above
+        # 2**31 — a failure no off-Windows fake can reproduce.
+        kernel32.GlobalAlloc.argtypes = [ctypes.c_uint, ctypes.c_size_t]
+        kernel32.GlobalUnlock.argtypes = [ctypes.c_void_p]
+        kernel32.GlobalFree.restype = ctypes.c_void_p
+        kernel32.GlobalFree.argtypes = [ctypes.c_void_p]
+        user32.GetClipboardData.argtypes = [ctypes.c_uint]
+        user32.OpenClipboard.argtypes = [ctypes.c_void_p]
         return user32, kernel32
 
     def get_text(self):
@@ -1561,15 +1802,21 @@ class _WindowsClipboardBackend:
             handle = kernel32.GlobalAlloc(0x0002, nbytes)  # GMEM_MOVEABLE
             if not handle:
                 raise OSError("GlobalAlloc failed")
-            ptr = kernel32.GlobalLock(handle)
-            if not ptr:
-                raise OSError("GlobalLock failed")
+            owned = False
             try:
-                ctypes.memmove(ptr, data, nbytes)
+                ptr = kernel32.GlobalLock(handle)
+                if not ptr:
+                    raise OSError("GlobalLock failed")
+                try:
+                    ctypes.memmove(ptr, data, nbytes)
+                finally:
+                    kernel32.GlobalUnlock(handle)
+                if not user32.SetClipboardData(CF_UNICODETEXT, handle):
+                    raise OSError("SetClipboardData failed")
+                owned = True  # the clipboard owns the memory now
             finally:
-                kernel32.GlobalUnlock(handle)
-            if not user32.SetClipboardData(CF_UNICODETEXT, handle):
-                raise OSError("SetClipboardData failed")
+                if not owned:
+                    kernel32.GlobalFree(handle)
         finally:
             user32.CloseClipboard()
 

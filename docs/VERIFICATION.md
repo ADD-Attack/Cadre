@@ -313,3 +313,19 @@ merge, all behavior-level, each covered by the combined test suite:
   test_coordination's stub was updated to the 3-tuple.
 - A cherry-pick seam that separated _fetch_screenshot's signature from
   its body was repaired; py_compile + the full suite verify the result.
+
+## R7.2 fix round — live receipts owed (#26, #27)
+
+1. Clipboard: on the PC, `set RELAY_LIVE_CLIPBOARD=1` then
+   `python -m pytest -q tests/test_windows_clipboard_real.py` → 1 passed;
+   your clipboard text is unchanged afterwards.
+2. /type paste path: focus Notepad, queued `type` of a 200-char text
+   (auto → paste): the full text appears; your previous clipboard is back.
+3. Hooks: queued `type` of the 40-char Spotify URL with hands off →
+   completes, `owner_guard: "hook"` (not a char-12 abort).
+4. Press a key while a 40-char type runs → 409 `abort_reason: owner` at
+   the next 12-char boundary; nothing typed after it.
+5. Win+L during a long type → 409 `abort_reason: locked` at the next
+   boundary; after unlock no further characters appear.
+6. Repeat 3 with an elevated window (e.g. admin PowerShell) focused and
+   note `owner_guard`.

@@ -242,15 +242,6 @@ def run():
           hands._dw_advanced(5, 0xFFFFFFF8) is True
           and hands._dw_advanced(0xFFFFFFF8, 5) is False)
 
-    # jitter=False stays the single pyautogui.write, untouched by the
-    # re-check machinery.
-    calls.clear()
-    hands._clipboard_backend = lambda: None
-    r = client.post("/type", json={"text": "hello", "method": "keys",
-                                   "jitter": False}, headers=AUTH)
-    check("type jitter=false -> one write(text, interval=0.02)",
-          r.status_code == 200
-          and calls == [("write", ("hello",), {"interval": 0.02})])
 
     class _InputClock:
         def __init__(self, owner_on_sleep=None):
@@ -278,6 +269,19 @@ def run():
     orig_probe_dwtime = hands._probe_dwtime
     url40 = "https://www.spotify.com/account/privacy/"
     try:
+        # R7.2 fix (Finding 7): the backend mutation and the jitter=false
+        # request sit INSIDE the protected scope, so an exception there
+        # still restores every patched seam in the finally below.
+        # jitter=False stays the single pyautogui.write, untouched by the
+        # re-check machinery.
+        calls.clear()
+        hands._clipboard_backend = lambda: None
+        r = client.post("/type", json={"text": "hello", "method": "keys",
+                                       "jitter": False}, headers=AUTH)
+        check("type jitter=false -> one write(text, interval=0.02)",
+              r.status_code == 200
+              and calls == [("write", ("hello",), {"interval": 0.02})])
+
         # (a) Only our own keystrokes move dwTime: all 40 chars land.
         clock = _InputClock()
         fake_pag.write = clock.write
