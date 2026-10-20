@@ -64,19 +64,268 @@ $env:PARSER_URL   = "http://127.0.0.1:5011"
 python app.py
 ```
 
-- Gateway: http://127.0.0.1:5010/health — agent API under /v1 (screen, act, parse, info)
+- Gateway: http://127.0.0.1:5010/health — agent API under /v1 (screen, screen/hash, monitors, windows, clipboard, act, act/queued, hands/claim, hands/release, parse, find, elevate, info, filedrop, wait)
 - Parser: http://127.0.0.1:5011/health — reports whether the model is loaded
+
+**Change detection without the pixels:** `GET /v1/screen/hash` returns a
+SHA-256 of the current frame's pixels with the bottom `mask_bottom` px
+(default 80 — the taskbar) excluded, so a watcher can poll a tiny JSON
+response and only fetch the full PNG when the hash changes. With
+`?stable=1` the gateway samples two frames ~0.65 s apart and hashes
+their per-pixel minimum, so a blinking caret or spinner phase cannot
+flip the result. `/v1/screen` also carries that hash as an `ETag` and
+answers a matching `If-None-Match` with `304`. If the gateway lacks
+Pillow, the hash route returns 501 and `/v1/screen` serves without an
+ETag — never a wrong hash.
 
 The parser answers /parse only once OmniParser v2 weights are in its
 models directory (`python services/parser/fetch_weights.py`, heavy deps in
 `services/parser/requirements-model.txt`). Until then it returns 501 —
 deliberately: a driver must never mistake "no model" for "empty screen".
+The parser has no auth of its own, so it listens on loopback by default —
+standalone and in the packaged app alike; the Docker deployment sets
+`PARSER_HOST=0.0.0.0` (in docker-compose.yml) for its internal network,
+where the published port is already bound to 127.0.0.1 on the host.
+
+## Coordination: hands claim + queued act
+
+Two gateway features keep multiple agent sessions (and the owner) from
+fighting over one desktop. Both are covered by the gateway token, like
+every other /v1 route.
+
+**Hands claim (advisory).** A session that is about to drive takes a
+claim first so other sessions can see who holds the desktop:
+
+- `POST /v1/hands/claim` `{"holder", "purpose", "ttl_seconds"?, "queue"?}` —
+  grants when free (`200 {"granted": true, "claim": {...}}`); the same
+  holder re-claiming refreshes the lease. TTL defaults to 900 s, clamped
+  30–3600 s; expiry is lazy (an expired claim is simply absent). If
+  another holder holds it: `409` with the current claim — or, with
+  `"queue": true`, a FIFO queue slot (`200 {"granted": false, "queued":
+  true, "position": N}`).
+- When a claim is released or expires, the queue head gets a 30 s
+  reservation: only that holder's claim can be granted during the grace
+  window; everyone else still gets `409` / a queue slot.
+- `POST /v1/hands/release` `{"holder"}` — only the current holder can
+  release (`403` otherwise; releasing an expired claim is an ok no-op).
+  `{"holder", "cancel_queue": true}` instead drops that holder's queue
+  entry.
+- `GET /v1/hands/claim` — `{"claim": {...}|null, "queue": [...],
+  "reserved_for": holder|null}`. `GET /v1/info` carries the same claim
+  object as `hands_claim`.
+
+The claim is **advisory coordination only — it does not gate
+`/v1/act`**. A session that skips claiming can still act; well-behaved
+sessions check the claim first and back off politely.
+
+**Queued act (yielded-input accounting).** When the owner is actively
+using the desktop, the hands answer an act with `409` (the act yielded).
+Plain `POST /v1/act` surfaces that as-is and is unchanged.
+`POST /v1/act/queued` takes the same body plus optional `hold_seconds`
+(default 30, clamped 1–120):
+
+- Any result other than a yield-`409` is returned exactly as `/v1/act`
+  would return it — no receipt is filed.
+- A yield-`409` (error mentions "yield" / "user active") files a
+  receipt and answers `202 {"queued": true, "id": ..., "state":
+  "held"}`. A retry thread re-forwards the act about once a second
+  until the deadline: a non-`409` answer settles the receipt `applied`,
+  still-`409` at the deadline settles it `refused-yielded`, and an
+  unreachable hands settles it `failed`.
+- `GET /v1/act/queued/<id>` returns the receipt; an unknown or evicted
+  id answers `404` with `"state": "expired"`. `GET /v1/act/queued`
+  lists receipt summaries (`id`, `op`, `state`, `submitted_at`), newest
+  first. At most 200 receipts are kept.
+- A receipt records the op and the payload's **key names only — never
+  payload values** (typed text may be sensitive). The payload itself is
+  held in memory only while the receipt is held and dropped when it
+  settles.
+
+**File-drop (gateway):** `POST /v1/filedrop` with
+`{"folder", "filename", "data_b64", "sha256"?}` drops one file onto the
+PC in a single call. The gateway computes the SHA-256 itself when it is
+not supplied, verifies it against a supplied one before sending anything
+(a mismatch is a 400), then runs the hands' chunked upload protocol
+(256 KB raw chunks) and returns `{"ok", "path", "size", "sha256"}`.
+Any hands error is surfaced with its status. On the hands side the
+protocol is `POST /filedrop/begin` (returns an `upload_id` and
+`chunk_max` 524288), `POST /filedrop/chunk` (strictly sequential
+offsets; a wrong offset is a 409 carrying the expected offset),
+`POST /filedrop/commit` (verifies size and SHA-256, then writes via a
+temp file + atomic replace in the target folder), and
+`POST /filedrop/abort`. Uploads are capped at 16 MB and expire after
+10 minutes. Drops only land in allowlisted folders: the hands config
+file key `"filedrop_dirs"` (a list of absolute paths), or the
+`HANDS_FILEDROP_DIRS` environment variable (`os.pathsep`-separated,
+which wins when set). With no allowlist configured, every filedrop
+endpoint returns 501. Filenames must be bare names — no path separators
+or `..`.
+
+**Wait-for (gateway):** `POST /v1/wait` with
+`{"condition": {...}, "timeout_seconds": 30, "poll_seconds": 1}` polls
+until a condition holds or the deadline passes, returning
+`{"ok": true, "held": true, "waited_seconds": ..., "condition": ...}`
+or, on deadline, `{"ok": true, "held": false, "timeout": true, ...}`.
+`timeout_seconds` clamps to 1–300 and `poll_seconds` to 0.2–10; an
+unknown condition type is a 400 immediately. Condition types:
+`{"type": "screen_hash_change", "stable": bool?}` (the masked frame
+hash — see `/v1/screen/hash` — differs from the starting sample; 501 if
+the gateway lacks Pillow), `{"type": "screen_region_change",
+"region": [x, y, w, h]}` (only that region's pixels, clamped to the
+frame, change), `{"type": "window_title", "contains": "..."}` (a
+window title contains the text, via the hands' `GET /window_titles`;
+if the hands answers 404/501 the wait returns
+`{"ok": false, "error": "hands does not support window titles"}`
+immediately instead of burning the timeout), and
+`{"type": "parser_model_loaded"}` (the parser's `/health` reports
+`model_loaded` true).
+
+**PC lock/sleep state:** the hands' `GET /state` returns
+`{"ok": true, "platform": "windows"|"other", "locked": true|false|null,
+"idle_seconds": number|null}` — on Windows the lock state comes from
+the input desktop (`Winlogon` means locked) and idle time from the
+last-input timestamp; off Windows, or on any probe failure, the values
+are `null` (never a 500). The hands also expose `GET /window_titles`
+(`{"ok": true, "titles": [...]}`). The gateway's `GET /v1/info` now
+carries a `"pc_state"` field with the hands' `/state` payload, fetched
+inside the same 5-second-cached reachability probe as the other info
+fields; it is `null` when the hands is unreachable or `/state` errors,
+and all existing `/v1/info` fields are unchanged.
+## Actuation (v3 P4 — wishlist #3, #4, #6, #9, #19)
+
+New hands routes, all behind the same X-Secret gate as the existing
+routes (and, through the gateway, the same X-Relay-Token gate):
+
+| Hands route | Gateway surface | What it does |
+| --- | --- | --- |
+| `POST /hotkey {keys: ["ctrl", "l"]}` | act op `hotkey` | Press a true key chord via `pyautogui.hotkey()`. |
+| `POST /break {times?: 1..3}` | act op `break` | Ctrl+C chord(s), 0.15 s apart. |
+| `POST /drag {x1, y1, x2, y2, button?, duration?}` | act op `drag` | Mouse-down at the start point, move, mouse-up at the end point. |
+| `GET /windows` | `GET /v1/windows` | Open windows: title, process, pid, bounds, monitor index, visible, focused. Off Windows it returns an empty list with `"supported": false`. |
+| `POST /focus {title, exact?}` | act op `focus` | Focus the first window whose title matches (substring, case-insensitive; full-title when `exact` is true); restores a minimised window first. No match → 404. |
+| `POST /clipboard/set {text}` | act op `clipboard_set` | Set the clipboard (Windows: ctypes `CF_UNICODETEXT`; else pyperclip when importable; otherwise 501). |
+| `GET /clipboard/get` | `GET /v1/clipboard` | Read the clipboard (same backends, same 501 when unavailable). |
+
+**Clipboard read is sensitive.** It stays behind the same authentication
+as every other hands/gateway route, and *every read writes a line to the
+hands log queue* (`clipboard read via relay`), so the owner sees reads
+in the app window as they happen.
+
+**Why `/break` exists:** the older `/key` op calls `pyautogui.press()`
+with ONE key name, so a chord string like `"ctrl+c"` sent to `/key` was
+never a real chord — nothing was interrupted. `/break` and `/hotkey`
+send true chords via `pyautogui.hotkey()`, so the interrupt lands.
+
+**Fast `/type`:** `POST /type` now also accepts
+`{method: "auto"|"paste"|"keys"}` (absent = the old behaviour for short
+text). In `auto`, text over 120 chars goes through the clipboard when a
+backend exists: the current clipboard is saved, replaced with the text,
+pasted with Ctrl+V, then restored. Any clipboard failure falls back to
+keystrokes rather than failing, and the response reports what happened:
+`{"ok": true, "method_used": "paste"|"keys", "chars": n,
+"elapsed_seconds": x}`. On the gateway, the act timeout for `type` is
+sized to the payload — `max(30, min(600, 15 + len(text)/6))` seconds,
+since the keystroke path runs at worst ~6 chars/s — while every other
+op keeps the flat 30 s.
+## Capture variants (hands + gateway)
+
+`GET /v1/monitors` lists the monitors as rectangles in virtual-desktop
+coordinates (`{x, y, w, h, primary}` — origins can be negative for a
+monitor left of or above the primary). `GET /v1/screen` and
+`GET /v1/screen/hash` accept two mutually exclusive selectors,
+forwarded to the hands:
+
+- `?monitor=N` — capture monitor N (0-based) only. Out of range is a
+  400 from the hands naming how many monitors exist.
+- `?region=x,y,w,h` — capture that rectangle in virtual-desktop
+  coordinates (a region may span monitors, including negative origins).
+  Malformed regions are a 400 from the gateway without the hands being
+  called.
+
+With no selector the full primary frame is returned exactly as before,
+and the ETag/hash always describe the variant actually requested.
+Responses from the hands carry `X-Screen-Width`/`X-Screen-Height` of the
+returned image, plus `X-Screen-Monitor` or `X-Screen-Region` when a
+selector was used.
+
+## Input realism (hands)
+
+Typing and pointing are human-paced by default, and both behaviors are
+planned by pure functions (`_plan_key_delays`, `_plan_path`) so the
+timing and geometry are unit-tested off-desktop
+(`hands/test_capture_realism.py`):
+
+- **Keystroke jitter** (`POST /type`, default on): each character is
+  written individually with a delay after it — base uniform
+  0.04–0.16 s, plus 0.05–0.20 s after a space and 0.10–0.30 s after
+  sentence-ending punctuation. If a plan would exceed
+  `max(5 s, 0.16 s/char)` it is scaled down proportionally. The
+  response reports `delays_planned` and `planned_seconds`.
+  `{jitter: false}` restores the old single fast write.
+- **Mouse dynamics** (`POST /move`, `POST /click`, default on): the
+  cursor follows a curved quadratic-bezier path with an ease-in-out
+  profile, a slight overshoot past the target, and a settle onto the
+  exact target, over `clamp(0.25 + distance/2500, 0.3, 1.1)` seconds;
+  a human click hovers 0.05–0.15 s before clicking.
+  `{human: false}` restores the old direct move.
+
+Live-only verification steps for these features (real multi-monitor
+geometry, negative-origin regions, jitter/dynamics feel) are listed in
+[docs/VERIFICATION.md](docs/VERIFICATION.md).
+**Find text on screen:** `POST /v1/find` (parser: `POST /find`) with
+`{"image_b64": "...", "text": "...", "case_sensitive": false}` runs the
+same parse pipeline and returns only the elements whose label contains
+the text — `{"ok": true, "matches": [...], "count": N, "width": W,
+"height": H}`, with each match keeping the full set-of-marks shape
+(`id`, `label`, `bbox`, `center`, `interactable`). Empty text is a 400;
+with no model loaded, /find returns the same 501 as /parse.
+
+## Packaged app: autostart + self-heal
+
+- **Start on login** (opt-in, off by default): the checkbox under the
+  Start/Stop row in the packaged app writes/removes the value
+  `Muse Relay v2` under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`,
+  pointing at the app (the quoted executable when frozen, quoted Python
+  plus the quoted script when run from source). Nothing is written until
+  the owner toggles it.
+- **Self-heal:** the app's periodic self-check feeds each service's
+  liveness into a failure counter. Three consecutive failures restart a
+  service the app itself started (at most 3 restarts per service), then
+  the app logs that it is giving up and stops restarting it. A service
+  that was already running elsewhere is never restarted, and if the
+  gateway itself is down the other services' health is treated as
+  unknown rather than failed, so one outage does not restart everything.
+
+## Elevation bridge
+
+Some programs only run elevated. The bridge lets an agent *request* an
+elevated launch without ever being able to cause one:
+
+- The operator pre-configures an allowlist in the hands config file
+  (`hands/muse_relay_config.json`), key `elevate_allowlist`, mapping a
+  request name to static `exe`/`args` strings, e.g.
+  `{"notepad-elevated": {"exe": "notepad.exe", "args": ""}}`. The agent
+  supplies only a name — never command text.
+- `POST /v1/elevate {"name": "..."}` (hands: `POST /elevate`) creates a
+  pending request and returns its id; an unconfigured allowlist is a
+  501 and an unknown name is a 404. `GET /v1/elevate/<id>` reports the
+  state: `pending`, `denied`, `expired` (pending for over 120 s),
+  `launched`, or `launch_failed`.
+- The request is shown in the packaged app window as a modal dialog
+  naming the request and the exact configured exe/args. **Only the
+  person at the PC clicking Approve (Yes) runs it** — elevated, via the
+  Windows UAC `runas` verb, so the UAC prompt still appears too. Deny
+  (No) does nothing. There is no auto-approve path, no timeout-approve,
+  and no config flag that approves.
 
 ## Hands (Windows)
 
 The hands run **inside the packaged app** (above) — same Flask routes from
 `hands/muse_relay_hands.py`, served headless on 127.0.0.1:5000 by the app
-process, with the app-owned persistent secret described above.
+process, with the app-owned persistent secret described above. The
+standalone hands window's Cloudflare quick tunnel is opt-in
+(`HANDS_ENABLE_TUNNEL=1`) and off by default — a public tunnel is a
+fallback, never the design.
 
 For a split deployment (services run separately, e.g. under Docker), the
 standalone hands app is still available:

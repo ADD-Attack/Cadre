@@ -6,7 +6,8 @@ One small window. No terminals.
 WHAT IT DOES
   - Starts the relay server on 127.0.0.1:5000 (localhost only -- nothing on
     your network can reach it directly).
-  - Opens a Cloudflare quick tunnel and shows the URL in the window.
+  - Opens a Cloudflare quick tunnel only on opt-in (HANDS_ENABLE_TUNNEL=1);
+    off by default — a public tunnel is a fallback, never the design.
   - Generates a FRESH strong secret on every launch. The old workflow (one
     fixed secret, reused across sessions) is gone: when you close the app,
     that secret stops existing.
@@ -37,30 +38,64 @@ SECURITY NOTES
 WHAT MUSE CAN DO WITH IT (unchanged from cursor_relay.py)
   GET  /health              liveness only, no secret needed
   GET  /screenshot          PNG of your screen
+  GET  /monitors            monitor rectangles (virtual-desktop coords)
   POST /move    {x, y}      move the cursor
   POST /click   {x, y, button}  click
   POST /type    {text}      type text
   POST /key     {key}       press a key ("enter", "tab", "esc", ...)
   POST /scroll  {clicks}    scroll
   Every call except /health needs header  X-Secret: <the app's secret>
+
+ADDED IN V3-P4 (wishlist #3, #4, #6, #9, #19) — same X-Secret gate:
+  POST /hotkey  {keys: ["ctrl", "l"]}   press a true key chord
+  POST /break   {times?: 1..3}          Ctrl+C chord(s) — see its docstring
+  POST /drag    {x1, y1, x2, y2, button?, duration?}
+  GET  /windows                         list open windows
+  POST /focus   {title, exact?}         bring a window to the foreground
+  POST /clipboard/set {text}            set the clipboard
+  GET  /clipboard/get                   read the clipboard — SENSITIVE: it
+                                        stays behind the X-Secret gate and
+                                        every read is written to the log
+                                        area (see log_line call in the
+                                        route), so the operator can see
+                                        reads in the app window.
+  POST /type also accepts {method: "auto"|"paste"|"keys"}: long text can
+  go through the clipboard (paste) instead of slow keystrokes.
+CAPTURE + INPUT REALISM (v3)
+  GET /screenshot?monitor=N   capture monitor N (0-based) only
+  GET /screenshot?region=x,y,w,h
+                               capture that rect in virtual-desktop coords
+                               (monitor and region are mutually exclusive)
+  /type types with per-keystroke jitter by default ({jitter: false}
+  restores the old single fast write). /move and /click travel a curved,
+  human-like path by default ({human: false} restores the old direct
+  move). Both planners are pure functions (_plan_key_delays, _plan_path)
+  so the timing/shape logic is testable without a desktop.
 """
 
+import base64
+import binascii
 import ctypes
 import datetime
+import hashlib
 import hmac
 import io
 import json
+import math
 import os
 import queue
+import random
 import re
 import secrets as secrets_mod
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import tkinter as tk
 import urllib.request
+import uuid
 
 import pyautogui
 from flask import Flask, request, jsonify, send_file
@@ -72,7 +107,13 @@ PORT = 5000
 SHARED_SECRET = secrets_mod.token_urlsafe(24)
 
 pyautogui.FAILSAFE = True
-pyautogui.PAUSE = 0.15
+# R4 (F2): PAUSE stays 0. pyautogui's PAUSE sleeps after EVERY call, and
+# the v3 input-realism planners (_plan_path, _plan_key_delays) already
+# own the deliberate delay budget — a global 0.15 s tax per call made a
+# ~50-step mouse path pay ~7.5 s on top of its planned 0.3-1.1 s and
+# capped typing at ~3-5 chars/s regardless of the jitter plan. FAILSAFE
+# above is the independent emergency stop and is unaffected.
+pyautogui.PAUSE = 0
 
 # ---------------------------------------------------------------- server
 
@@ -81,8 +122,6 @@ app.config["MAX_CONTENT_LENGTH"] = 1_000_000  # requests are tiny JSON
 
 # ---- failed-guess lockout ------------------------------------------------
 _fail_lock = threading.Lock()
-_fail_times: list = []
-_lockout_until = 0.0
 MAX_FAILS = 10        # bad secrets allowed inside the window...
 FAIL_WINDOW = 600     # ...of 10 minutes, then auth pauses for...
 LOCKOUT_SECONDS = 300  # ...5 minutes (restart the app to clear early)
@@ -147,20 +186,182 @@ def alert_phone(title: str, message: str) -> None:
     threading.Thread(target=_send, daemon=True).start()
 
 
-def _auth_locked_out() -> bool:
-    return time.monotonic() < _lockout_until
+_fail_by_peer = {}
+_lockout_by_peer = {}
 
 
-def _record_failure() -> None:
-    global _lockout_until
+def _peer_key():
+    try:
+        return request.remote_addr or "-"
+    except RuntimeError:
+        return "-"
+
+
+_ACT_PATHS = {
+    "/move",
+    "/click",
+    "/type",
+    "/key",
+    "/scroll",
+    "/hotkey",
+    "/drag",
+    "/focus",
+    # R4 (F5): /break injects real Ctrl+C chords and /clipboard/set
+    # overwrites the owner's clipboard — both are input/state the owner
+    # can collide with, so both sit behind the same WP0b yield.
+    "/break",
+    "/clipboard/set",
+}
+
+
+def _yield_if_active():
+    """409 and do not run the op when the owner was active recently.
+
+    _probe_lock_state is the only seam: (locked, idle_seconds), or
+    (None, None) off Windows / on failure. None idle means inactive.
+    Yield only when idle_seconds < HANDS_YIELD_IDLE_SECONDS (default 5).
+
+    R4 (F6): a LOCKED desktop also yields — acts injected at the
+    Winlogon desktop go nowhere yet reported success, so queued
+    receipts settled "applied" for input that never landed. The 409
+    carries error_code "locked" so the gateway holds and retries the
+    act until unlock instead of settling it (F11: the code, not the
+    prose, is the contract; the prose keeps the word "yielded" so an
+    older gateway still classifies it by substring).
+    """
+    try:
+        threshold = float(os.environ.get("HANDS_YIELD_IDLE_SECONDS", "5"))
+    except (TypeError, ValueError):
+        threshold = 5.0
+    locked, idle_seconds = _probe_lock_state()
+    if locked is True:
+        return (
+            jsonify(
+                {
+                    "ok": False,
+                    "error": "desktop locked — control yielded",
+                    "error_code": "locked",
+                }
+            ),
+            409,
+        )
+    if idle_seconds is not None and idle_seconds < threshold:
+        return (
+            jsonify(
+                {
+                    "ok": False,
+                    "error": "user active — control yielded",
+                    "error_code": "yield",
+                }
+            ),
+            409,
+        )
+    return None
+
+
+def _foreground_window():
+    """The focused window dict from _enum_windows(), or None."""
+    for win in _enum_windows():
+        if win.get("focused"):
+            return win
+    return None
+
+
+def _focus_matches(expect, win):
+    """True when the foreground window satisfies an expect_focus spec.
+
+    expect is a title substring (str) or {"title": ..., "process": ...};
+    each field given must appear (case-insensitive substring) in the
+    foreground window's matching field. An empty spec never matches.
+    """
+    if isinstance(expect, str):
+        expect = {"title": expect}
+    if not isinstance(expect, dict) or win is None:
+        return False
+    want_title = expect.get("title")
+    want_process = expect.get("process")
+    if not want_title and not want_process:
+        return False
+    if want_title and str(want_title).lower() not in (win.get("title") or "").lower():
+        return False
+    if want_process and str(want_process).lower() not in (win.get("process") or "").lower():
+        return False
+    return True
+
+
+def _focus_guard():
+    """Refuse an act whose payload names its target window
+    (expect_focus) when that window is not the foreground one.
+
+    R4 (F3): a queued act can sit held for up to 120 s while the owner
+    switches windows; without a guard it fires into whatever is in
+    front when the yield clears (2026-10-19: a Reset click aimed at a
+    chess page landed in a chat window). The refusal is a NON-yield
+    409 (error_code "foreground_changed") so the queued-act pump
+    settles the receipt failed instead of retrying the act into the
+    wrong window for the rest of the hold. Fails closed: when the
+    foreground window cannot be determined, an act that asked for
+    verification is refused rather than fired blind.
+    """
+    body = request.get_json(force=True, silent=True) or {}
+    expect = body.get("expect_focus")
+    if expect is None:
+        return None
+    if _focus_matches(expect, _foreground_window()):
+        return None
+    return (
+        jsonify(
+            {
+                "ok": False,
+                "error": "foreground changed — act refused",
+                "error_code": "foreground_changed",
+            }
+        ),
+        409,
+    )
+
+
+def _auth_decide(provided):
+    """One critical section. A valid secret is never locked out.
+
+    An empty SHARED_SECRET does not compare equal to an empty header.
+    Those rejects are not counted: the packaged app assigns the secret
+    after import, and a blank config must not burn the lockout budget.
+    """
     now = time.monotonic()
-    file_log("bad secret attempt")
+    peer = _peer_key()
     with _fail_lock:
-        _fail_times[:] = [t for t in _fail_times if now - t < FAIL_WINDOW]
-        _fail_times.append(now)
-        if len(_fail_times) >= MAX_FAILS:
-            _lockout_until = now + LOCKOUT_SECONDS
-            _fail_times.clear()
+        secret = SHARED_SECRET or ""
+        if secret and hmac.compare_digest(provided, secret):
+            return "ok", False
+        if now < _lockout_by_peer.get(peer, 0.0):
+            return "locked", False
+        if not secret:
+            return "bad", False
+        times = _fail_by_peer.setdefault(peer, [])
+        times[:] = [t for t in times if now - t < FAIL_WINDOW]
+        times.append(now)
+        tripped = len(times) >= MAX_FAILS
+        if tripped:
+            _lockout_by_peer[peer] = now + LOCKOUT_SECONDS
+            times.clear()
+        return "bad", tripped
+
+
+@app.before_request
+def gate():
+    if request.path == "/health":
+        return  # liveness only, per this file's contract: a lockout or a
+        # secret-less probe must never read as "down" (the gateway probes
+        # /health to decide reachability, and a supervisor restart on a
+        # false "down" would wipe the very lockout that is protecting us)
+    provided = request.headers.get("X-Secret") or ""
+    decision, tripped = _auth_decide(provided)
+    if decision == "locked":
+        return jsonify({"ok": False, "error": "locked out"}), 429
+    if decision != "ok":
+        file_log("bad secret attempt")
+        if tripped:
             log_line(
                 "LOCKOUT: too many bad secrets -- authentication paused "
                 "for 5 minutes"
@@ -171,17 +372,15 @@ def _record_failure() -> None:
                 "Someone just made 10 bad secret guesses at your relay. "
                 "Authentication is paused for 5 minutes.",
             )
-
-
-@app.before_request
-def gate():
-    if _auth_locked_out():
-        return jsonify({"ok": False, "error": "locked out"}), 429
-    provided = request.headers.get("X-Secret") or ""
-    if not hmac.compare_digest(provided, SHARED_SECRET):
-        _record_failure()
         log_line(f"rejected request to {request.path} (bad secret)")
         return jsonify({"ok": False, "error": "bad secret"}), 401
+    if request.path in _ACT_PATHS:
+        refused = _yield_if_active()
+        if refused is not None:
+            return refused
+        refused = _focus_guard()
+        if refused is not None:
+            return refused
 
 
 @app.after_request
@@ -195,39 +394,427 @@ def health():
     return {"ok": True}
 
 
+# ---- capture seams ---------------------------------------------------------
+# Kept as module-level functions so tests can stub the Windows layer and
+# exercise the endpoint logic anywhere.
+
+
+class _RECT(ctypes.Structure):
+    _fields_ = [
+        ("left", ctypes.c_long),
+        ("top", ctypes.c_long),
+        ("right", ctypes.c_long),
+        ("bottom", ctypes.c_long),
+    ]
+
+
+class _MONITORINFO(ctypes.Structure):
+    _fields_ = [
+        ("cbSize", ctypes.c_uint32),
+        ("rcMonitor", _RECT),
+        ("rcWork", _RECT),
+        ("dwFlags", ctypes.c_uint32),
+    ]
+
+
+_MONITORINFOF_PRIMARY = 1
+
+
+def _monitor_rects():
+    """Monitor rectangles in virtual-desktop coordinates.
+
+    Each entry: {"x", "y", "w", "h", "primary"}. Origins can be negative
+    (a monitor left of / above the primary). On Windows the list comes
+    from EnumDisplayMonitors; anywhere else (or on failure) it falls
+    back to a single primary rect from pyautogui.size().
+    """
+    if os.name == "nt":
+        try:
+            rects = []
+            user32 = ctypes.windll.user32
+            enum_proc = ctypes.WINFUNCTYPE(
+                ctypes.c_bool,
+                ctypes.c_void_p,
+                ctypes.c_void_p,
+                ctypes.POINTER(_RECT),
+                ctypes.c_ssize_t,
+            )
+
+            def _cb(hmonitor, _hdc, _clip, _data):
+                info = _MONITORINFO()
+                info.cbSize = ctypes.sizeof(_MONITORINFO)
+                if user32.GetMonitorInfoW(hmonitor, ctypes.byref(info)):
+                    r = info.rcMonitor
+                    rects.append(
+                        {
+                            "x": int(r.left),
+                            "y": int(r.top),
+                            "w": int(r.right - r.left),
+                            "h": int(r.bottom - r.top),
+                            "primary": bool(info.dwFlags & _MONITORINFOF_PRIMARY),
+                        }
+                    )
+                return True
+
+            if user32.EnumDisplayMonitors(None, None, enum_proc(_cb), 0) and rects:
+                return rects
+        except Exception:
+            pass  # fall through to the single-rect fallback
+    w, h = pyautogui.size()
+    return [{"x": 0, "y": 0, "w": int(w), "h": int(h), "primary": True}]
+
+
+def _grab(rect):
+    """Capture rect ({"x","y","w","h"}) or, with None, the full frame.
+
+    pyautogui on Windows captures the virtual desktop, so a region with
+    a negative origin works through the same call.
+    """
+    if rect is None:
+        return pyautogui.screenshot()
+    return pyautogui.screenshot(
+        region=(int(rect["x"]), int(rect["y"]), int(rect["w"]), int(rect["h"]))
+    )
+
+
+def _parse_region(raw):
+    """'x,y,w,h' -> rect dict, or None if malformed / non-positive size."""
+    try:
+        parts = [int(p) for p in str(raw).split(",")]
+    except ValueError:
+        return None
+    if len(parts) != 4 or parts[2] <= 0 or parts[3] <= 0:
+        return None
+    return {"x": parts[0], "y": parts[1], "w": parts[2], "h": parts[3]}
+
+
+@app.get("/monitors")
+def monitors():
+    rects = _monitor_rects()
+    return {"ok": True, "monitors": rects, "count": len(rects)}
+
+
 @app.get("/screenshot")
 def screenshot():
-    img = pyautogui.screenshot()
+    monitor_raw = request.args.get("monitor")
+    region_raw = request.args.get("region")
+    if monitor_raw is not None and region_raw is not None:
+        return jsonify({"ok": False, "error": "pass monitor or region, not both"}), 400
+    rect = None
+    monitor_idx = None
+    region_rect = None
+    if monitor_raw is not None:
+        try:
+            monitor_idx = int(monitor_raw)
+        except ValueError:
+            return jsonify({"ok": False, "error": "monitor must be an integer"}), 400
+        rects = _monitor_rects()
+        if monitor_idx < 0 or monitor_idx >= len(rects):
+            return (
+                jsonify(
+                    {
+                        "ok": False,
+                        "error": f"monitor {monitor_idx} out of range: "
+                        f"{len(rects)} monitor(s) available",
+                    }
+                ),
+                400,
+            )
+        rect = rects[monitor_idx]
+    elif region_raw is not None:
+        region_rect = _parse_region(region_raw)
+        if region_rect is None:
+            return (
+                jsonify(
+                    {
+                        "ok": False,
+                        "error": "region must be 'x,y,w,h' (ints, w and h > 0)",
+                    }
+                ),
+                400,
+            )
+        rect = region_rect
+    img = _grab(rect)
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     buf.seek(0)
     resp = send_file(buf, mimetype="image/png")
     resp.headers["X-Screen-Width"] = str(img.size[0])
     resp.headers["X-Screen-Height"] = str(img.size[1])
+    if monitor_idx is not None:
+        resp.headers["X-Screen-Monitor"] = str(monitor_idx)
+    if region_rect is not None:
+        resp.headers["X-Screen-Region"] = (
+            f"{region_rect['x']},{region_rect['y']},"
+            f"{region_rect['w']},{region_rect['h']}"
+        )
     return resp
+
+
+# ---- input-realism planners (pure; rng is injected) ------------------------
+
+
+def _plan_key_delays(text, rng):
+    """Per-character typing delays (seconds slept AFTER each character).
+
+    Base delay is uniform in [0.04, 0.16]; a character that ends a word
+    (space) adds uniform [0.05, 0.20] and one that ends a sentence
+    (. ! ?) adds uniform [0.10, 0.30]. If the total exceeds the budget
+    max(5.0, len(text) * 0.16) every delay is scaled down proportionally
+    so long pastes stay bounded.
+    """
+    delays = []
+    for ch in text:
+        delay = rng.uniform(0.04, 0.16)
+        if ch == " ":
+            delay += rng.uniform(0.05, 0.20)
+        elif ch in ".!?":
+            delay += rng.uniform(0.10, 0.30)
+        delays.append(delay)
+    budget = max(5.0, len(text) * 0.16)
+    total = sum(delays)
+    if total > budget and total > 0:
+        scale = budget / total
+        delays = [d * scale for d in delays]
+    return delays
+
+
+def _ease_in_out_cubic(t):
+    if t < 0.5:
+        return 4 * t * t * t
+    return 1 - ((-2 * t + 2) ** 3) / 2
+
+
+def _bezier(p0, pc, p1, t):
+    u = 1 - t
+    return (
+        u * u * p0[0] + 2 * u * t * pc[0] + t * t * p1[0],
+        u * u * p0[1] + 2 * u * t * pc[1] + t * t * p1[1],
+    )
+
+
+def _plan_path(x0, y0, x1, y1, rng):
+    """Human-like mouse path: list of (x, y, delay_after) steps.
+
+    Quadratic bezier from start to target, control point pushed off the
+    midpoint perpendicular by up to 8% of the distance, parameter eased
+    with easeInOutCubic. The first ~85% of steps aim at an overshoot
+    point just past the target; the rest settle back to the EXACT
+    target, which is always the final step. Total duration is
+    clamp(0.25 + d/2500, 0.3, 1.1) seconds, spread evenly across steps.
+    A move under 4px is a single step straight to the target.
+    """
+    dx, dy = x1 - x0, y1 - y0
+    dist = math.hypot(dx, dy)
+    total = min(1.1, max(0.3, 0.25 + dist / 2500))
+    if dist < 4:
+        return [(x1, y1, total)]
+    n = max(8, min(60, int(dist / 12)))
+    offset = rng.uniform(-0.08 * dist, 0.08 * dist)
+    ctrl = (
+        (x0 + x1) / 2 + (-dy / dist) * offset,
+        (y0 + y1) / 2 + (dx / dist) * offset,
+    )
+    # Overshoot: extend past the target along the bezier's final
+    # direction (target - control point).
+    fx, fy = x1 - ctrl[0], y1 - ctrl[1]
+    flen = math.hypot(fx, fy)
+    if flen == 0:
+        fx, fy, flen = dx, dy, dist
+    over = min(6.0, 0.02 * dist)
+    over_pt = (x1 + fx / flen * over, y1 + fy / flen * over)
+
+    n_over = max(1, int(round(n * 0.85)))
+    if n_over >= n:
+        n_over = n - 1
+    points = []
+    for i in range(1, n_over + 1):
+        t = _ease_in_out_cubic(i / n_over)
+        points.append(_bezier((x0, y0), ctrl, over_pt, t))
+    n_settle = n - n_over
+    for j in range(1, n_settle + 1):
+        s = j / n_settle
+        points.append(
+            (over_pt[0] + (x1 - over_pt[0]) * s, over_pt[1] + (y1 - over_pt[1]) * s)
+        )
+    points[-1] = (x1, y1)  # exact target, always
+    per = total / n
+    steps = [(px, py, per) for (px, py) in points]
+    # Pin the delay sum to the planned total despite float rounding.
+    steps[-1] = (steps[-1][0], steps[-1][1], total - per * (n - 1))
+    return steps
+
+
+def _move_human(x, y, rng=None):
+    """Move the cursor to (x, y) along a planned human-like path."""
+    rng = rng if rng is not None else random
+    x0, y0 = pyautogui.position()
+    for sx, sy, delay in _plan_path(x0, y0, x, y, rng):
+        pyautogui.moveTo(sx, sy, duration=0)
+        time.sleep(delay)
 
 
 @app.post("/move")
 def move():
     d = request.get_json(force=True)
-    pyautogui.moveTo(int(d["x"]), int(d["y"]), duration=0.2)
+    x, y = int(d["x"]), int(d["y"])
+    if d.get("human", True):
+        _move_human(x, y)
+    else:
+        pyautogui.moveTo(x, y, duration=0.2)
     return {"ok": True}
 
 
 @app.post("/click")
 def click():
     d = request.get_json(force=True)
-    pyautogui.click(x=int(d["x"]), y=int(d["y"]), button=d.get("button", "left"))
+    x, y = int(d["x"]), int(d["y"])
+    button = d.get("button", "left")
+    if d.get("human", True):
+        _move_human(x, y)
+        time.sleep(random.uniform(0.05, 0.15))  # hover before the click
+    else:
+        pyautogui.moveTo(x, y, duration=0.2)
+    pyautogui.click(x=x, y=y, button=button)
     return {"ok": True}
 
 
 @app.post("/type")
 def type_text():
-    d = request.get_json(force=True)
-    pyautogui.write(d["text"], interval=0.02)
-    return {"ok": True}
+    """Type text: clipboard paste for long payloads, jittered keys else.
 
+    {text, method?: "auto"|"paste"|"keys", jitter?: bool}
 
+    Method (wishlist #9): "auto" pastes when the text is over 120 chars
+    and a clipboard backend exists — the paste path saves the current
+    clipboard and restores it afterwards; "paste" forces that path;
+    "keys" forces keystrokes. Any clipboard failure falls back to
+    keystrokes instead of failing the request (see "note").
+
+    Jitter (wishlist #16): the keystroke path types per character with
+    human-band delays from _plan_key_delays unless jitter is false —
+    false restores the original single pyautogui.write(interval=0.02).
+
+    Response: {"ok", "method_used", "chars", "elapsed_seconds",
+    "delays_planned", "planned_seconds"} — the delay fields describe the
+    keystroke plan (0 on the paste path).
+    """
+    refused = _yield_if_active()
+    if refused is not None:
+        return refused
+    d = request.get_json(force=True, silent=True) or {}
+    text = d.get("text")
+    if not isinstance(text, str):
+        return jsonify({"ok": False, "error": "text must be a string"}), 400
+    method = d.get("method", "auto")
+    if method not in ("auto", "paste", "keys"):
+        return jsonify({"ok": False, "error": "method must be auto, paste or keys"}), 400
+    jitter = bool(d.get("jitter", True))
+    started = time.monotonic()
+    note = None
+    delays = []
+
+    typed = 0
+
+    def _keys():
+        nonlocal delays, typed
+        if jitter:
+            delays = _plan_key_delays(text, random)
+            for ch, delay in zip(text, delays):
+                # R4 (F7): re-check the yield every 12 chars — a long
+                # type gated only at the door lets relay keystrokes
+                # and the owner's interleave for the op's whole
+                # duration. On yield, stop and let type_text report
+                # the partial honestly; the caller re-submits the
+                # remainder.
+                if typed and typed % 12 == 0 and _yield_if_active() is not None:
+                    break
+                pyautogui.write(ch)
+                time.sleep(delay)
+                typed += 1
+        else:
+            pyautogui.write(text, interval=0.02)
+            typed = len(text)
+        return "keys"
+
+    def _paste():
+        backend = _clipboard_backend()
+        if backend is None:
+            raise RuntimeError("clipboard unavailable on this host")
+        saved, readable = None, False
+        try:
+            saved = backend.get_text()
+            readable = True
+        except Exception:
+            pass  # unreadable clipboard: paste anyway, skip the restore
+        try:
+            backend.set_text(text)
+            pyautogui.hotkey("ctrl", "v")
+            if readable:
+                # Give the target app a beat to consume the paste before the
+                # previous clipboard contents go back.
+                time.sleep(0.1)
+        finally:
+            if readable and saved is not None:
+                try:
+                    backend.set_text(saved)
+                except Exception:
+                    pass
+        return "paste"
+
+    if method == "keys":
+        method_used = _keys()
+    elif method == "paste":
+        try:
+            method_used = _paste()
+        except Exception as exc:
+            note = f"paste requested but unavailable ({exc}); used keys"
+            method_used = _keys()
+    else:  # auto
+        if len(text) > 120 and _clipboard_backend() is not None:
+            try:
+                method_used = _paste()
+            except Exception as exc:
+                note = f"paste failed ({exc}); used keys"
+                method_used = _keys()
+        else:
+            method_used = _keys()
+    if method_used == "keys" and typed < len(text):
+        return (
+            jsonify(
+                {
+                    "ok": False,
+                    # Deliberately NOT yield-classified (error_code is
+                    # not "yield"/"locked", and the prose avoids the
+                    # legacy substrings): some chars already landed, so
+                    # a queued retry of the whole payload would
+                    # double-type the prefix. The receipt settles
+                    # failed with chars_typed; the caller re-submits
+                    # text[chars_typed:].
+                    "error": f"owner became active — typing aborted at char {typed}",
+                    "error_code": "type_aborted",
+                    "aborted": True,
+                    "chars_typed": typed,
+                    "chars": len(text),
+                    "method_used": "keys",
+                    "elapsed_seconds": round(time.monotonic() - started, 3),
+                    "delays_planned": len(delays),
+                    "planned_seconds": sum(delays[:typed]),
+                }
+            ),
+            409,
+        )
+    resp = {
+        "ok": True,
+        "method_used": method_used,
+        "chars": len(text),
+        "elapsed_seconds": round(time.monotonic() - started, 3),
+        "delays_planned": len(delays),
+        "planned_seconds": sum(delays),
+    }
+    if note:
+        resp["note"] = note
+    return jsonify(resp)
 @app.post("/key")
 def key():
     d = request.get_json(force=True)
@@ -240,6 +827,859 @@ def scroll():
     d = request.get_json(force=True)
     pyautogui.scroll(int(d.get("clicks", 3)))
     return {"ok": True}
+
+
+# ---- window titles (wishlist #5) ------------------------------------------
+
+@app.get("/window_titles")
+def window_titles():
+    try:
+        titles = pyautogui.getAllTitles()
+    except Exception:
+        titles = []
+    return {"ok": True, "titles": list(titles) if titles else []}
+
+
+# ---- lock / idle state (wishlist #13) --------------------------------------
+
+# ---- probe health (R5, F10) -------------------------------------------
+# The yield trusts the lock/idle probe completely: a (None, None)
+# result reads as "owner inactive", so a silently broken probe (a
+# Windows change, a permissions shift, a bad cast) disables the
+# owner's override with no signal anywhere. Count consecutive FULL
+# failures on Windows; /state reports probe_ok so the degradation is
+# a visible state (it rides to the gateway's /v1/info pc_state), and
+# the third consecutive failure logs a line to the app window — the
+# channel the owner actually sees. Whether the yield should fail
+# CLOSED on a degraded probe is the owner's policy call; silently
+# failing open was the one option that had to go.
+_probe_failures = 0
+_probe_degraded_logged = False
+
+
+def _probe_lock_state():
+    """(locked, idle_seconds) with probe-health accounting (R5, F10).
+
+    Tests monkeypatch THIS function (the seam); the raw Windows probe
+    is _probe_lock_state_raw.
+    """
+    global _probe_failures, _probe_degraded_logged
+    result = _probe_lock_state_raw()
+    if os.name == "nt":
+        locked, idle_seconds = result
+        if locked is None and idle_seconds is None:
+            _probe_failures += 1
+            if _probe_failures >= 3 and not _probe_degraded_logged:
+                _probe_degraded_logged = True
+                log_line(
+                    "YIELD SENSOR DEGRADED: the lock/idle probe has "
+                    "failed 3 times in a row - act yields cannot be "
+                    "trusted until it recovers"
+                )
+                file_log("probe degraded: 3 consecutive lock/idle probe failures")
+        else:
+            _probe_failures = 0
+            _probe_degraded_logged = False
+    return result
+
+
+def _probe_health():
+    return {"probe_failures": _probe_failures, "probe_ok": _probe_failures < 3}
+
+
+def _probe_lock_state_raw():
+    """Probe (locked, idle_seconds) on Windows; (None, None) elsewhere.
+
+    Never raises: any failure returns None for the affected value. The
+    Windows calls live here so tests can monkeypatch _probe_lock_state.
+    """
+    if os.name != "nt":
+        return (None, None)
+    locked = None
+    idle_seconds = None
+    try:
+        user32 = ctypes.windll.user32  # type: ignore[attr-defined]
+        # Locked check: the input desktop is the Winlogon desktop when locked.
+        try:
+            handle = user32.OpenInputDesktop(0, False, 0x0100)
+            if handle:
+                try:
+                    buf = ctypes.create_unicode_buffer(256)
+                    needed = ctypes.c_ulong(0)
+                    if user32.GetUserObjectInformationW(
+                        handle, 2, buf, ctypes.sizeof(buf), ctypes.byref(needed)
+                    ):
+                        locked = buf.value.lower() == "winlogon"
+                finally:
+                    try:
+                        user32.CloseDesktop(handle)
+                    except Exception:
+                        pass
+        except Exception:
+            locked = None
+        # Idle check: time since last input.
+        try:
+            kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+
+            class _LastInputInfo(ctypes.Structure):
+                _fields_ = [("cbSize", ctypes.c_uint), ("dwTime", ctypes.c_ulong)]
+
+            info = _LastInputInfo()
+            info.cbSize = ctypes.sizeof(_LastInputInfo)
+            if user32.GetLastInputInfo(ctypes.byref(info)):
+                tick = kernel32.GetTickCount()
+                idle_ms = (int(tick) - int(info.dwTime)) & 0xFFFFFFFF
+                idle_seconds = idle_ms / 1000.0
+        except Exception:
+            idle_seconds = None
+    except Exception:
+        return (locked, idle_seconds)
+    return (locked, idle_seconds)
+
+
+@app.get("/state")
+def state():
+    platform = "windows" if os.name == "nt" else "other"
+    try:
+        locked, idle_seconds = _probe_lock_state()
+    except Exception:
+        locked, idle_seconds = None, None
+    body = {"ok": True, "platform": platform, "locked": locked, "idle_seconds": idle_seconds}
+    body.update(_probe_health())
+    return body
+
+
+# ---- file-drop (wishlist #2) ------------------------------------------------
+# Allowlist: folders from the hands config file key "filedrop_dirs" (list
+# of absolute paths) OR env HANDS_FILEDROP_DIRS (os.pathsep-separated) —
+# env wins if set. Default empty -> every filedrop endpoint returns 501.
+# File contents are never logged.
+
+_FILEDROP_CHUNK_MAX = 524288
+_FILEDROP_MAX_SIZE = 16 * 1024 * 1024
+_FILEDROP_TTL = 600  # uploads older than 10 minutes are purged lazily
+
+_uploads: dict = {}
+_uploads_lock = threading.Lock()
+
+
+def _accept_drop_dir(p):
+    """Absolute allowlist entries only, compared case-insensitively later.
+
+    Relative entries are rejected (not realpath'd against the cwd).
+    Exact path match is unchanged — this is not a prefix match.
+    """
+    text = str(p).strip()
+    if not text or not os.path.isabs(text):
+        return None
+    return os.path.normcase(os.path.realpath(text))
+
+
+def _filedrop_dirs():
+    env = os.environ.get("HANDS_FILEDROP_DIRS")
+    if env is not None:
+        if not env.strip():
+            return []
+        return [d for d in (_accept_drop_dir(p) for p in env.split(os.pathsep)) if d]
+    cfg = _load_config()
+    dirs = cfg.get("filedrop_dirs") if isinstance(cfg, dict) else None
+    if not isinstance(dirs, list):
+        return []
+    return [d for d in (_accept_drop_dir(p) for p in dirs) if d]
+
+
+def _purge_uploads():
+    now = time.time()
+    with _uploads_lock:
+        stale = [uid for uid, up in _uploads.items() if now - up["created_at"] > _FILEDROP_TTL]
+        for uid in stale:
+            del _uploads[uid]
+
+
+def _filedrop_gate():
+    """Shared preamble: purge stale uploads, enforce configuration."""
+    _purge_uploads()
+    if not _filedrop_dirs():
+        return (jsonify({"ok": False, "error": "file-drop not configured on the hands"}), 501)
+    return None
+
+
+@app.post("/filedrop/begin")
+def filedrop_begin():
+    gate_resp = _filedrop_gate()
+    if gate_resp is not None:
+        return gate_resp
+    body = request.get_json(force=True, silent=True) or {}
+    folder = body.get("folder")
+    filename = body.get("filename")
+    size = body.get("size")
+    sha256 = body.get("sha256")
+    if not isinstance(folder, str) or not folder:
+        return jsonify({"ok": False, "error": "folder required"}), 400
+    real_folder = os.path.normcase(os.path.realpath(folder))
+    if real_folder not in _filedrop_dirs():
+        return jsonify({"ok": False, "error": "folder not in file-drop allowlist"}), 403
+    if (
+        not isinstance(filename, str)
+        or not filename
+        or "/" in filename
+        or "\\" in filename
+        or ".." in filename
+    ):
+        return jsonify({"ok": False, "error": "filename must be a bare name"}), 400
+    if isinstance(size, bool) or not isinstance(size, int) or size < 1 or size > _FILEDROP_MAX_SIZE:
+        return jsonify({"ok": False, "error": "size must be an integer in 1..16MB"}), 400
+    if not isinstance(sha256, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", sha256):
+        return jsonify({"ok": False, "error": "sha256 must be a 64-hex string"}), 400
+    upload_id = uuid.uuid4().hex
+    with _uploads_lock:
+        _uploads[upload_id] = {
+            "id": upload_id,
+            "dir": real_folder,
+            "filename": filename,
+            "size": size,
+            "sha256": sha256.lower(),
+            "buffer": bytearray(),
+            "created_at": time.time(),
+        }
+    return jsonify({"ok": True, "upload_id": upload_id, "chunk_max": _FILEDROP_CHUNK_MAX})
+
+
+@app.post("/filedrop/chunk")
+def filedrop_chunk():
+    gate_resp = _filedrop_gate()
+    if gate_resp is not None:
+        return gate_resp
+    body = request.get_json(force=True, silent=True) or {}
+    upload_id = body.get("upload_id")
+    offset = body.get("offset")
+    data_b64 = body.get("data_b64")
+    with _uploads_lock:
+        upload = _uploads.get(upload_id)
+        if upload is None or upload.get("closed"):
+            return jsonify({"ok": False, "error": "unknown upload_id"}), 404
+        expected = len(upload["buffer"])
+        if isinstance(offset, bool) or not isinstance(offset, int) or offset != expected:
+            return (
+                jsonify(
+                    {
+                        "ok": False,
+                        "error": "offset mismatch",
+                        "expected_offset": expected,
+                        "expected": expected,
+                    }
+                ),
+                409,
+            )
+        if not isinstance(data_b64, str):
+            return jsonify({"ok": False, "error": "data_b64 required"}), 400
+        try:
+            chunk = base64.b64decode(data_b64, validate=True)
+        except (binascii.Error, ValueError):
+            return jsonify({"ok": False, "error": "data_b64 is not valid base64"}), 400
+        if expected + len(chunk) > upload["size"]:
+            return jsonify({"ok": False, "error": "chunk exceeds declared size"}), 400
+        upload["buffer"].extend(chunk)
+        received = len(upload["buffer"])
+    return jsonify({"ok": True, "received": received, "offset": received})
+
+
+@app.post("/filedrop/commit")
+def filedrop_commit():
+    gate_resp = _filedrop_gate()
+    if gate_resp is not None:
+        return gate_resp
+    body = request.get_json(force=True, silent=True) or {}
+    upload_id = body.get("upload_id")
+    with _uploads_lock:
+        upload = _uploads.get(upload_id)
+        if upload is None or upload.get("closed"):
+            return jsonify({"ok": False, "error": "unknown upload_id"}), 404
+        # Close under the same lock as chunk append so a concurrent chunk
+        # cannot extend a buffer this commit already copied.
+        data = bytes(upload["buffer"])
+        meta_size = upload["size"]
+        meta_sha = upload["sha256"]
+        meta_dir = upload["dir"]
+        meta_name = upload["filename"]
+        upload["closed"] = True
+    if len(data) != meta_size:
+        with _uploads_lock:
+            _uploads.pop(upload_id, None)
+        return jsonify({"ok": False, "error": "incomplete upload: size mismatch"}), 400
+    digest = hashlib.sha256(data).hexdigest()
+    if digest != meta_sha:
+        with _uploads_lock:
+            _uploads.pop(upload_id, None)
+        return jsonify({"ok": False, "error": "sha256 mismatch"}), 400
+    final_path = os.path.join(meta_dir, meta_name)
+    tmp_path = None
+    try:
+        fd, tmp_path = tempfile.mkstemp(dir=meta_dir, prefix=".filedrop-", suffix=".tmp")
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
+        os.replace(tmp_path, final_path)
+        tmp_path = None
+    except OSError as exc:
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+        with _uploads_lock:
+            upload = _uploads.get(upload_id)
+            if upload is not None:
+                upload["closed"] = False
+        return jsonify({"ok": False, "error": f"write failed: {exc}"}), 500
+    with _uploads_lock:
+        _uploads.pop(upload_id, None)
+    return jsonify({"ok": True, "path": final_path, "size": len(data), "sha256": digest})
+
+
+@app.post("/filedrop/abort")
+def filedrop_abort():
+    gate_resp = _filedrop_gate()
+    if gate_resp is not None:
+        return gate_resp
+    body = request.get_json(force=True, silent=True) or {}
+    upload_id = body.get("upload_id")
+    with _uploads_lock:
+        existed = _uploads.pop(upload_id, None) is not None
+    if not existed:
+        return jsonify({"ok": False, "error": "unknown upload_id"}), 404
+    return jsonify({"ok": True})
+# ------------------------------------------------- V3-P4: chords + break
+
+@app.post("/hotkey")
+def hotkey():
+    """Press a true key chord, e.g. {"keys": ["ctrl", "l"]}."""
+    d = request.get_json(force=True, silent=True) or {}
+    keys = d.get("keys")
+    if (
+        not isinstance(keys, list)
+        or not keys
+        or not all(isinstance(k, str) and k.strip() for k in keys)
+    ):
+        return jsonify({"ok": False, "error": "keys must be a non-empty list of strings"}), 400
+    pyautogui.hotkey(*keys)
+    return {"ok": True}
+
+
+@app.post("/break")
+def break_():
+    """Send Ctrl+C as a true chord, 1..3 times (default 1), 0.15s apart.
+
+    Root cause this fixes: the /key op calls pyautogui.press() with ONE
+    key name, so sending the string "ctrl+c" to /key was never a real
+    chord — press() treats it as a single (nonexistent) key name and
+    nothing was interrupted. A long-running / polling foreground process
+    therefore could not be stopped through the relay. /break (and
+    /hotkey) use pyautogui.hotkey(), which presses the keys together,
+    so the interrupt actually lands.
+    """
+    refused = _yield_if_active()
+    if refused is not None:
+        return refused
+    d = request.get_json(force=True, silent=True) or {}
+    times = d.get("times", 1)
+    if isinstance(times, bool) or not isinstance(times, int) or not 1 <= times <= 3:
+        return jsonify({"ok": False, "error": "times must be an integer 1..3"}), 400
+    for i in range(times):
+        pyautogui.hotkey("ctrl", "c")
+        if i < times - 1:
+            time.sleep(0.15)
+    return {"ok": True, "times": times}
+
+
+# ------------------------------------------------------- V3-P4: dragging
+
+@app.post("/drag")
+def drag():
+    """Press the mouse button at (x1, y1), drag to (x2, y2), release."""
+    refused = _yield_if_active()
+    if refused is not None:
+        return refused
+    d = request.get_json(force=True, silent=True) or {}
+    try:
+        x1, y1, x2, y2 = (int(d[k]) for k in ("x1", "y1", "x2", "y2"))
+    except (KeyError, TypeError, ValueError):
+        return jsonify({"ok": False, "error": "x1, y1, x2, y2 must be integers"}), 400
+    button = d.get("button", "left")
+    if button not in ("left", "middle", "right"):
+        return jsonify({"ok": False, "error": "button must be left, middle or right"}), 400
+    try:
+        duration = float(d["duration"]) if d.get("duration") is not None else 0.4
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "duration must be a number"}), 400
+    pyautogui.moveTo(x1, y1)
+    down = False
+    try:
+        # Mark first so a mouseDown/move failure still releases the button.
+        # duration 0 is real; do not coerce it with `or 0.4`.
+        down = True
+        pyautogui.mouseDown(button=button)
+        pyautogui.moveTo(x2, y2, duration=duration)
+    finally:
+        if down:
+            pyautogui.mouseUp(button=button)
+    return {"ok": True}
+
+
+# ------------------------------------------- V3-P4: windows + focus (#3)
+
+def _monitor_for_bounds(bounds, rects=None):
+    """Index of the monitor rect containing the window's centre, else None."""
+    if rects is None:
+        rects = _monitor_rects()
+    cx = bounds["x"] + bounds["w"] / 2
+    cy = bounds["y"] + bounds["h"] / 2
+    for i, r in enumerate(rects):
+        if r["x"] <= cx < r["x"] + r["w"] and r["y"] <= cy < r["y"] + r["h"]:
+            return i
+    return None
+
+
+def _process_name(pid):
+    """Process image basename for a pid, or None — never raises."""
+    if not pid:
+        return None
+    try:
+        import psutil
+
+        return psutil.Process(int(pid)).name() or None
+    except Exception:
+        pass
+    if os.name != "nt":
+        return None
+    try:
+        kernel32 = ctypes.windll.kernel32
+        kernel32.OpenProcess.restype = ctypes.c_void_p
+        kernel32.QueryFullProcessImageNameW.argtypes = [
+            ctypes.c_void_p, ctypes.c_ulong,
+            ctypes.POINTER(ctypes.c_wchar), ctypes.POINTER(ctypes.c_ulong),
+        ]
+        handle = kernel32.OpenProcess(0x1000, False, int(pid))  # QUERY_LIMITED
+        if not handle:
+            return None
+        try:
+            size = ctypes.c_ulong(1024)
+            buf = ctypes.create_unicode_buffer(size.value)
+            if kernel32.QueryFullProcessImageNameW(handle, 0, buf, ctypes.byref(size)):
+                return os.path.basename(buf.value) or None
+            return None
+        finally:
+            kernel32.CloseHandle(handle)
+    except Exception:
+        return None
+
+
+def _enum_windows():
+    """Raw open-window dicts (the seam tests stub).
+
+    Each dict carries title/process/pid/bounds/monitor/visible/focused
+    plus a private "_hwnd" on Windows for _activate_window(). Returns []
+    off Windows. Falls back to pyautogui.getAllWindows() (process/pid
+    null) when pywin32 is unavailable.
+    """
+    if os.name != "nt":
+        return []
+    rects = _monitor_rects()
+    try:
+        import win32gui
+        import win32process
+    except Exception:
+        wins = []
+        try:
+            for w in pyautogui.getAllWindows():
+                title = getattr(w, "title", "") or ""
+                if not title:
+                    continue
+                bounds = {
+                    "x": int(getattr(w, "left", 0) or 0),
+                    "y": int(getattr(w, "top", 0) or 0),
+                    "w": int(getattr(w, "width", 0) or 0),
+                    "h": int(getattr(w, "height", 0) or 0),
+                }
+                wins.append({
+                    "title": title, "process": None, "pid": None,
+                    "bounds": bounds,
+                    "monitor": _monitor_for_bounds(bounds, rects),
+                    "visible": bool(getattr(w, "visible", True)),
+                    "focused": bool(getattr(w, "isActive", False)),
+                    "_window": w,
+                })
+        except Exception:
+            return []
+        return wins
+    wins = []
+    try:
+        foreground = win32gui.GetForegroundWindow()
+    except Exception:
+        foreground = None
+
+    def _cb(hwnd, _extra):
+        try:
+            title = win32gui.GetWindowText(hwnd)
+            if not title:
+                return True
+            x, y, x2, y2 = win32gui.GetWindowRect(hwnd)
+            bounds = {"x": int(x), "y": int(y), "w": int(x2 - x), "h": int(y2 - y)}
+            try:
+                _tid, pid = win32process.GetWindowThreadProcessId(hwnd)
+            except Exception:
+                pid = None
+            wins.append({
+                "title": title,
+                "process": _process_name(pid),
+                "pid": int(pid) if pid else None,
+                "bounds": bounds,
+                "monitor": _monitor_for_bounds(bounds, rects),
+                "visible": bool(win32gui.IsWindowVisible(hwnd)),
+                "focused": hwnd == foreground,
+                "_hwnd": hwnd,
+            })
+        except Exception:
+            pass
+        return True
+
+    try:
+        win32gui.EnumWindows(_cb, None)
+    except Exception:
+        return wins
+    return wins
+
+
+def _shape_window(win):
+    """Raw _enum_windows() dict -> the public window shape."""
+    b = win.get("bounds") or {}
+    return {
+        "title": win.get("title") or "",
+        "process": win.get("process"),
+        "pid": win.get("pid"),
+        "bounds": {
+            "x": int(b.get("x", 0)), "y": int(b.get("y", 0)),
+            "w": int(b.get("w", 0)), "h": int(b.get("h", 0)),
+        },
+        "monitor": win.get("monitor"),
+        "visible": bool(win.get("visible", True)),
+        "focused": bool(win.get("focused", False)),
+    }
+
+
+def _windows_supported():
+    return os.name == "nt"
+
+
+def _activate_window(win):
+    """Bring one raw window dict to the foreground (the seam tests stub).
+
+    On Windows: restore first if minimised, then SetForegroundWindow.
+    The well-known foreground-lock workaround (AttachThreadInput) is
+    deliberately out of scope here — see docs/VERIFICATION.md.
+    Returns True only when activation was applied.
+    """
+    if os.name != "nt":
+        return False
+    try:
+        import win32con
+        import win32gui
+
+        hwnd = win.get("_hwnd")
+        if hwnd is None:
+            fallback = win.get("_window")
+            if fallback is not None:
+                try:
+                    if getattr(fallback, "isMinimized", False):
+                        fallback.restore()
+                    fallback.activate()
+                    return True
+                except Exception:
+                    return False
+            return False
+        if win32gui.IsIconic(hwnd):
+            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+        win32gui.SetForegroundWindow(hwnd)
+        return True
+    except Exception:
+        return False  # foreground lock can refuse; caller must not claim ok
+
+
+@app.get("/windows")
+def windows():
+    raw = _enum_windows()
+    resp = {"ok": True, "windows": [_shape_window(w) for w in raw]}
+    if not _windows_supported() and not raw:
+        resp["supported"] = False
+    return jsonify(resp)
+
+
+@app.post("/focus")
+def focus():
+    """Focus the first window whose title matches {title}.
+
+    Substring, case-insensitive by default; exact=true requires a full
+    (case-insensitive) title match. No match -> 404.
+    """
+    d = request.get_json(force=True, silent=True) or {}
+    title = d.get("title")
+    if not isinstance(title, str) or not title.strip():
+        return jsonify({"ok": False, "error": "title must be a non-empty string"}), 400
+    exact = bool(d.get("exact", False))
+    needle = title.casefold()
+    refused = _yield_if_active()
+    if refused is not None:
+        return refused
+    for win in _enum_windows():
+        candidate = (win.get("title") or "").casefold()
+        matched = candidate == needle if exact else needle in candidate
+        if matched:
+            if not _activate_window(win):
+                return (
+                    jsonify(
+                        {
+                            "ok": False,
+                            "error": "activation failed",
+                            "window": _shape_window(win),
+                        }
+                    ),
+                    409,
+                )
+            return jsonify({"ok": True, "window": _shape_window(win)})
+    return jsonify({"ok": False, "error": f"no window matching {title!r}"}), 404
+
+
+# ---------------------------------------------- V3-P4: clipboard (#6)
+
+CF_UNICODETEXT = 13
+
+
+class _WindowsClipboardBackend:
+    """Clipboard via ctypes user32/kernel32 (CF_UNICODETEXT)."""
+
+    def _setup(self):
+        user32 = ctypes.windll.user32
+        kernel32 = ctypes.windll.kernel32
+        user32.GetClipboardData.restype = ctypes.c_void_p
+        user32.SetClipboardData.restype = ctypes.c_void_p
+        user32.SetClipboardData.argtypes = [ctypes.c_uint, ctypes.c_void_p]
+        kernel32.GlobalAlloc.restype = ctypes.c_void_p
+        kernel32.GlobalLock.restype = ctypes.c_void_p
+        kernel32.GlobalLock.argtypes = [ctypes.c_void_p]
+        return user32, kernel32
+
+    def get_text(self):
+        user32, kernel32 = self._setup()
+        if not user32.OpenClipboard(None):
+            raise OSError("OpenClipboard failed")
+        try:
+            handle = user32.GetClipboardData(CF_UNICODETEXT)
+            if not handle:
+                return ""
+            ptr = kernel32.GlobalLock(handle)
+            if not ptr:
+                return ""
+            try:
+                return ctypes.wstring_at(ptr)
+            finally:
+                kernel32.GlobalUnlock(handle)
+        finally:
+            user32.CloseClipboard()
+
+    def set_text(self, text):
+        user32, kernel32 = self._setup()
+        data = ctypes.create_unicode_buffer(text)
+        if not user32.OpenClipboard(None):
+            raise OSError("OpenClipboard failed")
+        try:
+            user32.EmptyClipboard()
+            handle = kernel32.GlobalAlloc(0x0002, data.size)  # GMEM_MOVEABLE
+            if not handle:
+                raise OSError("GlobalAlloc failed")
+            ptr = kernel32.GlobalLock(handle)
+            if not ptr:
+                raise OSError("GlobalLock failed")
+            try:
+                ctypes.memmove(ptr, data, data.size)
+            finally:
+                kernel32.GlobalUnlock(handle)
+            if not user32.SetClipboardData(CF_UNICODETEXT, handle):
+                raise OSError("SetClipboardData failed")
+        finally:
+            user32.CloseClipboard()
+
+
+class _PyperclipBackend:
+    def __init__(self, mod):
+        self._mod = mod
+
+    def get_text(self):
+        return self._mod.paste() or ""
+
+    def set_text(self, text):
+        self._mod.copy(text)
+
+
+def _clipboard_backend():
+    """Clipboard backend seam: Windows ctypes, else pyperclip, else None."""
+    if os.name == "nt":
+        return _WindowsClipboardBackend()
+    try:
+        import pyperclip
+
+        return _PyperclipBackend(pyperclip)
+    except Exception:
+        return None
+
+
+@app.post("/clipboard/set")
+def clipboard_set():
+    d = request.get_json(force=True, silent=True) or {}
+    text = d.get("text")
+    if not isinstance(text, str):
+        return jsonify({"ok": False, "error": "text must be a string"}), 400
+    backend = _clipboard_backend()
+    if backend is None:
+        return jsonify({"ok": False, "error": "clipboard unavailable on this host"}), 501
+    try:
+        backend.set_text(text)
+    except Exception as exc:
+        return jsonify({"ok": False, "error": f"clipboard set failed: {exc}"}), 502
+    return {"ok": True}
+
+
+@app.get("/clipboard/get")
+def clipboard_get():
+    """Read the clipboard. Sensitive: same X-Secret gate as every hands
+    route, and every read is logged (below) so the operator sees it in
+    the app window's log area."""
+    backend = _clipboard_backend()
+    if backend is None:
+        return jsonify({"ok": False, "error": "clipboard unavailable on this host"}), 501
+    try:
+        text = backend.get_text()
+    except Exception as exc:
+        return jsonify({"ok": False, "error": f"clipboard read failed: {exc}"}), 502
+    log_line("clipboard read via relay")
+    return jsonify({"ok": True, "text": text if isinstance(text, str) else ""})
+# ---- elevation bridge ----------------------------------------------------
+# The agent may only NAME a request from the operator's pre-configured
+# allowlist (hands config file key "elevate_allowlist":
+# {name: {"exe": "...", "args": "..."}} — static strings from the
+# operator's config, never from the request). Nothing runs from here:
+# the request is queued for the app window, and only the person at the
+# PC clicking Approve there resolves it (via _resolve_elevation). There
+# is deliberately no auto-approve path, no timeout-approve, and no
+# config flag that approves.
+
+ELEVATE_TTL_SECONDS = 120
+
+elevate_queue: "queue.Queue[dict]" = queue.Queue()
+_elevations: dict = {}
+_elevations_lock = threading.Lock()
+
+
+def _elevate_allowlist() -> dict:
+    """The operator-configured elevation allowlist (name -> exe/args)."""
+    try:
+        allow = _cfg.get("elevate_allowlist") if isinstance(_cfg, dict) else None
+    except Exception:
+        return {}
+    return allow if isinstance(allow, dict) else {}
+
+
+def _run_elevated(entry) -> bool:
+    """Windows seam: launch entry's exe/args elevated via UAC (runas).
+
+    Returns True only when ShellExecuteW reports success (> 32).
+    Off-Windows or on any error, returns False.
+    """
+    if os.name != "nt":
+        return False
+    try:
+        shell32 = ctypes.windll.shell32
+        # HINSTANCE is pointer-sized. The default c_int restype truncates it
+        # and can record launched vs launch_failed backwards.
+        shell32.ShellExecuteW.restype = ctypes.c_void_p
+        result = shell32.ShellExecuteW(
+            None, "runas", entry.get("exe") or "", entry.get("args") or None, None, 1
+        )
+        code = 0 if result is None else int(result)
+        return code > 32
+    except Exception:
+        return False
+
+
+def _expire_if_stale(entry) -> None:
+    if entry.get("state") == "pending" and (
+        time.time() - float(entry.get("created_at") or 0) > ELEVATE_TTL_SECONDS
+    ):
+        entry["state"] = "expired"
+
+
+def _resolve_elevation(eid, approved) -> bool:
+    """Resolve a pending request. Called only by the app's dialog.
+
+    Returns True when a pending request was resolved, False for an
+    unknown or already-resolved/expired id (no-op).
+    """
+    with _elevations_lock:
+        entry = _elevations.get(eid)
+        if entry is None or entry.get("state") != "pending":
+            return False
+        _expire_if_stale(entry)
+        if entry.get("state") != "pending":
+            return False
+        if not approved:
+            entry["state"] = "denied"
+            return True
+        try:
+            launched = bool(_run_elevated(entry))
+        except Exception:
+            launched = False
+        entry["state"] = "launched" if launched else "launch_failed"
+        return True
+
+
+@app.post("/elevate")
+def elevate():
+    d = request.get_json(force=True, silent=True) or {}
+    name = d.get("name") or ""
+    allow = _elevate_allowlist()
+    if not allow:
+        return jsonify({"ok": False, "error": "elevation not configured"}), 501
+    spec_entry = allow.get(name)
+    if not isinstance(spec_entry, dict):
+        return jsonify({"ok": False, "error": "unknown elevation name"}), 404
+    eid = uuid.uuid4().hex
+    entry = {
+        "id": eid,
+        "name": name,
+        "exe": str(spec_entry.get("exe") or ""),
+        "args": str(spec_entry.get("args") or ""),
+        "state": "pending",
+        "created_at": time.time(),
+    }
+    with _elevations_lock:
+        _elevations[eid] = entry
+    elevate_queue.put(dict(entry))
+    return jsonify({"ok": True, "id": eid, "state": "pending"})
+
+
+@app.get("/elevate/<eid>")
+def elevate_status(eid):
+    with _elevations_lock:
+        entry = _elevations.get(eid)
+        if entry is None:
+            return jsonify({"ok": False, "error": "unknown elevation id"}), 404
+        _expire_if_stale(entry)
+        return jsonify(
+            {
+                "ok": True,
+                "id": entry["id"],
+                "name": entry["name"],
+                "state": entry["state"],
+            }
+        )
 
 
 # ---------------------------------------------------------------- UI glue
@@ -325,7 +1765,16 @@ class RelayApp:
         log_line(f"session secret generated ({len(SHARED_SECRET)} chars)")
 
         threading.Thread(target=self._run_server, daemon=True).start()
-        threading.Thread(target=self._run_tunnel, daemon=True).start()
+        # A public tunnel is a fallback, never the default (ROADMAP):
+        # it starts only on an explicit opt-in.
+        if (os.environ.get("HANDS_ENABLE_TUNNEL") or "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+        ):
+            threading.Thread(target=self._run_tunnel, daemon=True).start()
+        else:
+            log_line("public tunnel disabled (set HANDS_ENABLE_TUNNEL=1 to opt in)")
         self._poll()
 
     def _set_icon(self):

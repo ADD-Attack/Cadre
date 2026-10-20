@@ -21,6 +21,11 @@ services:
     image: muse-relay-parser
     container_name: muse-relay-parser
     restart: unless-stopped
+    environment:
+      # Inside the compose network the gateway container reaches the
+      # parser over the container interface; outside Docker the parser
+      # defaults to loopback-only (it has no auth of its own).
+      - PARSER_HOST=0.0.0.0
     ports:
       - "127.0.0.1:5011:5011"
     volumes:
