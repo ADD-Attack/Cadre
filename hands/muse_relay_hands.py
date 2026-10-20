@@ -840,6 +840,60 @@ def window_titles():
     return {"ok": True, "titles": list(titles) if titles else []}
 
 
+def _process_snapshot(pid):
+    """Read-only Windows process probe; access errors are NOT process exit.
+
+    Creation time identifies the process across PID reuse. Wait on the same
+    opened handle used to obtain that identity; never query two PID instances.
+    """
+    if os.name != "nt":
+        raise NotImplementedError("process probing requires Windows")
+    from ctypes import wintypes
+
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel.OpenProcess.restype = wintypes.HANDLE
+    kernel.GetProcessTimes.argtypes = [wintypes.HANDLE] + [
+        ctypes.POINTER(wintypes.FILETIME)
+    ] * 4
+    kernel.GetProcessTimes.restype = wintypes.BOOL
+    kernel.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+    kernel.WaitForSingleObject.restype = wintypes.DWORD
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel.CloseHandle.restype = wintypes.BOOL
+    handle = kernel.OpenProcess(0x00100000 | 0x1000, False, pid)
+    if not handle:
+        error = ctypes.get_last_error()
+        if error == 87:  # ERROR_INVALID_PARAMETER: no such PID
+            return {"running": False, "instance": None}
+        raise OSError(error, "OpenProcess failed")
+    try:
+        times = [wintypes.FILETIME() for _ in range(4)]
+        if not kernel.GetProcessTimes(handle, *(ctypes.byref(t) for t in times)):
+            raise OSError(ctypes.get_last_error(), "GetProcessTimes failed")
+        result = kernel.WaitForSingleObject(handle, 0)
+        if result not in (0, 258):  # WAIT_OBJECT_0 / WAIT_TIMEOUT
+            raise OSError(ctypes.get_last_error(), "process wait failed")
+        created = (int(times[0].dwHighDateTime) << 32) | int(times[0].dwLowDateTime)
+        return {"running": result == 258, "instance": str(created)}
+    finally:
+        kernel.CloseHandle(handle)
+
+
+@app.get("/process/<int:pid>")
+def process_state(pid):
+    """Authenticated process-exit observation; no process control."""
+    if not 0 < pid <= 0xFFFFFFFF:
+        return jsonify({"ok": False, "error": "pid must be a positive DWORD"}), 400
+    try:
+        snapshot = _process_snapshot(pid)
+    except NotImplementedError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 501
+    except OSError:
+        return jsonify({"ok": False, "error": "process probe failed"}), 502
+    return jsonify({"ok": True, "pid": pid, **snapshot})
+
+
 # ---- lock / idle state (wishlist #13) --------------------------------------
 
 # ---- probe health (R5, F10) -------------------------------------------

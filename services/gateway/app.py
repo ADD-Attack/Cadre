@@ -1473,7 +1473,37 @@ def _clamp_number(value, default, lo, hi):
     return max(lo, min(num, hi))
 
 
-_WAIT_TYPES = {"screen_hash_change", "screen_region_change", "window_title", "parser_model_loaded"}
+def _check_process_exited(pid, state):
+    """Pin the first observed process instance; a reused PID is not that process."""
+    try:
+        response = requests.get(
+            f"{HANDS_URL}/process/{pid}", headers=_hands_headers(), timeout=5
+        )
+        if response.status_code != 200:
+            status = 501 if response.status_code == 501 else 502
+            raise _WaitFetchError(
+                (jsonify({"ok": False, "error": "process probe unavailable",
+                          "hands_status": response.status_code}), status)
+            )
+        body = response.json()
+        if (not isinstance(body, dict) or body.get("ok") is not True
+                or body.get("pid") != pid or type(body.get("running")) is not bool):
+            raise ValueError("invalid process snapshot")
+        if not body["running"]:
+            return True
+        instance = body.get("instance")
+        if not isinstance(instance, str) or not instance:
+            raise ValueError("missing process identity")
+        original = state.setdefault("process_instance", instance)
+        return instance != original
+    except (requests.RequestException, ValueError):
+        raise _WaitFetchError(
+            (jsonify({"ok": False, "error": "process probe failed"}), 502)
+        )
+
+
+_WAIT_TYPES = {"screen_hash_change", "screen_region_change", "window_title",
+               "parser_model_loaded", "process_exit"}
 
 
 @app.post("/v1/wait")
@@ -1538,6 +1568,10 @@ def wait_for():
     elif ctype == "window_title":
         if not isinstance(condition.get("contains"), str) or not condition.get("contains"):
             return jsonify({"ok": False, "error": "contains required"}), 400
+    elif ctype == "process_exit":
+        pid = condition.get("pid")
+        if type(pid) is not int or not 0 < pid <= 0xFFFFFFFF:
+            return jsonify({"ok": False, "error": "pid must be a positive DWORD"}), 400
 
     start = time.monotonic()
     while True:
@@ -1548,6 +1582,8 @@ def wait_for():
                 held = _check_screen_region_change(state)
             elif ctype == "window_title":
                 held = _check_window_title(condition.get("contains"))
+            elif ctype == "process_exit":
+                held = _check_process_exited(condition["pid"], state)
             else:  # parser_model_loaded
                 held = _check_parser_model_loaded()
         except _WaitFetchError as exc:
