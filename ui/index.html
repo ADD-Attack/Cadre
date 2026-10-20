@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Muse Relay v2</title>
+<link rel="stylesheet" href="/assets/app.css">
+<script src="/assets/app.js" defer></script>
+</head>
+<body data-phase="idle">
+<div class="aurora" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
+      <defs>
+        <linearGradient id="mg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#7cf2d6"/><stop offset="1" stop-color="#7a8cff"/>
+        </linearGradient>
+      </defs>
+      <path d="M5 25V8l11 10L27 8v17" fill="none" stroke="url(#mg)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <div>
+      <div class="brand-name">Muse Relay</div>
+      <div class="brand-sub">hands · gateway · parser</div>
+    </div>
+  </div>
+
+  <div class="phase-pill" id="phase-pill"><span class="dot"></span><span id="phase-text">Stopped</span></div>
+
+  <div class="controls">
+    <label class="switch" title="Start the relay app when you sign in to Windows (it still waits for Start)">
+      <input type="checkbox" id="autostart">
+      <span class="track"><span class="thumb"></span></span>
+      <span class="switch-label">Start on login</span>
+    </label>
+    <button class="btn btn-primary" id="btn-start">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 4l10 6-10 6z"/></svg>
+      <span id="start-label">Start</span>
+    </button>
+    <button class="btn btn-danger" id="btn-stop" title="Stops all three services and closes the relay">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="5" y="5" width="10" height="10" rx="2"/></svg>
+      Stop
+    </button>
+  </div>
+</header>
+
+<section class="banner" id="idle-banner">
+  <div class="banner-title">Services are stopped.</div>
+  <div class="banner-text">Press <b>Start</b> to run all three services in this window. Nothing starts on its own.</div>
+</section>
+
+<main class="grid">
+  <!-- service tiles -->
+  <section class="tiles">
+    <article class="tile" data-svc="hands">
+      <div class="tile-head"><span class="orb"></span><span class="tile-name">Hands</span><span class="port">:5000</span></div>
+      <div class="tile-state" data-role="state">not started</div>
+      <div class="tile-detail" data-role="detail"></div>
+    </article>
+    <article class="tile" data-svc="gateway">
+      <div class="tile-head"><span class="orb"></span><span class="tile-name">Gateway</span><span class="port">:5010</span></div>
+      <div class="tile-state" data-role="state">not started</div>
+      <div class="tile-detail" data-role="detail"></div>
+    </article>
+    <article class="tile" data-svc="parser">
+      <div class="tile-head"><span class="orb"></span><span class="tile-name">Parser</span><span class="port">:5011</span></div>
+      <div class="tile-state" data-role="state">not started</div>
+      <div class="tile-detail" data-role="detail"></div>
+    </article>
+  </section>
+
+  <!-- control (claim + queue) -->
+  <section class="card card-control">
+    <div class="card-title">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 9V6a3 3 0 016 0v3M5 9h10v8H5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+      Hands control
+    </div>
+    <div class="claim" id="claim">
+      <div class="claim-holder" id="claim-holder">Free</div>
+      <div class="claim-purpose" id="claim-purpose">No session holds the hands.</div>
+      <div class="meter"><div class="meter-fill" id="claim-meter"></div></div>
+      <div class="claim-meta">
+        <span id="claim-expiry">—</span>
+        <span id="claim-queue" class="chip chip-quiet">queue 0</span>
+      </div>
+      <div class="reserved" id="claim-reserved" hidden></div>
+    </div>
+  </section>
+
+  <!-- desktop -->
+  <section class="card card-desktop">
+    <div class="card-title">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M7 17h6M10 13.5V17" stroke="currentColor" stroke-width="1.6"/></svg>
+      Desktop
+    </div>
+    <dl class="facts">
+      <div><dt>Lock</dt><dd id="pc-lock">—</dd></div>
+      <div><dt>Owner idle</dt><dd id="pc-idle">—</dd></div>
+      <div><dt>Display</dt><dd id="pc-display">—</dd></div>
+      <div><dt>Yield probe</dt><dd id="pc-probe">—</dd></div>
+      <div><dt>Motion</dt><dd id="pc-motion">—</dd></div>
+    </dl>
+    <div class="jiggler">
+      <label class="switch" title="Small human-like pointer drift while you are away (stops the instant you touch the mouse)">
+        <input type="checkbox" id="jiggler">
+        <span class="track"><span class="thumb"></span></span>
+        <span class="switch-label">Idle jiggler</span>
+      </label>
+      <span class="chip chip-quiet" id="jiggler-state">off</span>
+    </div>
+  </section>
+
+  <!-- token -->
+  <section class="card card-token">
+    <div class="card-title">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="7" cy="10" r="3.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.5 10H18M15 10v3M17.5 10v2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      Gateway token
+    </div>
+    <div class="token-row">
+      <code class="token" id="token">after Start</code>
+      <button class="btn btn-ghost" id="btn-reveal" disabled>Show</button>
+      <button class="btn btn-ghost" id="btn-copy-token" disabled>Copy</button>
+    </div>
+    <div class="hint">Saved on this machine. Hand it to the agent once; it keeps working across relaunches.</div>
+  </section>
+
+  <!-- feed -->
+  <section class="card card-feed">
+    <div class="card-title">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      Recent acts
+    </div>
+    <div class="statebar" id="statebar" aria-hidden="true"></div>
+    <div class="counts" id="counts"></div>
+    <table class="feed">
+      <thead><tr><th>Receipt</th><th>Op</th><th>State</th><th class="num">Age</th></tr></thead>
+      <tbody id="feed"><tr class="empty"><td colspan="4">No acts yet</td></tr></tbody>
+    </table>
+  </section>
+
+  <!-- log -->
+  <section class="card card-log">
+    <div class="card-title">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6l4 4-4 4M10 15h6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Log
+      <span class="spacer"></span>
+      <input class="filter" id="log-filter" placeholder="Filter" spellcheck="false">
+      <button class="btn btn-ghost btn-sm" id="btn-diag">Copy diagnostics</button>
+    </div>
+    <div class="log" id="log" role="log" aria-live="polite"></div>
+  </section>
+</main>
+
+<!-- elevation approval: the ONLY approval path for elevated runs -->
+<div class="modal" id="elevation" hidden>
+  <div class="modal-card" role="alertdialog" aria-modal="true" aria-labelledby="elev-title">
+    <div class="modal-badge">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l9 4v6c0 5-3.8 9.3-9 10-5.2-.7-9-5-9-10V6z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 8v5M12 16.5v.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </div>
+    <div class="modal-kicker">Elevation request</div>
+    <h2 id="elev-title">—</h2>
+    <p class="modal-text">Approving runs this command <b>ELEVATED</b> (administrator). Denying does nothing.</p>
+    <pre class="command" id="elev-command"></pre>
+    <div class="modal-foot">
+      <span class="countdown" id="elev-countdown"></span>
+      <span class="spacer"></span>
+      <button class="btn btn-ghost" id="elev-deny">Deny</button>
+      <button class="btn btn-warn" id="elev-approve">Approve — run elevated</button>
+    </div>
+    <div class="modal-more" id="elev-more" hidden></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" hidden></div>
+</body>
+</html>

@@ -337,3 +337,26 @@ merge, all behavior-level, each covered by the combined test suite:
    `owner_idle_seconds` keeps growing while `idle_seconds` resets.
 7. `POST /jiggler {"enabled": false}`; confirm `muse_relay_config.json`
    kept its other keys.
+
+## R9 web GUI (#23)
+
+Build with build_app.bat (installs pywebview; bundles ui/ and
+hands/motion.py). Needs the WebView2 runtime (present on Win10/11).
+
+1. Launch: one window opens, phase "Stopped", the idle banner shows,
+   and NO service starts (ports 5000/5010/5011 stay closed).
+2. Start: tiles go starting → running; the token card enables
+   Show/Copy; Copy puts the same token as gateway-token.txt on the
+   clipboard; the log never prints it.
+3. Copy diagnostics: the text matches the window's state.
+4. Start on login toggle: the HKCU Run value appears and disappears;
+   relaunching with it on still waits for Start.
+5. Elevation: request an allowlisted elevation from the agent; the
+   approval card names it with the exact exe/args, Deny has focus.
+   Deny → state denied; repeat and Approve → the UAC prompt appears.
+   Leave one unanswered for 120 s → the card withdraws with "no
+   decision made in time".
+6. Stop (confirm) or closing the window: all three services stop and
+   the process exits. Only one window ever exists; no Tk window.
+7. From another device on the tailnet, the UI port (random, shown in
+   no log) is unreachable — it binds 127.0.0.1 only.

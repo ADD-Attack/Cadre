@@ -29,13 +29,16 @@ Secrets:
 
 Stop (or closing the window) stops all three services.
 
-R6 (wishlist #23, first revision) adds a dashboard section to the
-window: service tiles, the hands claim + queue state, the PC lock /
-idle / yield-probe state, a live feed of recent act receipts, and a
-one-click diagnostics summary (button copies it to the clipboard).
-The dashboard's data layer is a set of pure functions
-(build_dashboard_model and friends) so it is testable headless; the
-full "super AAA" interface pass is a separate wishlist item (#25).
+R6 (wishlist #23, first revision) added the dashboard: service tiles,
+the hands claim + queue state, the PC lock / idle / yield-probe state,
+a live feed of recent act receipts, and one-click diagnostics. Its
+data layer is a set of pure functions (build_dashboard_model and
+friends), testable headless.
+
+R9 (wishlist #23, owner decision 2026-10-20 05:23): the Tk window is
+gone. The window is a local web UI (ui/index.html + assets, served by
+build_ui_server on 127.0.0.1) inside a native pywebview shell. One GUI:
+RelayApp is the controller behind it; nothing starts until Start.
 """
 
 import importlib.util
@@ -47,15 +50,13 @@ import socket
 import sys
 import threading
 import time
-import tkinter as tk
-from tkinter import scrolledtext
 
 # These imports look unused; they exist so PyInstaller bundles the
 # dependencies the service modules need when they are loaded at runtime.
-import flask  # noqa: F401
+import flask
 import pyautogui  # noqa: F401
 import requests
-import waitress  # noqa: F401
+import waitress
 from PIL import Image  # noqa: F401
 
 HANDS_PORT = 5000
@@ -293,6 +294,25 @@ def receipt_state_counts(receipts):
     return counts
 
 
+def _finite_or_none(value):
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
+        return float(value)
+    return None
+
+
+def _jiggler_or_none(value):
+    """{enabled, active, moves, owner_kills} with checked types, or None."""
+    if not isinstance(value, dict):
+        return None
+    out = {}
+    for key in ("enabled", "active"):
+        out[key] = value.get(key) if isinstance(value.get(key), bool) else None
+    for key in ("moves", "owner_kills"):
+        v = value.get(key)
+        out[key] = v if isinstance(v, int) and not isinstance(v, bool) else None
+    return out
+
+
 def build_dashboard_model(info, claim, queue, reserved_for, receipts, now):
     """Assemble the dashboard model from one poll's worth of state.
 
@@ -342,6 +362,20 @@ def build_dashboard_model(info, claim, queue, reserved_for, receipts, now):
                     "unknown"
                     if not isinstance(probe_ok, bool)
                     else ("ok" if probe_ok else "degraded")
+                ),
+                # R9: display sleep (#13), owner-only idle and the
+                # jiggler (#28), normalized like the fields above.
+                "owner_idle_seconds": _finite_or_none(pc_state.get("owner_idle_seconds")),
+                "display_asleep": (
+                    pc_state.get("display_asleep")
+                    if isinstance(pc_state.get("display_asleep"), bool)
+                    else None
+                ),
+                "jiggler": _jiggler_or_none(pc_state.get("jiggler")),
+                "human_motion": (
+                    pc_state.get("human_motion")
+                    if isinstance(pc_state.get("human_motion"), bool)
+                    else None
                 ),
             }
         else:
@@ -413,6 +447,17 @@ def format_diagnostics(model, stamp):
             "unknown": "yield probe unknown",
         }[pc["probe_state"]]
         lines.append(f"PC: {locked} · {idle} · {probe}")
+        extra_pc = []
+        if pc.get("display_asleep") is not None:
+            extra_pc.append("display asleep" if pc["display_asleep"] else "display on")
+        jig = pc.get("jiggler")
+        if isinstance(jig, dict) and jig.get("enabled") is not None:
+            extra_pc.append(
+                "jiggler "
+                + ("off" if not jig["enabled"] else ("drifting" if jig.get("active") else "armed"))
+            )
+        if extra_pc:
+            lines.append("Desktop: " + " · ".join(extra_pc))
     counts = model.get("counts", {})
     if counts:
         total = sum(counts.values())
@@ -529,9 +574,34 @@ def _load_service(name, rel_path):
     return module
 
 
+class _Scheduler:
+    """The Tk root's after() contract without Tk: run fn after ms
+    milliseconds on a daemon timer thread. RelayApp only ever calls
+    root.after(ms, fn), so the controller logic (poll, drain,
+    self-heal) is unchanged from the Tk build."""
+
+    def after(self, ms, fn, *args):
+        t = threading.Timer(max(0, ms) / 1000.0, fn, args=args)
+        t.daemon = True
+        t.start()
+        return t
+
+
+LOG_KEEP = 600  # log lines the window keeps (older lines scroll away)
+
+
 class RelayApp:
-    def __init__(self, root):
-        self.root = root
+    """The relay controller behind the web window (R9 #23).
+
+    Owns exactly what the Tk window owned — explicit Start/Stop of the
+    three services, the token, the log, the dashboard model, autostart,
+    and the elevation approvals — and exposes it as a view the UI
+    server (build_ui_server) reads and acts on. Never starts services
+    on its own: only Start (the UI's POST /api/start) calls _start_all.
+    """
+
+    def __init__(self, root=None):
+        self.root = root if root is not None else _Scheduler()
         self.token = None
         self._hands_secret = None
         self._hands_module = None
@@ -542,211 +612,54 @@ class RelayApp:
         self.servers = {}
         self._health = {name: ServiceHealth() for name in SERVICE_FILES}
         self.ui_queue = queue.Queue()
-        self._build_ui()
-        icon = _icon_path()
-        if icon:
-            try:
-                root.iconbitmap(icon)
-            except tk.TclError:
-                pass
-        root.protocol("WM_DELETE_WINDOW", self.stop)
-        root.after(300, self._drain_queue)
+        self._view_lock = threading.Lock()
+        self._log_seq = 0
+        self._log = []  # [(seq, line)], newest last, capped at LOG_KEEP
+        self._status = {
+            name: f"{SERVICE_LABELS[name]} (:{SERVICE_PORTS[name]}): not started"
+            for name in SERVICE_FILES
+        }
+        self._pending_elevations = {}  # eid -> request shown in the window
+        self._elevation_dialog_open = False
+        self.on_quit = None  # the window shell sets this (closes the window)
+        self.root.after(300, self._drain_queue)
         self.log_line("Press Start to run all three services in this window.")
 
-    # ---------- UI ----------
-    def _build_ui(self):
-        root = self.root
-        root.title("Muse Relay v2")
-        root.geometry("760x680")
-        root.minsize(680, 560)
+    # ---------- view (read by the UI server) ----------
+    def view(self, since=0):
+        """Snapshot for the window: everything it renders, one read."""
+        with self._view_lock:
+            log = [(seq, line) for seq, line in self._log if seq > since]
+            status = dict(self._status)
+            pending = [dict(r) for r in self._pending_elevations.values()]
+            model = self._last_model
+        return {
+            "started": self._started,
+            "status": status,
+            "model": model,
+            "log": [{"seq": seq, "line": line} for seq, line in log],
+            "log_seq": self._log_seq,
+            "elevations": pending,
+            "autostart": _autostart_enabled(),
+            "token_ready": bool(self.token),
+            "jiggler": self._jiggler_view(model),
+        }
 
-        frame = tk.Frame(root, padx=12, pady=10)
-        frame.pack(fill="x")
+    def _jiggler_view(self, model):
+        pc = (model or {}).get("pc") or {}
+        jig = pc.get("jiggler")
+        return jig if isinstance(jig, dict) else None
 
-        self.hands_status = tk.Label(frame, text="Hands (:5000): not started", anchor="w")
-        self.hands_status.pack(fill="x")
-        self.gateway_status = tk.Label(frame, text="Gateway (:5010): not started", anchor="w")
-        self.gateway_status.pack(fill="x")
-        self.parser_status = tk.Label(frame, text="Parser (:5011): not started", anchor="w")
-        self.parser_status.pack(fill="x")
-
-        self._build_dashboard(root)
-
-        tok = tk.Frame(root, padx=12)
-        tok.pack(fill="x", pady=(6, 0))
-        tk.Label(tok, text="Gateway token (saved on this machine):").pack(anchor="w")
-        row = tk.Frame(tok)
-        row.pack(fill="x")
-        self.token_var = tk.StringVar(value="")
-        entry = tk.Entry(row, textvariable=self.token_var, state="readonly")
-        entry.pack(side="left", fill="x", expand=True)
-        tk.Button(row, text="Copy", command=self._copy_token).pack(side="left", padx=(6, 0))
-
-        tk.Label(
-            root,
-            text="One button runs the hands, gateway, and parser — no other app needed.",
-            padx=12,
-            anchor="w",
-            fg="#555555",
-        ).pack(fill="x", pady=(4, 0))
-
-        btns = tk.Frame(root, padx=12)
-        btns.pack(fill="x", pady=(8, 0))
-        self.start_button = tk.Button(
-            btns,
-            text="Start",
-            width=16,
-            font=("Segoe UI", 11, "bold"),
-            command=self._start_all,
-        )
-        self.start_button.pack(side="left")
-        tk.Button(btns, text="Stop", width=14, command=self.stop).pack(
-            side="left", padx=(8, 0)
-        )
-
-        autostart_row = tk.Frame(root, padx=12)
-        autostart_row.pack(fill="x", pady=(4, 0))
-        self.autostart_var = tk.BooleanVar(value=_autostart_enabled())
-        tk.Checkbutton(
-            autostart_row,
-            text="Start on login",
-            variable=self.autostart_var,
-            command=self._toggle_autostart,
-        ).pack(side="left")
-
-        self.log = scrolledtext.ScrolledText(root, height=12, state="disabled", wrap="word")
-        self.log.pack(fill="both", expand=True, padx=12, pady=10)
-
-    # ---------- dashboard (R6, wishlist #23) ----------
-    def _build_dashboard(self, root):
-        dash = tk.LabelFrame(root, text="Dashboard", padx=10, pady=8)
-        dash.pack(fill="x", padx=12, pady=(8, 0))
-
-        tiles = tk.Frame(dash)
-        tiles.pack(fill="x")
-        self._tile_dots = {}
-        self._tile_texts = {}
-        for name in ("hands", "gateway", "parser"):
-            tile = tk.Frame(tiles, relief="groove", borderwidth=1, padx=8, pady=4)
-            tile.pack(side="left", fill="x", expand=True, padx=(0, 6))
-            dot = tk.Label(tile, text="●", fg="#999999", font=("Segoe UI", 13))
-            dot.pack(side="left")
-            text = tk.Label(
-                tile,
-                text=f"{SERVICE_LABELS[name]} (:{SERVICE_PORTS[name]}): not started",
-                anchor="w",
-                font=("Segoe UI", 9),
-            )
-            text.pack(side="left", fill="x", expand=True)
-            self._tile_dots[name] = dot
-            self._tile_texts[name] = text
-
-        self.dash_claim = tk.Label(
-            dash, text="Claim: —", anchor="w", font=("Segoe UI", 9)
-        )
-        self.dash_claim.pack(fill="x", pady=(6, 0))
-        self.dash_pc = tk.Label(dash, text="PC: —", anchor="w", font=("Segoe UI", 9))
-        self.dash_pc.pack(fill="x")
-
-        feed_head = tk.Frame(dash)
-        feed_head.pack(fill="x", pady=(6, 0))
-        tk.Label(feed_head, text="Recent acts", font=("Segoe UI", 9, "bold")).pack(
-            side="left"
-        )
-        self.dash_counts = tk.Label(feed_head, text="", anchor="e", fg="#555555")
-        self.dash_counts.pack(side="right")
-        self.dash_feed = tk.Text(
-            dash, height=8, state="disabled", wrap="none", font=("Consolas", 9)
-        )
-        self.dash_feed.pack(fill="x")
-
-        tk.Button(
-            dash, text="Copy diagnostics", command=self._copy_diagnostics
-        ).pack(anchor="e", pady=(6, 0))
-
-    def _render_dashboard(self, model):
-        self._last_model = model
-        colors = {"ok": "#1e9e50", "down": "#cc3333", "unknown": "#999999"}
-        words = {"ok": "running", "down": "not answering", "unknown": "unknown"}
-        for name, state in model["services"].items():
-            self._tile_dots[name].config(fg=colors.get(state, "#999999"))
-            self._tile_texts[name].config(
-                text=(
-                    f"{SERVICE_LABELS[name]} (:{SERVICE_PORTS[name]}): "
-                    f"{words.get(state, state)}"
-                )
-            )
-        claim = model["claim"]
-        if claim:
-            text = f"Claim: {claim['holder']}"
-            if claim["purpose"]:
-                text += f" — {claim['purpose']}"
-            if claim["expires_in_s"] is not None:
-                text += f" (expires in {_fmt_duration(claim['expires_in_s'])})"
-        else:
-            text = "Claim: none"
-        if model["queue_len"]:
-            text += f" · queue: {model['queue_len']} waiting"
-        if model["reserved_for"]:
-            text += f" · reserved for: {model['reserved_for']}"
-        self.dash_claim.config(text=text)
-
-        pc = model["pc"]
-        if pc is None:
-            self.dash_pc.config(text="PC: unknown (hands unreachable)")
-        else:
-            locked = {True: "LOCKED", False: "unlocked", None: "lock unknown"}[
-                pc["locked"]
-            ]
-            idle = (
-                "idle unknown"
-                if pc["idle_seconds"] is None
-                else f"owner idle {_fmt_duration(pc['idle_seconds'])}"
-            )
-            probe = {
-                "ok": "yield probe OK",
-                "degraded": f"yield probe DEGRADED ({pc['probe_failures']} failures)",
-                "unknown": "yield probe unknown",
-            }[pc["probe_state"]]
-            color = "#cc3333" if (pc["locked"] or pc["probe_state"] == "degraded") else ""
-            self.dash_pc.config(
-                text=f"PC: {locked} · {idle} · {probe}", fg=color or "#000000"
-            )
-
-        counts = model["counts"]
-        if counts:
-            detail = " · ".join(
-                f"{state} {counts[state]}" for state in sorted(counts)
-            )
-            self.dash_counts.config(text=f"{sum(counts.values())} total — {detail}")
-        else:
-            self.dash_counts.config(text="no acts yet")
-        lines = [
-            f"{row['id8']}  {row['op']:<13} {row['state']:<15} "
-            f"{_fmt_duration(row['age_s'])} ago"
-            for row in model["feed"]
-        ]
-        self.dash_feed.config(state="normal")
-        self.dash_feed.delete("1.0", "end")
-        self.dash_feed.insert("end", "\n".join(lines) if lines else "(no acts yet)")
-        self.dash_feed.config(state="disabled")
-
-    def _copy_diagnostics(self):
+    def diagnostics_text(self):
         if self._last_model is None:
             self.log_line("Diagnostics: nothing to report yet — start the services first.")
-            return
+            return None
         text = format_diagnostics(self._last_model, self._stamp())
-        self.root.clipboard_clear()
-        self.root.clipboard_append(text)
         self.log_line("Diagnostics copied to the clipboard.")
+        return text
 
-    def _copy_token(self):
-        if self.token:
-            self.root.clipboard_clear()
-            self.root.clipboard_append(self.token)
-
-    def _toggle_autostart(self):
-        enabled = bool(self.autostart_var.get())
+    def set_autostart(self, enabled):
+        enabled = bool(enabled)
         ok = _set_autostart(enabled)
         if ok:
             self.log_line(
@@ -758,6 +671,28 @@ class RelayApp:
                 "Start on login could not be changed "
                 "(autostart is only available on Windows)."
             )
+        return ok
+
+    def set_jiggler(self, enabled):
+        """Flip the hands jiggler flag through the hands' own /jiggler
+        route (same secret-gated path an operator script would use).
+        Returns (ok, message)."""
+        if not self._started or not self._hands_secret:
+            return False, "start the services first"
+        try:
+            r = requests.post(
+                f"{HANDS_URL}/jiggler",
+                json={"enabled": bool(enabled)},
+                headers={"X-Secret": self._hands_secret},
+                timeout=3,
+            )
+            body = r.json()
+        except Exception as exc:
+            return False, f"hands did not answer ({exc.__class__.__name__})"
+        if r.status_code != 200 or not body.get("ok"):
+            return False, str(body.get("error") or f"HTTP {r.status_code}")
+        self.log_line(f"Idle jiggler {'enabled' if enabled else 'disabled'}.")
+        return True, "ok"
 
     # ---------- helpers ----------
     def _stamp(self):
@@ -769,42 +704,58 @@ class RelayApp:
     def set_status(self, which, text):
         self.ui_queue.put(("status", (which, text)))
 
+    def _append_log(self, line):
+        with self._view_lock:
+            self._log_seq += 1
+            self._log.append((self._log_seq, line))
+            del self._log[:-LOG_KEEP]
+
+    def _render_dashboard(self, model):
+        self._last_model = model
+
     def _handle_elevation_request(self, hands, req):
-        """Show one elevation request to the person at the PC.
+        """Put one elevation request in front of the person at the PC.
 
-        The dialog is the ONLY approval path: it names the request and
-        the exact configured exe/args, Yes approves (runs ELEVATED),
-        No denies (does nothing). The dialog result — and nothing
-        else — is passed to the hands module's resolver.
+        The window's approval card is the ONLY approval path (as the Tk
+        dialog was): it names the request and the exact configured
+        exe/args; Approve runs it ELEVATED, Deny does nothing. Nothing
+        is resolved here — only resolve_elevation(), called by the
+        window's buttons, passes a decision to the hands' resolver.
         """
-        if not isinstance(req, dict):
+        if not isinstance(req, dict) or not req.get("id"):
             return
-        eid = req.get("id")
-        name = req.get("name") or ""
-        exe = req.get("exe") or ""
-        args = req.get("args") or ""
-        self._elevation_dialog_open = True
-        try:
-            from tkinter import messagebox
+        entry = {
+            "id": str(req.get("id")),
+            "name": str(req.get("name") or ""),
+            "exe": str(req.get("exe") or ""),
+            "args": str(req.get("args") or ""),
+            "shown_at": time.time(),
+        }
+        with self._view_lock:
+            self._pending_elevations[entry["id"]] = entry
+            self._elevation_dialog_open = True
+        self.log_line(f"Elevation request '{entry['name']}' is waiting for your decision.")
 
-            approved = bool(
-                messagebox.askyesno(
-                    "Elevation request",
-                    f"Elevation request: {name}\n\n"
-                    f"Would run ELEVATED:\n{exe} {args}\n\n"
-                    "Approve (Yes) runs it ELEVATED. Deny (No) does nothing.",
-                )
-            )
-        except Exception:
-            approved = False  # no dialog, no approval — deny by default
-        finally:
-            self._elevation_dialog_open = False
+    def resolve_elevation(self, eid, approved):
+        """The person in the window decided. Returns the resulting state."""
+        with self._view_lock:
+            entry = self._pending_elevations.pop(str(eid), None)
+            self._elevation_dialog_open = bool(self._pending_elevations)
+        if entry is None:
+            return None
+        hands = self._hands_module
+        name = entry["name"]
         try:
-            resolved = hands._resolve_elevation(eid, approved)
+            resolved = hands._resolve_elevation(entry["id"], bool(approved))
         except Exception as exc:
             self.log_line(f"Elevation request '{name}': resolver failed ({exc})")
-            return
-        state = "unresolved"
+            return "error"
+        state = self._elevation_state(hands, entry["id"]) or "unresolved"
+        self.log_line(f"Elevation request '{name}': state={state} (resolved={resolved})")
+        return state
+
+    @staticmethod
+    def _elevation_state(hands, eid):
         try:
             elevations = getattr(hands, "_elevations", {})
             lk = getattr(hands, "_elevations_lock", None)
@@ -814,10 +765,25 @@ class RelayApp:
                 with lk:
                     found = elevations.get(eid)
             if isinstance(found, dict) and found.get("state"):
-                state = found["state"]
+                return found["state"]
         except Exception:
             pass
-        self.log_line(f"Elevation request '{name}': state={state} (resolved={resolved})")
+        return None
+
+    def _expire_shown_elevations(self, hands):
+        """Drop cards whose request the hands already settled (TTL)."""
+        with self._view_lock:
+            ids = list(self._pending_elevations)
+        for eid in ids:
+            state = self._elevation_state(hands, eid)
+            if state is not None and state != "pending":
+                with self._view_lock:
+                    entry = self._pending_elevations.pop(eid, None)
+                    self._elevation_dialog_open = bool(self._pending_elevations)
+                if entry is not None:
+                    self.log_line(
+                        f"Elevation request '{entry['name']}': state={state} (no decision made in time)"
+                    )
 
     def _drain_queue(self):
         # R7: the next drain is ALWAYS scheduled (finally), and each
@@ -846,36 +812,31 @@ class RelayApp:
                             self._handle_elevation_request(hands, req)
                     except queue.Empty:
                         pass
+                try:
+                    self._expire_shown_elevations(hands)
+                except Exception:
+                    pass
             try:
                 while True:
                     kind, payload = self.ui_queue.get_nowait()
                     try:
                         if kind == "log":
-                            self.log.config(state="normal")
-                            self.log.insert("end", payload + "\n")
-                            self.log.see("end")
-                            self.log.config(state="disabled")
+                            self._append_log(payload)
                         elif kind == "status":
                             which, text = payload
-                            label = {
-                                "parser": self.parser_status,
-                                "gateway": self.gateway_status,
-                                "hands": self.hands_status,
-                            }[which]
-                            label.config(text=text)
+                            if which not in SERVICE_FILES:
+                                raise KeyError(which)
+                            with self._view_lock:
+                                self._status[which] = str(text)
                         elif kind == "dashboard":
                             self._render_dashboard(payload)
                     except Exception as exc:
                         # Isolated: note the skip in the log and keep
                         # draining the remaining messages.
                         try:
-                            self.log.config(state="normal")
-                            self.log.insert(
-                                "end",
-                                f"[{self._stamp()}] UI update skipped ({kind}): {exc}\n",
+                            self._append_log(
+                                f"[{self._stamp()}] UI update skipped ({kind}): {exc}"
                             )
-                            self.log.see("end")
-                            self.log.config(state="disabled")
                         except Exception:
                             pass
             except queue.Empty:
@@ -888,7 +849,6 @@ class RelayApp:
         if self._started:
             return
         self._started = True
-        self.start_button.config(state="disabled")
 
         hands_secret, origin = _load_or_create_hands_secret()
         secret_path = _hands_secret_path()
@@ -926,7 +886,6 @@ class RelayApp:
         os.environ["HANDS_URL"] = HANDS_URL
         os.environ["HANDS_SECRET"] = hands_secret
         os.environ["PARSER_URL"] = f"http://127.0.0.1:{PARSER_PORT}"
-        self.token_var.set(self.token)
 
         self._health = {name: ServiceHealth() for name in SERVICE_FILES}
         self._start_one("hands")
@@ -1198,6 +1157,18 @@ class RelayApp:
         self.root.after(POLL_MS, self._poll)
 
     def stop(self):
+        """Stop all three services and close the relay (as the Tk Stop
+        button and window-close did)."""
+        if getattr(self, "_stopping", False):
+            return  # window-close and Stop can both land here
+        self._stopping = True
+        hands = getattr(self, "_hands_module", None)
+        stopper = getattr(hands, "stop_jiggler", None)
+        if callable(stopper):
+            try:
+                stopper()
+            except Exception:
+                pass
         for name, server in list(self.servers.items()):
             try:
                 server.close()
@@ -1205,15 +1176,192 @@ class RelayApp:
                 pass
         self.servers.clear()
         try:
-            self.root.destroy()
+            if callable(getattr(self, "on_quit", None)):
+                self.on_quit()
         finally:
             os._exit(0)
 
 
+# ---- the window (R9, wishlist #23): local web UI in a native shell -------
+# The UI server binds 127.0.0.1 on a random port and serves ui/ plus a
+# small JSON API over the RelayApp above. Every /api route needs the
+# per-launch UI key (handed to the window in the URL fragment, which is
+# never sent over HTTP) and a 127.0.0.1 Host header (no DNS rebinding).
+# The page is rendered with textContent only and a strict CSP, because
+# several strings it shows (claim holder/purpose, op names, log lines)
+# come from remote agents.
+
+UI_CSP = (
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
+    "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+)
+
+
+def _ui_dir():
+    for base in (getattr(sys, "_MEIPASS", None), _app_dir()):
+        if base:
+            cand = os.path.join(base, "ui")
+            if os.path.isfile(os.path.join(cand, "index.html")):
+                return cand
+    return os.path.join(_app_dir(), "ui")
+
+
+def build_ui_server(relay, ui_key, port_ref=None):
+    """Flask app for the window. port_ref: one-item list holding the
+    bound port (filled in after bind) for the Host check; None skips
+    the port part of the check (tests)."""
+    import hmac
+
+    ui = flask.Flask("muse_relay_v2_ui", static_folder=None)
+    ui_root = _ui_dir()
+
+    def _host_ok():
+        host = (flask.request.host or "").lower()
+        name, _, port = host.partition(":")
+        if name not in ("127.0.0.1", "localhost"):
+            return False
+        if port_ref and port_ref[0]:
+            return port == str(port_ref[0])
+        return True
+
+    @ui.before_request
+    def _guard():
+        if not _host_ok():
+            return flask.jsonify({"ok": False, "error": "bad host"}), 403
+        if flask.request.path.startswith("/api/"):
+            given = flask.request.headers.get("X-UI-Key", "")
+            if not given or not hmac.compare_digest(given, ui_key):
+                return flask.jsonify({"ok": False, "error": "bad ui key"}), 401
+        return None
+
+    @ui.after_request
+    def _headers(resp):
+        resp.headers["Content-Security-Policy"] = UI_CSP
+        resp.headers["X-Content-Type-Options"] = "nosniff"
+        resp.headers["Referrer-Policy"] = "no-referrer"
+        resp.headers["Cache-Control"] = "no-store"
+        return resp
+
+    @ui.get("/")
+    def _index():
+        return flask.send_from_directory(ui_root, "index.html")
+
+    @ui.get("/assets/<path:name>")
+    def _asset(name):
+        return flask.send_from_directory(ui_root, name)
+
+    @ui.get("/api/state")
+    def _state():
+        try:
+            since = int(flask.request.args.get("since", "0"))
+        except ValueError:
+            since = 0
+        return flask.jsonify({"ok": True, **relay.view(since)})
+
+    @ui.get("/api/token")
+    def _token():
+        if not relay.token:
+            return flask.jsonify({"ok": False, "error": "no token until Start"}), 409
+        return flask.jsonify({"ok": True, "token": relay.token})
+
+    @ui.post("/api/start")
+    def _start():
+        if relay._started:
+            return flask.jsonify({"ok": True, "already": True})
+        threading.Thread(target=relay._start_all, name="ui-start", daemon=True).start()
+        return flask.jsonify({"ok": True})
+
+    @ui.post("/api/stop")
+    def _stop():
+        # Answer first, then stop (stop() ends the process).
+        relay.root.after(200, relay.stop)
+        return flask.jsonify({"ok": True})
+
+    @ui.post("/api/diagnostics")
+    def _diag():
+        text = relay.diagnostics_text()
+        if text is None:
+            return flask.jsonify({"ok": False, "error": "start the services first"}), 409
+        return flask.jsonify({"ok": True, "text": text})
+
+    def _flag_body():
+        body = flask.request.get_json(force=True, silent=True) or {}
+        value = body.get("enabled")
+        return value if isinstance(value, bool) else None
+
+    @ui.post("/api/autostart")
+    def _autostart():
+        value = _flag_body()
+        if value is None:
+            return flask.jsonify({"ok": False, "error": "enabled must be true or false"}), 400
+        ok = relay.set_autostart(value)
+        return flask.jsonify({"ok": bool(ok), "autostart": _autostart_enabled()})
+
+    @ui.post("/api/jiggler")
+    def _jiggler():
+        value = _flag_body()
+        if value is None:
+            return flask.jsonify({"ok": False, "error": "enabled must be true or false"}), 400
+        ok, msg = relay.set_jiggler(value)
+        return flask.jsonify({"ok": ok, "message": msg}), (200 if ok else 409)
+
+    @ui.post("/api/elevation/<eid>")
+    def _elevation(eid):
+        body = flask.request.get_json(force=True, silent=True) or {}
+        approved = body.get("approved")
+        if not isinstance(approved, bool):
+            return flask.jsonify({"ok": False, "error": "approved must be true or false"}), 400
+        state = relay.resolve_elevation(eid, approved)
+        if state is None:
+            return flask.jsonify({"ok": False, "error": "no such pending request"}), 404
+        return flask.jsonify({"ok": True, "state": state})
+
+    return ui
+
+
 def main():
-    root = tk.Tk()
-    RelayApp(root)
-    root.mainloop()
+    import webbrowser
+
+    relay = RelayApp()
+    ui_key = secrets.token_urlsafe(32)
+    port_ref = [None]
+    ui = build_ui_server(relay, ui_key, port_ref)
+    server = waitress.create_server(ui, host="127.0.0.1", port=0, threads=8)
+    port_ref[0] = server.effective_port
+    threading.Thread(target=server.run, name="ui-server", daemon=True).start()
+    url = f"http://127.0.0.1:{port_ref[0]}/#k={ui_key}"
+    try:
+        import webview  # pywebview: the native window shell
+    except Exception:
+        webview = None
+    if webview is None:
+        # No native shell available: show the same UI in the default
+        # browser. Still one GUI — there is no other window.
+        relay.log_line("pywebview not available — opened the relay UI in your browser instead.")
+        webbrowser.open(url)
+        try:
+            while True:
+                time.sleep(3600)
+        except KeyboardInterrupt:
+            relay.stop()
+        return
+    window = webview.create_window(
+        "Muse Relay v2",
+        url,
+        width=1240,
+        height=860,
+        min_size=(980, 700),
+        background_color="#0b0d12",
+    )
+    relay.on_quit = lambda: window.destroy()
+    # Closing the window stops all three services, as before.
+    window.events.closed += lambda: relay.stop()
+    icon = _icon_path()
+    try:
+        webview.start(icon=icon) if icon else webview.start()
+    except TypeError:
+        webview.start()
+    relay.stop()
 
 
 if __name__ == "__main__":

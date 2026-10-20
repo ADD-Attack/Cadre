@@ -242,9 +242,10 @@ def test_fake_modules_restored_after_import():
     # module — restoration was verified at import time (later-collected
     # modules may install their own fakes; that is their business).
     assert _MODULES_RESTORED
-    # And the app module kept its own references to the fakes.
-    assert APP.tk is _fake_tk
+    # And the app module kept its own reference to the fake it imports.
+    # R9 (#23): the app no longer imports tkinter at all — one GUI.
     assert APP.pyautogui is _fake_gui
+    assert not hasattr(APP, "tk")
 
 
 def test_model_junk_info_payload_does_not_raise():
@@ -415,6 +416,11 @@ def test_drain_reschedules_after_render_exception():
     obj.ui_queue = queue.Queue()
     obj.root = _Root()
     obj.log = _FakeText()
+    # R9: the drain appends to the controller's log view (the web
+    # window reads it) instead of a Tk text widget.
+    obj._append_log = lambda line: obj.log.insert("end", line + "\n")
+    obj._view_lock = threading.Lock()
+    obj._status = {}
     obj._stamp = lambda: "21:00:00"
     obj._drain_queue = lambda: None  # reschedule target on the bare fake
 

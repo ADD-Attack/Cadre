@@ -381,29 +381,43 @@ def test_shellexecute_restype_is_pointer_sized(hands, monkeypatch):
 
 
 def test_elevation_log_is_resulting_state(packaged, monkeypatch):
-    import tkinter.messagebox as mb
-
+    # R9 (#23): the request is shown in the web window; only the
+    # window's decision (resolve_elevation) reaches the hands resolver,
+    # and the log line reports the RESULTING state, not the click.
     logs = []
-    monkeypatch.setattr(mb, "askyesno", lambda *a, **k: True)
 
     class Hands:
         def __init__(self):
             self._elevations = {"1": {"state": "pending"}}
             self._elevations_lock = threading.Lock()
+            self.calls = []
 
         def _resolve_elevation(self, eid, approved):
+            self.calls.append((eid, approved))
             self._elevations[eid]["state"] = "expired"
             return False
 
+    cls = _ui_class(packaged)
+    hands = Hands()
     app_obj = type("A", (), {})()
     app_obj.log_line = logs.append
+    app_obj._view_lock = threading.Lock()
+    app_obj._pending_elevations = {}
     app_obj._elevation_dialog_open = False
-    _ui_class(packaged)._handle_elevation_request(
-        app_obj, Hands(), {"id": "1", "name": "demo", "exe": "cmd.exe", "args": "/c echo"}
+    app_obj._hands_module = hands
+    app_obj._elevation_state = cls._elevation_state
+    cls._handle_elevation_request(
+        app_obj, hands, {"id": "1", "name": "demo", "exe": "cmd.exe", "args": "/c echo"}
     )
-    assert logs
+    assert hands.calls == []  # showing it decides nothing
+    assert app_obj._elevation_dialog_open is True
+    assert "1" in app_obj._pending_elevations
+    assert cls.resolve_elevation(app_obj, "1", True) == "expired"
+    assert hands.calls == [("1", True)]
     assert "state=expired" in logs[-1]
     assert "approved by the operator" not in logs[-1]
+    assert app_obj._elevation_dialog_open is False
+    assert cls.resolve_elevation(app_obj, "1", True) is None  # one decision only
 
 
 def test_one_poll_in_flight_and_no_restart_while_pending(packaged):
