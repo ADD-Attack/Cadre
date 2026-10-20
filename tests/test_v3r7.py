@@ -29,7 +29,16 @@ import threading
 import time
 import types
 
-# --- fake tkinter (+ scrolledtext submodule) ------------------------------
+# --- fake tkinter (+ scrolledtext submodule) and pyautogui ----------------
+# The fakes are scoped to loading the app module: the prior sys.modules
+# entries are saved first and restored right after the import, so test
+# modules collected later in the same process see the real modules (or
+# conftest's) again. The app module keeps its own references to the
+# fakes it imported. (Astra R7 re-review, Medium.)
+_ABSENT = object()
+_FAKE_NAMES = ("tkinter", "tkinter.scrolledtext", "pyautogui")
+_SAVED_SYS_MODULES = {name: sys.modules.get(name, _ABSENT) for name in _FAKE_NAMES}
+
 _fake_tk = types.ModuleType("tkinter")
 _fake_tk.Tk = object
 _fake_tk.TclError = Exception
@@ -39,7 +48,6 @@ _fake_tk.scrolledtext = _fake_scrolled
 sys.modules["tkinter"] = _fake_tk
 sys.modules["tkinter.scrolledtext"] = _fake_scrolled
 
-# --- fake pyautogui --------------------------------------------------------
 _fake_gui = types.ModuleType("pyautogui")
 _fake_gui.FAILSAFE = False
 _fake_gui.PAUSE = 0
@@ -57,6 +65,20 @@ def _load_app():
 
 
 APP = _load_app()
+
+for _name, _prior in _SAVED_SYS_MODULES.items():
+    if _prior is _ABSENT:
+        sys.modules.pop(_name, None)
+    else:
+        sys.modules[_name] = _prior
+
+# Restoration is verified HERE, at import time: modules collected
+# after this one may install their own fakes, which is their choice —
+# this module's contract is only that it leaves no trace of its own.
+_MODULES_RESTORED = all(
+    sys.modules.get(name, _ABSENT) is prior
+    for name, prior in _SAVED_SYS_MODULES.items()
+)
 
 
 # --- poll driving helpers ---------------------------------------------------
@@ -182,6 +204,40 @@ def test_receipt_helpers_junk_containers():
     assert APP.receipt_state_counts(None) == {}
     assert APP.summarize_receipts(123, time.time()) == []
     assert APP.summarize_receipts(None, time.time()) == []
+
+
+def test_receipt_helpers_iterable_inputs():
+    # R7.1: _receipt_entries keeps the old tolerance for any iterable
+    # of rows (generators, dict-values views) without losing the
+    # junk -> empty contract.
+    now = time.time()
+    row = {
+        "id": "aaabbbcc",
+        "op": "click",
+        "state": "held",
+        "submitted_at": now - 5,
+    }
+    table = {"aaabbbcc": row}
+    assert APP.receipt_state_counts(table.values()) == {"held": 1}
+    assert APP.receipt_state_counts(iter([row])) == {"held": 1}
+    assert APP.summarize_receipts(table.values(), now)[0]["id8"] == "aaabbbcc"
+    assert APP.summarize_receipts((r for r in [row]), now)[0]["id8"] == "aaabbbcc"
+    # Strings/bytes, numbers and None are junk, not iterables of rows.
+    assert APP.receipt_state_counts("string") == {}
+    assert APP.receipt_state_counts(b"bytes") == {}
+    assert APP.summarize_receipts("string", now) == []
+    assert APP.summarize_receipts(123, now) == []
+    assert APP.summarize_receipts(None, now) == []
+
+
+def test_fake_modules_restored_after_import():
+    # R7.1: the import-time fakes were scoped to loading the app
+    # module — restoration was verified at import time (later-collected
+    # modules may install their own fakes; that is their business).
+    assert _MODULES_RESTORED
+    # And the app module kept its own references to the fakes.
+    assert APP.tk is _fake_tk
+    assert APP.pyautogui is _fake_gui
 
 
 def test_model_junk_info_payload_does_not_raise():

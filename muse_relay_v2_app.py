@@ -209,17 +209,24 @@ def _fmt_duration(seconds):
 
 
 def _receipt_entries(receipts):
-    """Row list from a receipts table (dict) or a row list/tuple.
+    """Row list from a receipts table.
 
-    Anything else (None, a number, a string) yields [] — the data
-    layer honors its "junk -> empty" contract and never raises on a
-    malformed container (R7).
+    Accepts a dict (its values), a list/tuple, or any other
+    iterable of rows (generators, dict-values views, ...).
+    Strings/bytes, None, numbers and other non-iterables yield []
+    — the data layer honors its "junk -> empty" contract and
+    never raises on a malformed container (R7/R7.1).
     """
     if isinstance(receipts, dict):
         return list(receipts.values())
     if isinstance(receipts, (list, tuple)):
         return list(receipts)
-    return []
+    if isinstance(receipts, (str, bytes)):
+        return []
+    try:
+        return list(receipts)
+    except TypeError:
+        return []
 
 
 _RECEIPT_ROW_FIELDS = ("id", "op", "state", "submitted_at")
