@@ -64,13 +64,20 @@ def _load_app():
     return module
 
 
-APP = _load_app()
+def _restore_modules():
+    for name, prior in _SAVED_SYS_MODULES.items():
+        if prior is _ABSENT:
+            sys.modules.pop(name, None)
+        else:
+            sys.modules[name] = prior
 
-for _name, _prior in _SAVED_SYS_MODULES.items():
-    if _prior is _ABSENT:
-        sys.modules.pop(_name, None)
-    else:
-        sys.modules[_name] = _prior
+
+# Restoration is unconditional: even if the app import raises, the
+# fakes must not leak into the rest of the process (Astra closure).
+try:
+    APP = _load_app()
+finally:
+    _restore_modules()
 
 # Restoration is verified HERE, at import time: modules collected
 # after this one may install their own fakes, which is their choice —
