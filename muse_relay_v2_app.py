@@ -39,6 +39,7 @@ full "super AAA" interface pass is a separate wishlist item (#25).
 """
 
 import importlib.util
+import math
 import os
 import queue
 import secrets
@@ -188,16 +189,60 @@ class ServiceHealth:
 
 
 def _fmt_duration(seconds):
-    """Compact duration: 5 -> '5s', 65 -> '1m 05s', 3661 -> '1h 01m'."""
+    """Compact duration: 5 -> '5s', 65 -> '1m 05s', 3661 -> '1h 01m'.
+
+    Non-numeric and nonfinite inputs render as "?" (R7: float("inf")
+    used to raise OverflowError out of round()).
+    """
     try:
-        total = int(max(0, round(float(seconds))))
+        value = float(seconds)
     except (TypeError, ValueError):
         return "?"
+    if not math.isfinite(value):
+        return "?"
+    total = int(max(0, round(value)))
     if total < 60:
         return f"{total}s"
     if total < 3600:
         return f"{total // 60}m {total % 60:02d}s"
     return f"{total // 3600}h {(total % 3600) // 60:02d}m"
+
+
+def _receipt_entries(receipts):
+    """Row list from a receipts table (dict) or a row list/tuple.
+
+    Anything else (None, a number, a string) yields [] — the data
+    layer honors its "junk -> empty" contract and never raises on a
+    malformed container (R7).
+    """
+    if isinstance(receipts, dict):
+        return list(receipts.values())
+    if isinstance(receipts, (list, tuple)):
+        return list(receipts)
+    return []
+
+
+_RECEIPT_ROW_FIELDS = ("id", "op", "state", "submitted_at")
+
+
+def _snapshot_receipt_rows(table):
+    """Field-copied snapshot of the gateway receipts table.
+
+    The caller holds the gateway's receipts lock. Each dict row is
+    copied field-by-field into a fresh dict, so the dashboard
+    builders never read a row that a gateway writer is mutating
+    after the lock is released (R7). Non-dict rows pass through —
+    the builders skip them.
+    """
+    snap = {}
+    if not isinstance(table, dict):
+        return snap
+    for rid, row in table.items():
+        if isinstance(row, dict):
+            snap[rid] = {k: row[k] for k in _RECEIPT_ROW_FIELDS if k in row}
+        else:
+            snap[rid] = row
+    return snap
 
 
 def summarize_receipts(receipts, now, limit=8):
@@ -207,12 +252,7 @@ def summarize_receipts(receipts, now, limit=8):
     id/op/state/submitted_at are skipped — the feed renders what it
     can prove, never a half-row.
     """
-    if isinstance(receipts, dict):
-        entries = list(receipts.values())
-    elif receipts:
-        entries = list(receipts)
-    else:
-        entries = []
+    entries = _receipt_entries(receipts)
     rows = []
     for r in entries:
         if not isinstance(r, dict):
@@ -238,12 +278,7 @@ def summarize_receipts(receipts, now, limit=8):
 
 def receipt_state_counts(receipts):
     """{state: count} over the receipts table ({} for none/junk)."""
-    if isinstance(receipts, dict):
-        entries = list(receipts.values())
-    elif receipts:
-        entries = list(receipts)
-    else:
-        entries = []
+    entries = _receipt_entries(receipts)
     counts = {}
     for r in entries:
         if isinstance(r, dict) and r.get("state"):
@@ -259,37 +294,62 @@ def build_dashboard_model(info, claim, queue, reserved_for, receipts, now):
     _claim_snapshot() triple (claim dict or None, FIFO list, holder
     name or None). receipts: the gateway's receipts table.
     """
+    # R7: a non-dict payload (e.g. a JSON list from /v1/info) is
+    # normalized here instead of raising on .get() — the gateway
+    # answered, so it is not "down", but nothing in the payload can
+    # be trusted field-by-field.
+    info_dict = info if isinstance(info, dict) else {}
     services = {"gateway": "down" if info is None else "ok"}
     if info is None:
         services["hands"] = "unknown"
         services["parser"] = "unknown"
         pc = None
     else:
-        services["hands"] = "ok" if info.get("hands_reachable") else "down"
-        services["parser"] = "ok" if info.get("parser_reachable") else "down"
-        pc_state = info.get("pc_state")
+        services["hands"] = "ok" if info_dict.get("hands_reachable") else "down"
+        services["parser"] = "ok" if info_dict.get("parser_reachable") else "down"
+        pc_state = info_dict.get("pc_state")
         if isinstance(pc_state, dict):
             failures = pc_state.get("probe_failures")
+            locked = pc_state.get("locked")
+            idle = pc_state.get("idle_seconds")
+            probe_ok = pc_state.get("probe_ok")
+            # R7: PC fields are type-normalized at this boundary. A
+            # wrong-typed value (the string "false", an infinite
+            # idle) becomes None / "unknown" — it must neither reach
+            # the renderer's strict dict lookups nor read as healthy.
             pc = {
-                "locked": pc_state.get("locked"),
-                "idle_seconds": pc_state.get("idle_seconds"),
-                "probe_failures": failures if isinstance(failures, int) else None,
+                "locked": locked if isinstance(locked, bool) else None,
+                "idle_seconds": (
+                    float(idle)
+                    if isinstance(idle, (int, float))
+                    and not isinstance(idle, bool)
+                    and math.isfinite(idle)
+                    else None
+                ),
+                "probe_failures": (
+                    failures
+                    if isinstance(failures, int) and not isinstance(failures, bool)
+                    else None
+                ),
                 "probe_state": (
                     "unknown"
-                    if pc_state.get("probe_ok") is None
-                    else ("ok" if pc_state.get("probe_ok") else "degraded")
+                    if not isinstance(probe_ok, bool)
+                    else ("ok" if probe_ok else "degraded")
                 ),
             }
         else:
             pc = None
     claim_model = None
     if isinstance(claim, dict) and claim.get("holder"):
+        expires_at = claim.get("expires_at")
         claim_model = {
             "holder": str(claim["holder"]),
             "purpose": str(claim.get("purpose") or ""),
             "expires_in_s": (
-                max(0.0, float(claim["expires_at"]) - float(now))
-                if isinstance(claim.get("expires_at"), (int, float))
+                max(0.0, float(expires_at) - float(now))
+                if isinstance(expires_at, (int, float))
+                and not isinstance(expires_at, bool)
+                and math.isfinite(expires_at)
                 else None
             ),
         }
@@ -753,48 +813,68 @@ class RelayApp:
         self.log_line(f"Elevation request '{name}': state={state} (resolved={resolved})")
 
     def _drain_queue(self):
-        # Forward anything the in-process hands logged (bad-secret
-        # rejections, lockouts) into this window's log.
-        hands = self._hands_module
-        if hands is not None:
-            try:
-                while True:
-                    self.ui_queue.put(
-                        ("log", f"[{self._stamp()}] hands: {hands.log_queue.get_nowait()}")
-                    )
-            except queue.Empty:
-                pass
-            # Elevation requests from the hands: each one is shown to
-            # the person at the PC for an explicit Approve/Deny click.
-            elevate_queue = getattr(hands, "elevate_queue", None)
-            if elevate_queue is not None:
+        # R7: the next drain is ALWAYS scheduled (finally), and each
+        # queued message is handled in isolation — one bad dashboard
+        # model or status update must not stop the drain, which also
+        # carries the status and log updates.
+        try:
+            # Forward anything the in-process hands logged (bad-secret
+            # rejections, lockouts) into this window's log.
+            hands = self._hands_module
+            if hands is not None:
                 try:
                     while True:
-                        req = elevate_queue.get_nowait()
-                        self._handle_elevation_request(hands, req)
+                        self.ui_queue.put(
+                            ("log", f"[{self._stamp()}] hands: {hands.log_queue.get_nowait()}")
+                        )
                 except queue.Empty:
                     pass
-        try:
-            while True:
-                kind, payload = self.ui_queue.get_nowait()
-                if kind == "log":
-                    self.log.config(state="normal")
-                    self.log.insert("end", payload + "\n")
-                    self.log.see("end")
-                    self.log.config(state="disabled")
-                elif kind == "status":
-                    which, text = payload
-                    label = {
-                        "parser": self.parser_status,
-                        "gateway": self.gateway_status,
-                        "hands": self.hands_status,
-                    }[which]
-                    label.config(text=text)
-                elif kind == "dashboard":
-                    self._render_dashboard(payload)
-        except queue.Empty:
-            pass
-        self.root.after(300, self._drain_queue)
+                # Elevation requests from the hands: each one is shown to
+                # the person at the PC for an explicit Approve/Deny click.
+                elevate_queue = getattr(hands, "elevate_queue", None)
+                if elevate_queue is not None:
+                    try:
+                        while True:
+                            req = elevate_queue.get_nowait()
+                            self._handle_elevation_request(hands, req)
+                    except queue.Empty:
+                        pass
+            try:
+                while True:
+                    kind, payload = self.ui_queue.get_nowait()
+                    try:
+                        if kind == "log":
+                            self.log.config(state="normal")
+                            self.log.insert("end", payload + "\n")
+                            self.log.see("end")
+                            self.log.config(state="disabled")
+                        elif kind == "status":
+                            which, text = payload
+                            label = {
+                                "parser": self.parser_status,
+                                "gateway": self.gateway_status,
+                                "hands": self.hands_status,
+                            }[which]
+                            label.config(text=text)
+                        elif kind == "dashboard":
+                            self._render_dashboard(payload)
+                    except Exception as exc:
+                        # Isolated: note the skip in the log and keep
+                        # draining the remaining messages.
+                        try:
+                            self.log.config(state="normal")
+                            self.log.insert(
+                                "end",
+                                f"[{self._stamp()}] UI update skipped ({kind}): {exc}\n",
+                            )
+                            self.log.see("end")
+                            self.log.config(state="disabled")
+                        except Exception:
+                            pass
+            except queue.Empty:
+                pass
+        finally:
+            self.root.after(300, self._drain_queue)
 
     # ---------- services ----------
     def _start_all(self):
@@ -1030,28 +1110,45 @@ class RelayApp:
             # the gateway module in-process (same data /v1/info and
             # /v1/act/queued serve); best-effort — a missing module or
             # a locked table must never break the health poll.
-            claim = queue_list = reserved_for = None
-            receipts = {}
-            gw = getattr(self, "_gateway_module", None)
-            if gw is not None:
-                try:
-                    claim, queue_list, reserved_for = gw._claim_snapshot()
-                except Exception:
-                    claim = queue_list = reserved_for = None
-                try:
-                    table = getattr(gw, "_receipts", None) or {}
-                    lk = getattr(gw, "_receipts_lock", None)
-                    if lk is not None:
-                        with lk:
-                            receipts = dict(table)
-                    else:
-                        receipts = dict(table)
-                except Exception:
-                    receipts = {}
-            model = build_dashboard_model(
-                info_data, claim, queue_list, reserved_for, receipts, time.time()
-            )
-            self.ui_queue.put(("dashboard", model))
+            # R7: the whole dashboard operation is isolated in its
+            # own try — any failure here (a junk /v1/info payload, a
+            # raising model builder) skips the dashboard for this
+            # poll only; health processing and self-heal below
+            # always run.
+            try:
+                claim = queue_list = reserved_for = None
+                receipts = {}
+                gw = getattr(self, "_gateway_module", None)
+                if gw is not None:
+                    try:
+                        claim, queue_list, reserved_for = gw._claim_snapshot()
+                    except Exception:
+                        claim = queue_list = reserved_for = None
+                    try:
+                        table = getattr(gw, "_receipts", None) or {}
+                        lk = getattr(gw, "_receipts_lock", None)
+                        if lk is not None:
+                            # Bounded acquire (R7): a contended lock
+                            # skips the snapshot this poll instead of
+                            # stalling the poll ahead of self-heal.
+                            # Rows are field-copied under the lock so
+                            # the builders never read a row a gateway
+                            # writer is mutating after release.
+                            if lk.acquire(timeout=0.2):
+                                try:
+                                    receipts = _snapshot_receipt_rows(table)
+                                finally:
+                                    lk.release()
+                        else:
+                            receipts = _snapshot_receipt_rows(table)
+                    except Exception:
+                        receipts = {}
+                model = build_dashboard_model(
+                    info_data, claim, queue_list, reserved_for, receipts, time.time()
+                )
+                self.ui_queue.put(("dashboard", model))
+            except Exception:
+                pass
             # Self-heal: gateway liveness is "HTTP answered at all".
             # If the gateway itself is down, hands/parser health is
             # unknown — note a failure only for the gateway then, so

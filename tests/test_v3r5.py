@@ -80,8 +80,11 @@ def test_partial_probe_result_counts_as_success(hands, monkeypatch):
 
 
 def test_off_windows_never_counts(hands, monkeypatch):
-    # os.name is NOT patched to nt here: (None, None) is the designed
-    # off-Windows result, not a failure.
+    # os.name is patched to a non-Windows value explicitly (R7): the
+    # test must not assume the host OS — on a Windows host the
+    # unpatched test would count (None, None) as failures. (None,
+    # None) is the designed off-Windows result, not a failure.
+    monkeypatch.setattr(hands.os, "name", "posix")
     monkeypatch.setattr(hands, "_probe_lock_state_raw", lambda: (None, None))
     for _ in range(5):
         hands._probe_lock_state()
