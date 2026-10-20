@@ -147,9 +147,10 @@ def run():
 
     # ------------------------------------------------ drag (#4)
     calls.clear()
-    r = client.post("/drag", json={"x1": 10, "y1": 20, "x2": 90, "y2": 80},
+    r = client.post("/drag", json={"x1": 10, "y1": 20, "x2": 90, "y2": 80,
+                                   "human": False},
                     headers=AUTH)
-    check("drag call order down->move->up with default duration",
+    check("drag human=false: legacy down->move->up with default duration",
           r.status_code == 200
           and names() == ["moveTo", "mouseDown", "moveTo", "mouseUp"]
           and calls[0][1] == (10, 20)

@@ -115,6 +115,25 @@ pyautogui.FAILSAFE = True
 # above is the independent emergency stop and is unaffected.
 pyautogui.PAUSE = 0
 
+
+def _load_motion():
+    """hands/motion.py, loaded by path: the app loads THIS file by path
+    too (and PyInstaller bundles both side by side), so a plain import
+    would depend on sys.path."""
+    import importlib.util
+
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "motion.py")
+    bundled = os.path.join(getattr(sys, "_MEIPASS", ""), "hands", "motion.py")
+    if not os.path.exists(path) and os.path.exists(bundled):
+        path = bundled
+    spec = importlib.util.spec_from_file_location("muse_relay_hands_motion", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+motion = _load_motion()
+
 # ---------------------------------------------------------------- server
 
 app = Flask(__name__)
@@ -234,6 +253,9 @@ def _yield_if_active():
     except (TypeError, ValueError):
         threshold = 5.0
     locked, idle_seconds = _probe_lock_state()
+    # R9 (#28): input inside a recorded jiggler span is ours, not the
+    # owner's — owner idle keeps counting from the owner's last input.
+    idle_seconds = _LEDGER.owner_idle(idle_seconds, _tick_ms())
     if locked is True:
         return (
             jsonify(
@@ -601,104 +623,187 @@ def _plan_key_delays(text, rng):
     return delays
 
 
-def _ease_in_out_cubic(t):
-    if t < 0.5:
-        return 4 * t * t * t
-    return 1 - ((-2 * t + 2) ** 3) / 2
+def _flag(env_name, cfg_key, default):
+    """Feature flag: env (1/0, true/false) wins over the config file."""
+    raw = os.environ.get(env_name)
+    if raw is not None and raw.strip():
+        return raw.strip().lower() not in ("0", "false", "no", "off")
+    val = _cfg.get(cfg_key)
+    return default if val is None else bool(val)
 
 
-def _bezier(p0, pc, p1, t):
-    u = 1 - t
-    return (
-        u * u * p0[0] + 2 * u * t * pc[0] + t * t * p1[0],
-        u * u * p0[1] + 2 * u * t * pc[1] + t * t * p1[1],
-    )
+def _human_motion_default():
+    """R9 motion flag (#24/#29/#30): default ON. A request's "human"
+    field still overrides per act."""
+    return _flag("HANDS_HUMAN_MOTION", "human_motion", True)
 
 
-def _plan_path(x0, y0, x1, y1, rng):
-    """Human-like mouse path: list of (x, y, delay_after) steps.
+def _jiggler_enabled():
+    """R9 jiggler flag (#28): default OFF."""
+    return _flag("HANDS_JIGGLER", "jiggler_enabled", False)
 
-    Quadratic bezier from start to target, control point pushed off the
-    midpoint perpendicular by up to 8% of the distance, parameter eased
-    with easeInOutCubic. The first ~85% of steps aim at an overshoot
-    point just past the target; the rest settle back to the EXACT
-    target, which is always the final step. Total duration is
-    clamp(0.25 + d/2500, 0.3, 1.1) seconds, spread evenly across steps.
-    A move under 4px is a single step straight to the target.
+
+def _tick_ms():
+    """The GetTickCount clock that GetLastInputInfo's dwTime lives on;
+    a monotonic stand-in off Windows (tests, Linux)."""
+    if os.name == "nt":
+        try:
+            return int(ctypes.windll.kernel32.GetTickCount()) & 0xFFFFFFFF  # type: ignore[attr-defined]
+        except Exception:
+            pass
+    return int(time.monotonic() * 1000) & 0xFFFFFFFF
+
+
+# One input stream at a time, with hand-travel between devices (#30 rule
+# 4). Every injecting op holds it; the jiggler only ever try-acquires.
+_INPUT = motion.InputMutex(clock=lambda: time.monotonic(), sleep=lambda s: time.sleep(s))
+# Jiggler injections, so the yield probe can tell them from the owner (#28).
+_LEDGER = motion.SelfInputLedger()
+
+
+class _input:
+    """with _input("mouse"|"keys"): hold the input mutex for one op."""
+
+    def __init__(self, kind):
+        self.kind = kind
+
+    def __enter__(self):
+        _INPUT.acquire(self.kind, random)
+        return self
+
+    def __exit__(self, *exc):
+        _INPUT.release(self.kind)
+        return False
+
+
+def _human(d):
+    h = d.get("human")
+    return _human_motion_default() if h is None else bool(h)
+
+
+def _plan_path(x0, y0, x1, y1, rng, width=None, path_seconds=None):
+    """Human-like pointer path: list of (x, y, delay_after) steps.
+
+    R9: delegates to motion.plan_move — cubic Bezier with 1-2 random
+    control points, Fitts velocity profile, value-noise tremor, and per
+    movement one of structural miss / overshoot+settle / direct. The
+    final step is always exactly (x1, y1).
     """
-    dx, dy = x1 - x0, y1 - y0
-    dist = math.hypot(dx, dy)
-    total = min(1.1, max(0.3, 0.25 + dist / 2500))
-    if dist < 4:
-        return [(x1, y1, total)]
-    n = max(8, min(60, int(dist / 12)))
-    offset = rng.uniform(-0.08 * dist, 0.08 * dist)
-    ctrl = (
-        (x0 + x1) / 2 + (-dy / dist) * offset,
-        (y0 + y1) / 2 + (dx / dist) * offset,
-    )
-    # Overshoot: extend past the target along the bezier's final
-    # direction (target - control point).
-    fx, fy = x1 - ctrl[0], y1 - ctrl[1]
-    flen = math.hypot(fx, fy)
-    if flen == 0:
-        fx, fy, flen = dx, dy, dist
-    over = min(6.0, 0.02 * dist)
-    over_pt = (x1 + fx / flen * over, y1 + fy / flen * over)
-
-    n_over = max(1, int(round(n * 0.85)))
-    if n_over >= n:
-        n_over = n - 1
-    points = []
-    for i in range(1, n_over + 1):
-        t = _ease_in_out_cubic(i / n_over)
-        points.append(_bezier((x0, y0), ctrl, over_pt, t))
-    n_settle = n - n_over
-    for j in range(1, n_settle + 1):
-        s = j / n_settle
-        points.append(
-            (over_pt[0] + (x1 - over_pt[0]) * s, over_pt[1] + (y1 - over_pt[1]) * s)
-        )
-    points[-1] = (x1, y1)  # exact target, always
-    per = total / n
-    steps = [(px, py, per) for (px, py) in points]
-    # Pin the delay sum to the planned total despite float rounding.
-    steps[-1] = (steps[-1][0], steps[-1][1], total - per * (n - 1))
-    return steps
+    return motion.plan_move(x0, y0, x1, y1, rng, width=width, path_seconds=path_seconds)
 
 
-def _move_human(x, y, rng=None):
+def _run_path(steps):
+    for sx, sy, delay in steps:
+        pyautogui.moveTo(sx, sy, duration=0)
+        time.sleep(delay)
+
+
+def _move_human(x, y, rng=None, width=None, path_seconds=None):
     """Move the cursor to (x, y) along a planned human-like path."""
     rng = rng if rng is not None else random
     x0, y0 = pyautogui.position()
-    for sx, sy, delay in _plan_path(x0, y0, x, y, rng):
-        pyautogui.moveTo(sx, sy, duration=0)
-        time.sleep(delay)
+    _run_path(_plan_path(x0, y0, x, y, rng, width=width, path_seconds=path_seconds))
+
+
+def _box(d):
+    """Optional target box {w, h} from an act body, else (None, None)."""
+    try:
+        w = float(d["w"]) if d.get("w") is not None else None
+        h = float(d["h"]) if d.get("h") is not None else None
+    except (TypeError, ValueError):
+        return None, None
+    if w is None or h is None or w <= 0 or h <= 0:
+        return None, None
+    return w, h
 
 
 @app.post("/move")
 def move():
     d = request.get_json(force=True)
     x, y = int(d["x"]), int(d["y"])
-    if d.get("human", True):
-        _move_human(x, y)
-    else:
-        pyautogui.moveTo(x, y, duration=0.2)
+    with _input("mouse"):
+        if _human(d):
+            w, h = _box(d)
+            if d.get("attention"):
+                time.sleep(motion.attention_delay(random, d.get("text_chars")))
+            _move_human(x, y, width=min(w, h) if w else None)
+        else:
+            pyautogui.moveTo(x, y, duration=0.2)
     return {"ok": True}
 
 
 @app.post("/click")
 def click():
+    """Click at (x, y). Human mode (default, R9 #24/#29/#30):
+
+    optional {w, h}: the target box centred on (x, y) — the landing
+    point is Gaussian inside it and its size sets the Fitts speed;
+    optional attention (default true) + text_chars: the pre-move
+    hesitation. Timing is fitted to the +0.5 s per-click budget.
+    """
     d = request.get_json(force=True)
     x, y = int(d["x"]), int(d["y"])
     button = d.get("button", "left")
-    if d.get("human", True):
-        _move_human(x, y)
-        time.sleep(random.uniform(0.05, 0.15))  # hover before the click
-    else:
-        pyautogui.moveTo(x, y, duration=0.2)
-    pyautogui.click(x=x, y=y, button=button)
-    return {"ok": True}
+    if not _human(d):
+        with _input("mouse"):
+            pyautogui.moveTo(x, y, duration=0.2)
+            pyautogui.click(x=x, y=y, button=button)
+        return {"ok": True}
+    rng = random
+    w, h = _box(d)
+    with _input("mouse"):
+        x0, y0 = pyautogui.position()
+        tx, ty = motion.landing_point(x, y, w, h, rng) if w else (x, y)
+        dist = math.hypot(tx - x0, ty - y0)
+        attention = (
+            motion.attention_delay(rng, d.get("text_chars"))
+            if d.get("attention", True)
+            else 0.0
+        )
+        travel = motion.fitts_duration(dist, min(w, h) if w else None, rng) if dist >= 4 else 0.02
+        hover = motion.hover_delay(rng)
+        hold = motion.click_hold(rng)
+        attention, travel, hover, hold = motion.fit_click_timing(
+            dist, attention, travel, hover, hold
+        )
+        if attention:
+            time.sleep(attention)
+        _move_human(tx, ty, rng, path_seconds=travel)
+        time.sleep(hover)
+        pyautogui.mouseDown(x=tx, y=ty, button=button)
+        try:
+            time.sleep(hold)
+        finally:
+            pyautogui.mouseUp(x=tx, y=ty, button=button)
+    return {
+        "ok": True,
+        "x": tx,
+        "y": ty,
+        "timing": {
+            "attention": round(attention, 3),
+            "travel": round(travel, 3),
+            "hover": round(hover, 3),
+            "hold": round(hold, 3),
+            "budget": round(motion.click_budget(dist), 3),
+        },
+    }
+
+
+def _type_dispatch(method, keys_fn, paste_fn, text):
+    """Pick the type path; returns (method_used, note)."""
+    if method == "keys":
+        return keys_fn(), None
+    if method == "paste":
+        try:
+            return paste_fn(), None
+        except Exception as exc:
+            return keys_fn(), f"paste requested but unavailable ({exc}); used keys"
+    if len(text) > 120 and _clipboard_backend() is not None:
+        try:
+            return paste_fn(), None
+        except Exception as exc:
+            return keys_fn(), f"paste failed ({exc}); used keys"
+    return keys_fn(), None
 
 
 @app.post("/type")
@@ -784,23 +889,12 @@ def type_text():
                     pass
         return "paste"
 
-    if method == "keys":
-        method_used = _keys()
-    elif method == "paste":
-        try:
-            method_used = _paste()
-        except Exception as exc:
-            note = f"paste requested but unavailable ({exc}); used keys"
-            method_used = _keys()
-    else:  # auto
-        if len(text) > 120 and _clipboard_backend() is not None:
-            try:
-                method_used = _paste()
-            except Exception as exc:
-                note = f"paste failed ({exc}); used keys"
-                method_used = _keys()
-        else:
-            method_used = _keys()
+    _INPUT.acquire("keys", random)
+    try:
+        method_used, note = _type_dispatch(method, _keys, _paste, text)
+    finally:
+        _INPUT.release("keys")
+
     if method_used == "keys" and typed < len(text):
         return (
             jsonify(
@@ -840,14 +934,25 @@ def type_text():
 @app.post("/key")
 def key():
     d = request.get_json(force=True)
-    pyautogui.press(d["key"])
+    with _input("keys"):
+        pyautogui.press(d["key"])
     return {"ok": True}
 
 
 @app.post("/scroll")
 def scroll():
+    """Scroll by clicks. Human mode (R9 #29): variable 1-3 click chunks
+    with 30-120 ms pauses instead of one jump; the total is exact."""
     d = request.get_json(force=True)
-    pyautogui.scroll(int(d.get("clicks", 3)))
+    clicks = int(d.get("clicks", 3))
+    with _input("mouse"):
+        if _human(d):
+            for chunk, pause in motion.plan_scroll(clicks, random):
+                pyautogui.scroll(chunk)
+                if pause:
+                    time.sleep(pause)
+        else:
+            pyautogui.scroll(clicks)
     return {"ok": True}
 
 
@@ -1082,6 +1187,160 @@ def _display_state(idle_seconds):
             "display_asleep": asleep}
 
 
+# ---- R9 idle jiggler (#28 + #30 idle drift) -------------------------------
+# One decision per tick (step), driven by OWNER idle (jiggler spans
+# excluded via _LEDGER). An episode begins after a per-episode 30-60 s of
+# owner idle; jiggle size and spacing decay with idle length
+# (motion.plan_jiggle). Any owner input ends the episode at once: the OS
+# idle drops below the start threshold, or the pointer is no longer where
+# the jiggler left it, or it moves under the jiggler mid-path. Never runs
+# while locked, while the probe is blind, or while an act holds _INPUT.
+
+class _Jiggler:
+    POLL = 0.5
+
+    def __init__(self, rng=None):
+        self.rng = rng if rng is not None else random
+        self.active = False
+        self.start_after = None
+        self.next_at = 0.0
+        self.last_pos = None
+        self.moves = 0
+        self.kills = 0
+        self._stop = threading.Event()
+        self._thread = None
+
+    def _end(self, killed=False):
+        if self.active and killed:
+            self.kills += 1
+        self.active = False
+        self.start_after = None
+        self.last_pos = None
+
+    def status(self):
+        return {
+            "enabled": _jiggler_enabled(),
+            "active": self.active,
+            "moves": self.moves,
+            "owner_kills": self.kills,
+        }
+
+    def step(self, now):
+        """One decision. Returns seconds to wait before the next step."""
+        if not _jiggler_enabled():
+            self._end()
+            return 1.0
+        locked, raw_idle = _probe_lock_state()
+        if locked is not False or raw_idle is None:
+            self._end()
+            return 2.0
+        idle = _LEDGER.owner_idle(raw_idle, _tick_ms())
+        if self.start_after is None:
+            self.start_after = motion.jiggle_start_after(self.rng)
+        if idle < self.start_after:
+            self._end(killed=True)  # owner input reset the idle clock
+            return self.POLL
+        pos = tuple(pyautogui.position())
+        if self.active and self.last_pos is not None and pos != self.last_pos:
+            self._end(killed=True)  # pointer moved, not by us
+            return self.POLL
+        if not self.active:
+            self.active = True
+            self.next_at = now
+        if now < self.next_at:
+            return min(self.POLL, self.next_at - now)
+        if not _INPUT.try_acquire():
+            return self.POLL  # an act is injecting; never contend with it
+        try:
+            dx, dy, wait = motion.plan_jiggle(idle - self.start_after, self.rng)
+            landed = self._move(pos, (pos[0] + dx, pos[1] + dy))
+        finally:
+            _INPUT.release("mouse")
+        if landed is None:
+            self._end(killed=True)
+            return self.POLL
+        self.last_pos = landed
+        self.moves += 1
+        self.next_at = now + wait
+        return self.POLL
+
+    def _move(self, start, target):
+        """Inject one jiggle; None if the owner moved the pointer mid-path."""
+        tx, ty = int(round(target[0])), int(round(target[1]))
+        steps = motion.plan_move(start[0], start[1], tx, ty, self.rng)
+        planned_ms = int(sum(st[2] for st in steps) * 1000)
+        t0 = _tick_ms()
+        # Record BEFORE injecting: a concurrent yield probe must already
+        # see this span as ours.
+        _LEDGER.record(t0, (t0 + planned_ms + 250) & 0xFFFFFFFF)
+        for sx, sy, delay in steps:
+            pyautogui.moveTo(sx, sy, duration=0)
+            time.sleep(delay)
+            px, py = pyautogui.position()
+            if abs(px - round(sx)) > 1 or abs(py - round(sy)) > 1:
+                _LEDGER.truncate_last(_tick_ms())
+                return None
+        _LEDGER.truncate_last((_tick_ms() + 50) & 0xFFFFFFFF)
+        return tuple(pyautogui.position())
+
+    def _run(self):
+        while not self._stop.is_set():
+            try:
+                wait = self.step(time.monotonic())
+            except Exception as exc:  # a probe/pyautogui failure must not kill the thread
+                file_log(f"jiggler step failed: {exc}")
+                self._end()
+                wait = 2.0
+            self._stop.wait(wait)
+
+    def start(self):
+        if self._thread is not None and self._thread.is_alive():
+            return
+        self._stop.clear()
+        self._thread = threading.Thread(target=self._run, name="hands-jiggler", daemon=True)
+        self._thread.start()
+
+    def stop(self):
+        self._stop.set()
+        self._end()
+
+
+_jiggler = _Jiggler()
+
+
+def start_jiggler():
+    """Start the jiggler thread (it idles unless the flag is on)."""
+    _jiggler.start()
+
+
+def stop_jiggler():
+    _jiggler.stop()
+
+
+@app.get("/jiggler")
+def jiggler_get():
+    return {"ok": True, **_jiggler.status()}
+
+
+@app.post("/jiggler")
+def jiggler_set():
+    """{enabled: bool} — persisted to the hands config (jiggler_enabled).
+    An env HANDS_JIGGLER setting still wins over it."""
+    d = request.get_json(force=True, silent=True) or {}
+    enabled = d.get("enabled")
+    if not isinstance(enabled, bool):
+        return jsonify({"ok": False, "error": "enabled must be true or false"}), 400
+    # Merge into the file as it is NOW: the app shares this config file,
+    # so writing back a stale in-memory copy could drop its keys.
+    fresh = _load_config()
+    fresh["jiggler_enabled"] = enabled
+    _save_config(fresh)
+    _cfg["jiggler_enabled"] = enabled
+    if enabled:
+        start_jiggler()
+    return {"ok": True, **_jiggler.status()}
+
+
 @app.get("/state")
 def state():
     platform = "windows" if os.name == "nt" else "other"
@@ -1090,6 +1349,11 @@ def state():
     except Exception:
         locked, idle_seconds = None, None
     body = {"ok": True, "platform": platform, "locked": locked, "idle_seconds": idle_seconds}
+    body["owner_idle_seconds"] = _LEDGER.owner_idle(idle_seconds, _tick_ms())
+    body["jiggler"] = _jiggler.status()
+    body["human_motion"] = _human_motion_default()
+    # Display sleep follows the OS idle clock, which injected input
+    # (incl. the jiggler) does reset — so the raw idle is the right one.
     body.update(_display_state(idle_seconds))
     body.update(_probe_health())
     return body
@@ -1307,7 +1571,8 @@ def hotkey():
         or not all(isinstance(k, str) and k.strip() for k in keys)
     ):
         return jsonify({"ok": False, "error": "keys must be a non-empty list of strings"}), 400
-    pyautogui.hotkey(*keys)
+    with _input("keys"):
+        pyautogui.hotkey(*keys)
     return {"ok": True}
 
 
@@ -1330,10 +1595,11 @@ def break_():
     times = d.get("times", 1)
     if isinstance(times, bool) or not isinstance(times, int) or not 1 <= times <= 3:
         return jsonify({"ok": False, "error": "times must be an integer 1..3"}), 400
-    for i in range(times):
-        pyautogui.hotkey("ctrl", "c")
-        if i < times - 1:
-            time.sleep(0.15)
+    with _input("keys"):
+        for i in range(times):
+            pyautogui.hotkey("ctrl", "c")
+            if i < times - 1:
+                time.sleep(0.15)
     return {"ok": True, "times": times}
 
 
@@ -1354,20 +1620,33 @@ def drag():
     if button not in ("left", "middle", "right"):
         return jsonify({"ok": False, "error": "button must be left, middle or right"}), 400
     try:
-        duration = float(d["duration"]) if d.get("duration") is not None else 0.4
+        duration = float(d["duration"]) if d.get("duration") is not None else None
     except (TypeError, ValueError):
         return jsonify({"ok": False, "error": "duration must be a number"}), 400
-    pyautogui.moveTo(x1, y1)
-    down = False
-    try:
-        # Mark first so a mouseDown/move failure still releases the button.
-        # duration 0 is real; do not coerce it with `or 0.4`.
-        down = True
-        pyautogui.mouseDown(button=button)
-        pyautogui.moveTo(x2, y2, duration=duration)
-    finally:
-        if down:
-            pyautogui.mouseUp(button=button)
+    human = _human(d)
+    with _input("mouse"):
+        if human:
+            # R9 (#24): human approach to the grab point, a hover, then a
+            # human path while held; duration (if given) is the held
+            # travel time, else Fitts decides. Endpoints are exact.
+            _move_human(x1, y1)
+            time.sleep(motion.hover_delay(random))
+        else:
+            pyautogui.moveTo(x1, y1)
+        down = False
+        try:
+            # Mark first so a mouseDown/move failure still releases the button.
+            # duration 0 is real; do not coerce it with `or 0.4`.
+            down = True
+            pyautogui.mouseDown(button=button)
+            if human:
+                time.sleep(motion.click_hold(random))
+                _move_human(x2, y2, path_seconds=duration)
+            else:
+                pyautogui.moveTo(x2, y2, duration=0.4 if duration is None else duration)
+        finally:
+            if down:
+                pyautogui.mouseUp(button=button)
     return {"ok": True}
 
 
@@ -1947,6 +2226,7 @@ class RelayApp:
         self.root.clipboard_append(text)
 
     def _run_server(self):
+        start_jiggler()  # idles unless the jiggler flag is on
         try:
             try:
                 from waitress import create_server

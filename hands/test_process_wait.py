@@ -26,6 +26,8 @@ def modules(tmp_path):
     # Import from a temporary copy: no config/log artifacts in the source tree.
     source = tmp_path / "hands.py"
     source.write_bytes((ROOT / "hands/muse_relay_hands.py").read_bytes())
+    # R9: the hands loads its sibling motion.py by path.
+    (tmp_path / "motion.py").write_bytes((ROOT / "hands/motion.py").read_bytes())
     with patch.dict(sys.modules, {"pyautogui": pag, "tkinter": tk}):
         hands = load("process_test_hands", source)
         gateway = load("process_test_gateway", ROOT / "services/gateway/app.py")

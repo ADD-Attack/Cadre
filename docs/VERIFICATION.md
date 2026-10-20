@@ -319,3 +319,21 @@ merge, all behavior-level, each covered by the combined test suite:
   test_coordination's stub was updated to the 3-tuple.
 - A cherry-pick seam that separated _fetch_screenshot's signature from
   its body was repaired; py_compile + the full suite verify the result.
+
+## R9 motion + jiggler (#24, #28-#30)
+
+1. Click a small button with `{"x","y","w","h"}`: watch the pointer arc,
+   decelerate, sometimes overshoot or miss by a few px and correct; the
+   response `timing` sum stays under `timing.budget`.
+2. Repeat the same click 5 times: no two paths look the same.
+3. Drag a slider: smooth curved travel with the button held; release
+   exactly at the end point.
+4. `POST /jiggler {"enabled": true}`, walk away: after 30-60 s the
+   pointer drifts; minutes later only 1-3 px twitches, far apart.
+5. While it drifts, touch the mouse: the jiggler stops at once (GET
+   /jiggler `active: false`, `owner_kills` +1) and does not fight you.
+6. While it drifts, submit a queued act from another device: the act
+   applies directly (no yield against the jiggler); `/state`
+   `owner_idle_seconds` keeps growing while `idle_seconds` resets.
+7. `POST /jiggler {"enabled": false}`; confirm `muse_relay_config.json`
+   kept its other keys.

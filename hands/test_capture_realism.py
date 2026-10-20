@@ -278,12 +278,17 @@ def run():
         "path: 800px move has many steps and a curve (off-line midpoint)",
         len(path) > 8 and any(abs(p[1]) > 1 for p in path[1:-1]),
     )
-    check(
-        "path: overshoots past the target before settling",
-        max(p[0] for p in path) > 800,
-    )
+    # R9: overshoot / structural miss / direct is drawn per movement, so
+    # across seeds some paths must leave the target and come back.
+    excursions = 0
+    for seed in range(40):
+        p = hands._plan_path(0, 0, 800, 0, random.Random(seed))
+        if max(q[0] for q in p) > 800.5 or any(abs(q[1]) > 4 for q in p[-6:-1]):
+            excursions += 1
+    check("path: overshoot/miss happens on some (not all) movements",
+          0 < excursions < 40)
     total = sum(p[2] for p in path)
-    check("path: delays sum within [0.3, 1.1]", 0.3 <= total <= 1.1)
+    check("path: Fitts travel time is plausible (0.2-1.2 s)", 0.2 <= total <= 1.2)
     check(
         "path: deterministic for the same seed",
         path == hands._plan_path(0, 0, 800, 0, random.Random(1)),
@@ -329,13 +334,18 @@ def run():
         calls["moveTo"].clear()
         calls["click"].clear()
         fake_time.sleeps.clear()
+        downs, ups = [], []
+        fake_pag.mouseDown = lambda x=None, y=None, button="left": downs.append((x, y, button))
+        fake_pag.mouseUp = lambda x=None, y=None, button="left": ups.append((x, y, button))
         r = client.post("/click", json={"x": 300, "y": 0}, headers=AUTH)
+        # attention + one sleep per path step + hover + hold
         check(
-            "/click human: path + hover sleep, then the click lands on target",
+            "/click human: attention, path, hover, then down/hold/up on target",
             r.status_code == 200
             and len(calls["moveTo"]) > 1
-            and calls["click"] == [(300, 0, "left")]
-            and len(fake_time.sleeps) == len(calls["moveTo"]) + 1,
+            and (calls["moveTo"][-1][0], calls["moveTo"][-1][1]) == (300, 0)
+            and downs == [(300, 0, "left")] and ups == [(300, 0, "left")]
+            and len(fake_time.sleeps) == len(calls["moveTo"]) + 3,
         )
     finally:
         hands.time = real_time

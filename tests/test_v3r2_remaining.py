@@ -69,7 +69,7 @@ def test_yield_inactive_when_probe_is_none(hands, monkeypatch):
     monkeypatch.setattr(hands.pyautogui, "mouseDown", lambda **k: None)
     monkeypatch.setattr(hands.pyautogui, "mouseUp", lambda **k: events.append("up"))
     with hands.app.test_request_context(
-        "/drag", method="POST", json={"x1": 0, "y1": 0, "x2": 1, "y2": 1, "duration": 0}
+        "/drag", method="POST", json={"x1": 0, "y1": 0, "x2": 1, "y2": 1, "duration": 0, "human": False}
     ):
         hands.drag()
     assert 0 in events or 0.0 in events
@@ -89,7 +89,7 @@ def test_drag_releases_button_when_move_raises(hands, monkeypatch):
     monkeypatch.setattr(hands.pyautogui, "mouseDown", lambda **k: None)
     monkeypatch.setattr(hands.pyautogui, "mouseUp", lambda **k: calls.__setitem__("up", calls["up"] + 1))
     with hands.app.test_request_context(
-        "/drag", method="POST", json={"x1": 0, "y1": 0, "x2": 3, "y2": 4, "duration": 0.2}
+        "/drag", method="POST", json={"x1": 0, "y1": 0, "x2": 3, "y2": 4, "duration": 0.2, "human": False}
     ):
         with pytest.raises(RuntimeError):
             hands.drag()

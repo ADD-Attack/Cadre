@@ -980,6 +980,10 @@ class RelayApp:
             # secret itself. Its gate() reads this global per request.
             module.SHARED_SECRET = self._hands_secret
             self._hands_module = module
+            # R9 (#28): the jiggler thread idles unless its flag is on.
+            starter = getattr(module, "start_jiggler", None)
+            if callable(starter):
+                starter()
             self.log_line(
                 "Hands config check: module_match=%s module_len=%s"
                 % (
@@ -1078,6 +1082,12 @@ class RelayApp:
                         server.close()
                     except Exception:
                         pass
+                if name == "hands":
+                    # R9: the reload makes a fresh module (and jiggler);
+                    # the old module's jiggler thread must not live on.
+                    stopper = getattr(self._hands_module, "stop_jiggler", None)
+                    if callable(stopper):
+                        stopper()
                 self._start_one(name)
         elif action == "give_up":
             self.log_line(
