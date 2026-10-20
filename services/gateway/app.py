@@ -227,6 +227,27 @@ def noindex(resp):
     return resp
 
 
+@app.after_request
+def integrity(resp):
+    """R9 (#22): make a torn or emptied body detectable as torn.
+
+    Every buffered response carries an explicit Content-Length and
+    X-Body-SHA256 (hex digest of the exact body bytes). A client that
+    receives a 2xx whose bytes do not hash to the header — including
+    an empty body where the header names a non-empty one — knows the
+    read was damaged in transit (proxy/tunnel), not "empty but valid".
+    The gateway itself never emits an empty 2xx JSON body: every JSON
+    route returns at least {"ok": ...}. Streamed responses are left
+    alone (their length is not known up front).
+    """
+    if resp.direct_passthrough or resp.is_streamed:
+        return resp
+    data = resp.get_data()
+    resp.headers["Content-Length"] = str(len(data))
+    resp.headers["X-Body-SHA256"] = hashlib.sha256(data).hexdigest()
+    return resp
+
+
 def _hands_headers():
     return {"X-Secret": HANDS_SECRET}
 
@@ -990,6 +1011,7 @@ def _pump_receipt(receipt, now):
             _pending_payloads.pop(receipt["id"], None)
             return receipt
         receipt["state"] = "applied"
+        receipt["applied_via"] = "after-hold"
         receipt["result"] = result
         _pending_payloads.pop(receipt["id"], None)
         return receipt
@@ -1158,6 +1180,9 @@ def act_queued():
             "op": op,
             "param_keys": sorted(payload.keys()),
             "state": "applied" if applied else "failed",
+            # R9 (#21): which path settled it — "direct" here,
+            # "after-hold" when the retry pump applies a held act.
+            "applied_via": "direct" if applied else None,
             "submitted_at": now,
             "updated_at": now,
             "deadline": now,
@@ -1174,10 +1199,27 @@ def act_queued():
         body["id"] = receipt["id"]
         return jsonify(body), status
     now = time.time()
+    # R9 (#20): pin the held act to the window it was aimed at. The
+    # hands reports the foreground hwnd in its yield 409; retries then
+    # carry expect_focus, so the hands' focus guard refuses (non-yield
+    # 409 -> receipt failed) if the owner left a different window in
+    # front. A caller's own expect_focus wins; focus itself is exempt
+    # (its job is to change the foreground).
+    pinned = None
+    if (
+        "expect_focus" not in payload
+        and op != "focus"
+        and isinstance(result, dict)
+        and isinstance(result.get("foreground_hwnd"), int)
+        and not isinstance(result.get("foreground_hwnd"), bool)
+    ):
+        pinned = result["foreground_hwnd"]
+        payload["expect_focus"] = {"hwnd": pinned}
     receipt = {
         "id": uuid.uuid4().hex,
         "op": op,
-        "param_keys": sorted(payload.keys()),
+        "param_keys": sorted(k for k in payload.keys() if not (pinned is not None and k == "expect_focus")),
+        "pinned_foreground": pinned is not None,
         "state": "held",
         "submitted_at": now,
         "updated_at": now,

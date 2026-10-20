@@ -246,16 +246,18 @@ def _yield_if_active():
             409,
         )
     if idle_seconds is not None and idle_seconds < threshold:
-        return (
-            jsonify(
-                {
-                    "ok": False,
-                    "error": "user active — control yielded",
-                    "error_code": "yield",
-                }
-            ),
-            409,
-        )
+        body = {
+            "ok": False,
+            "error": "user active — control yielded",
+            "error_code": "yield",
+        }
+        # R9 (#20): the window this act was aimed at, captured at the
+        # first (yielded) attempt, so the gateway can pin the held
+        # retry to it instead of firing into whatever is in front later.
+        hwnd = _foreground_hwnd()
+        if hwnd is not None:
+            body["foreground_hwnd"] = hwnd
+        return jsonify(body), 409
     return None
 
 
@@ -267,12 +269,25 @@ def _foreground_window():
     return None
 
 
+def _foreground_hwnd():
+    """Handle of the foreground window as an int, or None. Never raises."""
+    try:
+        win = _foreground_window()
+    except Exception:
+        return None
+    if not win:
+        return None
+    hwnd = win.get("_hwnd")
+    return int(hwnd) if isinstance(hwnd, int) and not isinstance(hwnd, bool) else None
+
+
 def _focus_matches(expect, win):
     """True when the foreground window satisfies an expect_focus spec.
 
-    expect is a title substring (str) or {"title": ..., "process": ...};
-    each field given must appear (case-insensitive substring) in the
-    foreground window's matching field. An empty spec never matches.
+    expect is a title substring (str) or {"title": ..., "process": ...,
+    "hwnd": ...}; each field given must appear (case-insensitive
+    substring) in the foreground window's matching field, and hwnd must
+    equal its window handle exactly. An empty spec never matches.
     """
     if isinstance(expect, str):
         expect = {"title": expect}
@@ -280,8 +295,15 @@ def _focus_matches(expect, win):
         return False
     want_title = expect.get("title")
     want_process = expect.get("process")
-    if not want_title and not want_process:
+    want_hwnd = expect.get("hwnd")
+    if not want_title and not want_process and want_hwnd is None:
         return False
+    if want_hwnd is not None:
+        try:
+            if int(want_hwnd) != int(win.get("_hwnd")):
+                return False
+        except (TypeError, ValueError):
+            return False
     if want_title and str(want_title).lower() not in (win.get("title") or "").lower():
         return False
     if want_process and str(want_process).lower() not in (win.get("process") or "").lower():
