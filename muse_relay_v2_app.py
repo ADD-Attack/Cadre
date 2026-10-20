@@ -28,6 +28,14 @@ Secrets:
     Downloads\\cursor_relay.py) is not needed at all.
 
 Stop (or closing the window) stops all three services.
+
+R6 (wishlist #23, first revision) adds a dashboard section to the
+window: service tiles, the hands claim + queue state, the PC lock /
+idle / yield-probe state, a live feed of recent act receipts, and a
+one-click diagnostics summary (button copies it to the clipboard).
+The dashboard's data layer is a set of pure functions
+(build_dashboard_model and friends) so it is testable headless; the
+full "super AAA" interface pass is a separate wishlist item (#25).
 """
 
 import importlib.util
@@ -172,6 +180,182 @@ class ServiceHealth:
             return "none"
 
 
+# ---- dashboard data layer (R6, wishlist #23) ---------------------------
+# Pure functions: gateway /v1/info payload + the gateway module's
+# in-process claim snapshot and receipts table in, a plain model dict
+# out. No I/O, no tkinter — the poll thread builds the model, the UI
+# thread renders it, and tests exercise it headless.
+
+
+def _fmt_duration(seconds):
+    """Compact duration: 5 -> '5s', 65 -> '1m 05s', 3661 -> '1h 01m'."""
+    try:
+        total = int(max(0, round(float(seconds))))
+    except (TypeError, ValueError):
+        return "?"
+    if total < 60:
+        return f"{total}s"
+    if total < 3600:
+        return f"{total // 60}m {total % 60:02d}s"
+    return f"{total // 3600}h {(total % 3600) // 60:02d}m"
+
+
+def summarize_receipts(receipts, now, limit=8):
+    """Newest-first feed rows from a receipts dict (or iterable).
+
+    Rows: {"id8", "op", "state", "age_s"}. Entries missing any of
+    id/op/state/submitted_at are skipped — the feed renders what it
+    can prove, never a half-row.
+    """
+    if isinstance(receipts, dict):
+        entries = list(receipts.values())
+    elif receipts:
+        entries = list(receipts)
+    else:
+        entries = []
+    rows = []
+    for r in entries:
+        if not isinstance(r, dict):
+            continue
+        rid, op, state = r.get("id"), r.get("op"), r.get("state")
+        submitted = r.get("submitted_at")
+        if not rid or not op or not state or not isinstance(submitted, (int, float)):
+            continue
+        rows.append(
+            {
+                "id8": str(rid)[:8],
+                "op": str(op),
+                "state": str(state),
+                "age_s": max(0.0, float(now) - float(submitted)),
+                "_submitted": float(submitted),
+            }
+        )
+    rows.sort(key=lambda row: row["_submitted"], reverse=True)
+    for row in rows:
+        del row["_submitted"]
+    return rows[:limit]
+
+
+def receipt_state_counts(receipts):
+    """{state: count} over the receipts table ({} for none/junk)."""
+    if isinstance(receipts, dict):
+        entries = list(receipts.values())
+    elif receipts:
+        entries = list(receipts)
+    else:
+        entries = []
+    counts = {}
+    for r in entries:
+        if isinstance(r, dict) and r.get("state"):
+            counts[str(r["state"])] = counts.get(str(r["state"]), 0) + 1
+    return counts
+
+
+def build_dashboard_model(info, claim, queue, reserved_for, receipts, now):
+    """Assemble the dashboard model from one poll's worth of state.
+
+    info: the gateway /v1/info payload, or None when the gateway did
+    not answer. claim/queue/reserved_for: the gateway module's
+    _claim_snapshot() triple (claim dict or None, FIFO list, holder
+    name or None). receipts: the gateway's receipts table.
+    """
+    services = {"gateway": "down" if info is None else "ok"}
+    if info is None:
+        services["hands"] = "unknown"
+        services["parser"] = "unknown"
+        pc = None
+    else:
+        services["hands"] = "ok" if info.get("hands_reachable") else "down"
+        services["parser"] = "ok" if info.get("parser_reachable") else "down"
+        pc_state = info.get("pc_state")
+        if isinstance(pc_state, dict):
+            failures = pc_state.get("probe_failures")
+            pc = {
+                "locked": pc_state.get("locked"),
+                "idle_seconds": pc_state.get("idle_seconds"),
+                "probe_failures": failures if isinstance(failures, int) else None,
+                "probe_state": (
+                    "unknown"
+                    if pc_state.get("probe_ok") is None
+                    else ("ok" if pc_state.get("probe_ok") else "degraded")
+                ),
+            }
+        else:
+            pc = None
+    claim_model = None
+    if isinstance(claim, dict) and claim.get("holder"):
+        claim_model = {
+            "holder": str(claim["holder"]),
+            "purpose": str(claim.get("purpose") or ""),
+            "expires_in_s": (
+                max(0.0, float(claim["expires_at"]) - float(now))
+                if isinstance(claim.get("expires_at"), (int, float))
+                else None
+            ),
+        }
+    return {
+        "services": services,
+        "claim": claim_model,
+        "queue_len": len(queue) if isinstance(queue, list) else 0,
+        "reserved_for": str(reserved_for) if reserved_for else None,
+        "pc": pc,
+        "feed": summarize_receipts(receipts, now),
+        "counts": receipt_state_counts(receipts),
+    }
+
+
+def format_diagnostics(model, stamp):
+    """One-click diagnostics text (clipboard + log) from a model."""
+    svc = model.get("services", {})
+    lines = [
+        f"Muse Relay diagnostics — {stamp}",
+        "Services: gateway {g} · hands {h} · parser {p}".format(
+            g=svc.get("gateway", "?"), h=svc.get("hands", "?"), p=svc.get("parser", "?")
+        ),
+    ]
+    claim = model.get("claim")
+    if claim:
+        text = f"Claim: {claim['holder']}"
+        if claim["purpose"]:
+            text += f" — {claim['purpose']}"
+        if claim["expires_in_s"] is not None:
+            text += f" (expires in {_fmt_duration(claim['expires_in_s'])})"
+        lines.append(text)
+    else:
+        lines.append("Claim: none")
+    extra = []
+    if model.get("queue_len"):
+        extra.append(f"queue: {model['queue_len']} waiting")
+    if model.get("reserved_for"):
+        extra.append(f"reserved for: {model['reserved_for']}")
+    if extra:
+        lines.append(" · ".join(extra))
+    pc = model.get("pc")
+    if pc is None:
+        lines.append("PC: unknown (hands unreachable)")
+    else:
+        locked = {True: "LOCKED", False: "unlocked", None: "lock unknown"}[pc["locked"]]
+        idle = (
+            "idle unknown"
+            if pc["idle_seconds"] is None
+            else f"owner idle {_fmt_duration(pc['idle_seconds'])}"
+        )
+        probe = {
+            "ok": "yield probe OK",
+            "degraded": f"yield probe DEGRADED ({pc['probe_failures']} failures)",
+            "unknown": "yield probe unknown",
+        }[pc["probe_state"]]
+        lines.append(f"PC: {locked} · {idle} · {probe}")
+    counts = model.get("counts", {})
+    if counts:
+        total = sum(counts.values())
+        detail = " · ".join(f"{state} {counts[state]}" for state in sorted(counts))
+        lines.append(f"Receipts: {total} total — {detail}")
+    else:
+        lines.append("Receipts: none yet")
+    return "\n".join(lines)
+
+
 def _app_dir():
     """Folder that holds services/ and (when frozen) sits next to the exe."""
     if getattr(sys, "frozen", False):
@@ -284,6 +468,8 @@ class RelayApp:
         self.token = None
         self._hands_secret = None
         self._hands_module = None
+        self._gateway_module = None
+        self._last_model = None
         self._started = False
         self._poll_logged = False
         self.servers = {}
@@ -304,8 +490,8 @@ class RelayApp:
     def _build_ui(self):
         root = self.root
         root.title("Muse Relay v2")
-        root.geometry("580x480")
-        root.minsize(520, 420)
+        root.geometry("760x680")
+        root.minsize(680, 560)
 
         frame = tk.Frame(root, padx=12, pady=10)
         frame.pack(fill="x")
@@ -316,6 +502,8 @@ class RelayApp:
         self.gateway_status.pack(fill="x")
         self.parser_status = tk.Label(frame, text="Parser (:5011): not started", anchor="w")
         self.parser_status.pack(fill="x")
+
+        self._build_dashboard(root)
 
         tok = tk.Frame(root, padx=12)
         tok.pack(fill="x", pady=(6, 0))
@@ -361,6 +549,129 @@ class RelayApp:
 
         self.log = scrolledtext.ScrolledText(root, height=12, state="disabled", wrap="word")
         self.log.pack(fill="both", expand=True, padx=12, pady=10)
+
+    # ---------- dashboard (R6, wishlist #23) ----------
+    def _build_dashboard(self, root):
+        dash = tk.LabelFrame(root, text="Dashboard", padx=10, pady=8)
+        dash.pack(fill="x", padx=12, pady=(8, 0))
+
+        tiles = tk.Frame(dash)
+        tiles.pack(fill="x")
+        self._tile_dots = {}
+        self._tile_texts = {}
+        for name in ("hands", "gateway", "parser"):
+            tile = tk.Frame(tiles, relief="groove", borderwidth=1, padx=8, pady=4)
+            tile.pack(side="left", fill="x", expand=True, padx=(0, 6))
+            dot = tk.Label(tile, text="●", fg="#999999", font=("Segoe UI", 13))
+            dot.pack(side="left")
+            text = tk.Label(
+                tile,
+                text=f"{SERVICE_LABELS[name]} (:{SERVICE_PORTS[name]}): not started",
+                anchor="w",
+                font=("Segoe UI", 9),
+            )
+            text.pack(side="left", fill="x", expand=True)
+            self._tile_dots[name] = dot
+            self._tile_texts[name] = text
+
+        self.dash_claim = tk.Label(
+            dash, text="Claim: —", anchor="w", font=("Segoe UI", 9)
+        )
+        self.dash_claim.pack(fill="x", pady=(6, 0))
+        self.dash_pc = tk.Label(dash, text="PC: —", anchor="w", font=("Segoe UI", 9))
+        self.dash_pc.pack(fill="x")
+
+        feed_head = tk.Frame(dash)
+        feed_head.pack(fill="x", pady=(6, 0))
+        tk.Label(feed_head, text="Recent acts", font=("Segoe UI", 9, "bold")).pack(
+            side="left"
+        )
+        self.dash_counts = tk.Label(feed_head, text="", anchor="e", fg="#555555")
+        self.dash_counts.pack(side="right")
+        self.dash_feed = tk.Text(
+            dash, height=8, state="disabled", wrap="none", font=("Consolas", 9)
+        )
+        self.dash_feed.pack(fill="x")
+
+        tk.Button(
+            dash, text="Copy diagnostics", command=self._copy_diagnostics
+        ).pack(anchor="e", pady=(6, 0))
+
+    def _render_dashboard(self, model):
+        self._last_model = model
+        colors = {"ok": "#1e9e50", "down": "#cc3333", "unknown": "#999999"}
+        words = {"ok": "running", "down": "not answering", "unknown": "unknown"}
+        for name, state in model["services"].items():
+            self._tile_dots[name].config(fg=colors.get(state, "#999999"))
+            self._tile_texts[name].config(
+                text=(
+                    f"{SERVICE_LABELS[name]} (:{SERVICE_PORTS[name]}): "
+                    f"{words.get(state, state)}"
+                )
+            )
+        claim = model["claim"]
+        if claim:
+            text = f"Claim: {claim['holder']}"
+            if claim["purpose"]:
+                text += f" — {claim['purpose']}"
+            if claim["expires_in_s"] is not None:
+                text += f" (expires in {_fmt_duration(claim['expires_in_s'])})"
+        else:
+            text = "Claim: none"
+        if model["queue_len"]:
+            text += f" · queue: {model['queue_len']} waiting"
+        if model["reserved_for"]:
+            text += f" · reserved for: {model['reserved_for']}"
+        self.dash_claim.config(text=text)
+
+        pc = model["pc"]
+        if pc is None:
+            self.dash_pc.config(text="PC: unknown (hands unreachable)")
+        else:
+            locked = {True: "LOCKED", False: "unlocked", None: "lock unknown"}[
+                pc["locked"]
+            ]
+            idle = (
+                "idle unknown"
+                if pc["idle_seconds"] is None
+                else f"owner idle {_fmt_duration(pc['idle_seconds'])}"
+            )
+            probe = {
+                "ok": "yield probe OK",
+                "degraded": f"yield probe DEGRADED ({pc['probe_failures']} failures)",
+                "unknown": "yield probe unknown",
+            }[pc["probe_state"]]
+            color = "#cc3333" if (pc["locked"] or pc["probe_state"] == "degraded") else ""
+            self.dash_pc.config(
+                text=f"PC: {locked} · {idle} · {probe}", fg=color or "#000000"
+            )
+
+        counts = model["counts"]
+        if counts:
+            detail = " · ".join(
+                f"{state} {counts[state]}" for state in sorted(counts)
+            )
+            self.dash_counts.config(text=f"{sum(counts.values())} total — {detail}")
+        else:
+            self.dash_counts.config(text="no acts yet")
+        lines = [
+            f"{row['id8']}  {row['op']:<13} {row['state']:<15} "
+            f"{_fmt_duration(row['age_s'])} ago"
+            for row in model["feed"]
+        ]
+        self.dash_feed.config(state="normal")
+        self.dash_feed.delete("1.0", "end")
+        self.dash_feed.insert("end", "\n".join(lines) if lines else "(no acts yet)")
+        self.dash_feed.config(state="disabled")
+
+    def _copy_diagnostics(self):
+        if self._last_model is None:
+            self.log_line("Diagnostics: nothing to report yet — start the services first.")
+            return
+        text = format_diagnostics(self._last_model, self._stamp())
+        self.root.clipboard_clear()
+        self.root.clipboard_append(text)
+        self.log_line("Diagnostics copied to the clipboard.")
 
     def _copy_token(self):
         if self.token:
@@ -479,6 +790,8 @@ class RelayApp:
                         "hands": self.hands_status,
                     }[which]
                     label.config(text=text)
+                elif kind == "dashboard":
+                    self._render_dashboard(payload)
         except queue.Empty:
             pass
         self.root.after(300, self._drain_queue)
@@ -694,6 +1007,7 @@ class RelayApp:
 
         def work():
             gateway_answered = False
+            info_data = None
             try:
                 r = requests.get(
                     f"http://127.0.0.1:{GATEWAY_PORT}/v1/info",
@@ -706,11 +1020,38 @@ class RelayApp:
                     self.log_line(f"Gateway self-check: HTTP {r.status_code}.")
                     self.log_line(f"Gateway self-check body: {r.text[:70]!r}")
                 data = r.json()
+                info_data = data
                 hands = bool(data.get("hands_reachable"))
                 parser = bool(data.get("parser_reachable"))
             except Exception:
                 hands = None
                 parser = None
+            # Dashboard model (R6): claim snapshot + receipts come from
+            # the gateway module in-process (same data /v1/info and
+            # /v1/act/queued serve); best-effort — a missing module or
+            # a locked table must never break the health poll.
+            claim = queue_list = reserved_for = None
+            receipts = {}
+            gw = getattr(self, "_gateway_module", None)
+            if gw is not None:
+                try:
+                    claim, queue_list, reserved_for = gw._claim_snapshot()
+                except Exception:
+                    claim = queue_list = reserved_for = None
+                try:
+                    table = getattr(gw, "_receipts", None) or {}
+                    lk = getattr(gw, "_receipts_lock", None)
+                    if lk is not None:
+                        with lk:
+                            receipts = dict(table)
+                    else:
+                        receipts = dict(table)
+                except Exception:
+                    receipts = {}
+            model = build_dashboard_model(
+                info_data, claim, queue_list, reserved_for, receipts, time.time()
+            )
+            self.ui_queue.put(("dashboard", model))
             # Self-heal: gateway liveness is "HTTP answered at all".
             # If the gateway itself is down, hands/parser health is
             # unknown — note a failure only for the gateway then, so
